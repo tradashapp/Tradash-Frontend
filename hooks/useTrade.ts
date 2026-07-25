@@ -1,0 +1,106 @@
+"use client";
+
+import { useCallback } from "react";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { MARKETS } from "@/lib/markets";
+import { openPosition } from "@/lib/perp";
+import { setDemoPosition, settleDemo } from "@/store/slices/tradingModeSlice";
+import { setOrderStatus, setOrderError } from "@/store/slices/tradingSlice";
+import { openMarket, reduceMarket, baseSizeFromUsd } from "@/lib/bulk/orders";
+import type { AgentSigner } from "@/lib/bulk/signing";
+import type { Direction, Position } from "@/types";
+
+// The single entry point the UI uses to trade. Routes to the demo simulator or
+// the live Bulk client based on the current mode, behind one identical API.
+// Live trading requires a ready agent signer (passed in from useAgentWallet).
+export function useTrade(signer: AgentSigner | null) {
+  const dispatch = useAppDispatch();
+  const mode = useAppSelector((s) => s.tradingMode.mode);
+  const activeSymbol = useAppSelector((s) => s.market.active);
+  const settings = useAppSelector((s) => s.settings);
+  const livePosition = useAppSelector((s) => s.position.current);
+  const demoPosition = useAppSelector((s) => s.tradingMode.demo.position);
+  const price = useAppSelector((s) => s.price.prices[activeSymbol]);
+
+  const position = mode === "demo" ? demoPosition : livePosition;
+
+  const open = useCallback(
+    async (direction: Direction) => {
+      if (price == null) return;
+      const market = MARKETS[activeSymbol];
+
+      if (mode === "demo") {
+        // Simulate: create a position at the current oracle price.
+        const pos = openPosition({
+          symbol: activeSymbol,
+          direction,
+          marginUsd: settings.defaultPositionSize,
+          leverage: settings.defaultLeverage,
+          entryPrice: price,
+        });
+        dispatch(setDemoPosition(pos));
+        return;
+      }
+
+      // Live: one-tap market order via the agent signer.
+      if (!signer) {
+        dispatch(setOrderError("Connect wallet to trade live"));
+        return;
+      }
+      dispatch(setOrderStatus("submitting"));
+      try {
+        const size = baseSizeFromUsd(
+          settings.defaultPositionSize,
+          settings.defaultLeverage,
+          price
+        );
+        await openMarket(signer, {
+          bulkSymbol: market.bulkSymbol,
+          isLong: direction === "long",
+          size,
+        });
+        dispatch(setOrderStatus("filled"));
+        // Position appears via the account WS.
+      } catch (e) {
+        dispatch(setOrderError(e instanceof Error ? e.message : "Order failed"));
+      }
+    },
+    [mode, price, activeSymbol, settings, signer, dispatch]
+  );
+
+  const close = useCallback(async () => {
+    if (!position) return;
+    const market = MARKETS[position.symbol];
+
+    if (mode === "demo") {
+      // Realize PnL into the demo balance.
+      dispatch(settleDemo(position.unrealizedPnl));
+      return;
+    }
+
+    if (!signer) {
+      dispatch(setOrderError("Connect wallet to trade live"));
+      return;
+    }
+    dispatch(setOrderStatus("submitting"));
+    try {
+      await reduceMarket(signer, {
+        bulkSymbol: market.bulkSymbol,
+        positionIsLong: position.direction === "long",
+        size: position.size,
+      });
+      dispatch(setOrderStatus("filled"));
+    } catch (e) {
+      dispatch(setOrderError(e instanceof Error ? e.message : "Close failed"));
+    }
+  }, [mode, position, signer, dispatch]);
+
+  return {
+    mode,
+    position: position as Position | null,
+    openLong: () => open("long"),
+    openShort: () => open("short"),
+    close,
+    hasPosition: position != null,
+  };
+}

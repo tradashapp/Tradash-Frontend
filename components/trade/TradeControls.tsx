@@ -115,21 +115,32 @@ function ActivePosition({
       </div>
 
       {/* Trail (lock profits) / Close (100%) */}
+      {/* Trail can only be armed once in enough profit that the stop lands above
+          entry — otherwise it would lock a loss. Disabled + hint until then. */}
       <div className="grid grid-cols-2 gap-3">
-        <button
-          type="button"
-          onClick={onToggleTrail}
-          className={`flex items-center justify-center gap-2 rounded-2xl py-4 text-base font-semibold backdrop-blur-sm transition-transform active:scale-95 ${
-            trailActive ? "bg-up text-black" : "bg-up-soft text-up"
-          }`}
-        >
-          <HugeiconsIcon icon={ArrowMoveUpRightIcon} size={20} />
-          {trailActive ? "Trailing" : "Trail"}
-        </button>
+        <div className="flex flex-col">
+          <button
+            type="button"
+            onClick={onToggleTrail}
+            disabled={!trailActive && !trailEligible}
+            className={`flex items-center justify-center gap-2 rounded-2xl py-4 text-base font-semibold backdrop-blur-sm transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 ${
+              trailActive ? "bg-up text-black" : "bg-up-soft text-up"
+            }`}
+          >
+            <HugeiconsIcon icon={ArrowMoveUpRightIcon} size={20} />
+            {trailActive ? "Trailing" : "Trail"}
+          </button>
+          {!trailActive && !trailEligible && (
+            <span className="mt-1 text-center text-[10px] text-text-muted">
+              Need +{(trailPct * 100).toFixed(trailPct < 0.01 ? 1 : 0)}% to trail
+            </span>
+          )}
+        </div>
         <button
           type="button"
           onClick={onClose}
-          className="flex items-center justify-center gap-2 rounded-2xl bg-white/10 py-4 text-base font-semibold text-text backdrop-blur-sm transition-transform active:scale-95"
+          className="flex items-center justify-center gap-2 self-start rounded-2xl bg-white/10 py-4 text-base font-semibold text-text backdrop-blur-sm transition-transform active:scale-95"
+          style={{ width: "100%" }}
         >
           <HugeiconsIcon icon={Cancel01Icon} size={20} />
           Close

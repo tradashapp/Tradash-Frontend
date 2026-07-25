@@ -16,6 +16,22 @@ export function Providers({ children }: { children: ReactNode }) {
     wireSettingsPersistence(storeRef.current);
   }
 
+  const tree = (
+    <ReduxProvider store={storeRef.current}>{children}</ReduxProvider>
+  );
+
+  // Privy throws if constructed without an appId. Until NEXT_PUBLIC_PRIVY_APP_ID
+  // is set (e.g. during the Phase 1 visual work), run without wallet auth so the
+  // chart/UI still boots. Wallet connect activates automatically once it's set.
+  if (!config.privyAppId) {
+    if (process.env.NODE_ENV === "development") {
+      console.warn(
+        "[providers] NEXT_PUBLIC_PRIVY_APP_ID not set — running without Privy (no wallet connect)."
+      );
+    }
+    return tree;
+  }
+
   return (
     <PrivyProvider
       appId={config.privyAppId}
@@ -26,7 +42,7 @@ export function Providers({ children }: { children: ReactNode }) {
         embeddedWallets: { createOnLogin: "users-without-wallets" },
       }}
     >
-      <ReduxProvider store={storeRef.current}>{children}</ReduxProvider>
+      {tree}
     </PrivyProvider>
   );
 }

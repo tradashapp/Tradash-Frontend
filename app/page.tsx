@@ -1,30 +1,46 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowUp01Icon, ArrowDown01Icon } from "@hugeicons/core-free-icons";
 import { useAppSelector } from "@/store/hooks";
 import { CanvasChart } from "@/components/chart/CanvasChart";
 import { DotGrid, type DotGridHandle } from "@/components/background/DotGrid";
 import { MarketHeader } from "@/components/trade/MarketHeader";
+import { BalancePill } from "@/components/trade/BalancePill";
+import { PositionPanel } from "@/components/trade/PositionPanel";
 import { MarketSwitcher } from "@/components/sheets/MarketSwitcher";
+import { AccountSheet } from "@/components/sheets/AccountSheet";
+import { useAgentWallet } from "@/hooks/useAgentWallet";
+import { useBulkAccount } from "@/hooks/useBulkAccount";
+import { useDemoPnl } from "@/hooks/useDemoPnl";
+import { useTrade } from "@/hooks/useTrade";
 import type { ChartFrame } from "@/lib/chart/engine";
 
-// The homepage IS the trading screen. Phase 1: live chart + price-reactive dot
-// grid + top-left market header (clickable → asset switcher). Trade buttons
-// wired in Phase 3.
+// The homepage IS the trading screen. Demo and Live coexist; UP/DOWN and Close
+// route through useTrade to the demo simulator or the live Bulk client by mode.
 export default function TradePage() {
   const activeSymbol = useAppSelector((s) => s.market.active);
-  const position = useAppSelector((s) => s.position.current);
 
-  // Fill only appears while in a position: green for +PnL, red for -PnL.
+  // Wallet / account / demo lifecycle hooks.
+  const agent = useAgentWallet();
+  useBulkAccount(agent.masterAddress);
+  useDemoPnl();
+  const trade = useTrade(agent.signer);
+
+  // Position-aware chart fill (green +PnL / red -PnL while in a trade).
   const fillMode: "none" | "up" | "down" =
-    position == null ? "none" : position.unrealizedPnl >= 0 ? "up" : "down";
+    trade.position == null
+      ? "none"
+      : trade.position.unrealizedPnl >= 0
+        ? "up"
+        : "down";
 
   const [switcherOpen, setSwitcherOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
 
   const gridRef = useRef<DotGridHandle | null>(null);
-  // Chart pushes each frame here; forward it to the dot grid imperatively.
   const handleFrame = useCallback((f: ChartFrame) => {
     gridRef.current?.react(f);
   }, []);
@@ -36,7 +52,7 @@ export default function TradePage() {
         <DotGrid ref={gridRef} />
       </div>
 
-      {/* Live chart, filling the viewport behind the UI */}
+      {/* Live chart */}
       <div className="absolute inset-0 z-10">
         <CanvasChart
           symbol={activeSymbol}
@@ -45,38 +61,58 @@ export default function TradePage() {
         />
       </div>
 
-      {/* Top-left market identity — logo + live price + name, opens switcher */}
-      <header className="relative z-20 flex items-start px-3 pt-4">
+      {/* Top bar: market (left) + balance/mode (right) */}
+      <header className="relative z-20 flex items-start justify-between px-3 pt-4">
         <MarketHeader symbol={activeSymbol} onOpen={() => setSwitcherOpen(true)} />
+        <BalancePill onOpen={() => setAccountOpen(true)} />
       </header>
 
-      {/* Spacer pushes buttons to the bottom without covering the chart */}
       <div className="relative z-20 flex-1" />
 
-      {/* Trade buttons — wired in Phase 3 */}
-      <footer className="relative z-20 grid grid-cols-2 gap-3 px-5 pb-6">
-        <button
-          type="button"
-          disabled
-          className="flex items-center justify-center gap-2 rounded-2xl bg-up-soft py-5 text-lg font-semibold text-up backdrop-blur-sm transition-transform duration-150 ease-snap active:scale-95 disabled:opacity-60"
-        >
-          <HugeiconsIcon icon={ArrowUp01Icon} size={22} />
-          UP
-        </button>
-        <button
-          type="button"
-          disabled
-          className="flex items-center justify-center gap-2 rounded-2xl bg-down-soft py-5 text-lg font-semibold text-down backdrop-blur-sm transition-transform duration-150 ease-snap active:scale-95 disabled:opacity-60"
-        >
-          <HugeiconsIcon icon={ArrowDown01Icon} size={22} />
-          DOWN
-        </button>
+      {/* Trade controls: UP/DOWN when flat, PositionPanel when in a trade */}
+      <footer className="relative z-20 px-4 pb-6">
+        <AnimatePresence mode="wait">
+          {trade.hasPosition && trade.position ? (
+            <PositionPanel
+              key="panel"
+              position={trade.position}
+              onClose={trade.close}
+            />
+          ) : (
+            <motion.div
+              key="buttons"
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 16 }}
+              className="grid grid-cols-2 gap-3"
+            >
+              <button
+                type="button"
+                onClick={trade.openLong}
+                className="flex items-center justify-center gap-2 rounded-2xl bg-up-soft py-5 text-lg font-semibold text-up backdrop-blur-sm transition-transform duration-150 ease-snap active:scale-95"
+              >
+                <HugeiconsIcon icon={ArrowUp01Icon} size={22} />
+                UP
+              </button>
+              <button
+                type="button"
+                onClick={trade.openShort}
+                className="flex items-center justify-center gap-2 rounded-2xl bg-down-soft py-5 text-lg font-semibold text-down backdrop-blur-sm transition-transform duration-150 ease-snap active:scale-95"
+              >
+                <HugeiconsIcon icon={ArrowDown01Icon} size={22} />
+                DOWN
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </footer>
 
-      {/* Asset switcher bottom sheet */}
-      <MarketSwitcher
-        open={switcherOpen}
-        onClose={() => setSwitcherOpen(false)}
+      {/* Sheets */}
+      <MarketSwitcher open={switcherOpen} onClose={() => setSwitcherOpen(false)} />
+      <AccountSheet
+        open={accountOpen}
+        onClose={() => setAccountOpen(false)}
+        agent={agent}
       />
     </main>
   );

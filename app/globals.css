@@ -1,0 +1,27 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  @apply bg-bg text-text antialiased;
+  /* Prevent the page from ever scrolling — the chart owns the viewport. */
+  overflow: hidden;
+  overscroll-behavior: none;
+  /* Respect mobile safe areas so trade buttons clear the home indicator. */
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Tabular figures so live price / PnL digits don't jitter width as they count. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}

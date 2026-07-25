@@ -36,7 +36,7 @@ export function Providers({ children }: { children: ReactNode }) {
     <PrivyProvider
       appId={config.privyAppId}
       config={{
-        appearance: { theme: "dark", accentColor: "#16c784" },
+        appearance: { theme: "dark", accentColor: "#72E912" },
         // Solana-only app; embedded wallet created for users without one so we
         // can authorize a Bulk agent wallet against it.
         embeddedWallets: { createOnLogin: "users-without-wallets" },

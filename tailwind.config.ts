@@ -18,13 +18,15 @@ const config: Config = {
           overlay: "#151821",
         },
         grid: "#1a1d26", // dot-grid dots
+        // Brand green — long / profit / UP.
         up: {
-          DEFAULT: "#16c784", // long / profit green
-          soft: "rgba(22, 199, 132, 0.12)",
+          DEFAULT: "#72E912",
+          soft: "rgba(114, 233, 18, 0.12)",
         },
+        // Loss / short / DOWN.
         down: {
-          DEFAULT: "#ea3943", // short / loss red
-          soft: "rgba(234, 57, 67, 0.12)",
+          DEFAULT: "#E6432D",
+          soft: "rgba(230, 67, 45, 0.12)",
         },
         text: {
           DEFAULT: "#e8eaed",

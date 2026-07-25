@@ -10,6 +10,10 @@ export interface MarketInfo {
   bulkSymbol: string;
   /** Human label. */
   label: string;
+  /** Pyth Lazer feed id — used as the oracle PDA seed (as a string). */
+  pythLazerId: number;
+  /** Price scaling exponent; USD price = rawI64 * 10^exponent. */
+  exponent: number;
 }
 
 export interface Position {

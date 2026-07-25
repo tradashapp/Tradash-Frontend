@@ -1,0 +1,46 @@
+// Central place for environment-derived config. Reading env here (rather than
+// scattering process.env across the app) keeps the required keys documented in
+// one spot and makes missing-config failures loud and early.
+
+function required(name: string, value: string | undefined): string {
+  if (!value) {
+    // In dev we warn rather than throw so the visual milestone can run before
+    // every integration key is filled in. Integrations check this themselves.
+    if (process.env.NODE_ENV === "development") {
+      console.warn(`[config] missing env: ${name}`);
+      return "";
+    }
+    throw new Error(`Missing required env: ${name}`);
+  }
+  return value;
+}
+
+export const config = {
+  privyAppId: process.env.NEXT_PUBLIC_PRIVY_APP_ID ?? "",
+
+  bulk: {
+    restUrl: process.env.NEXT_PUBLIC_BULK_REST_URL ?? "https://api.bulk.trade",
+    accountWsUrl:
+      process.env.NEXT_PUBLIC_BULK_ACCOUNT_WS_URL ??
+      "wss://exchange-ws1.bulk.trade",
+  },
+
+  builder: {
+    // Our revenue: recipient collects the builder fee; bps is capped 1-15 by Bulk.
+    recipient: process.env.NEXT_PUBLIC_BUILDER_RECIPIENT ?? "",
+    feeBps: Number(process.env.NEXT_PUBLIC_BUILDER_FEE_BPS ?? "0"),
+  },
+
+  magicblock: {
+    routerUrl:
+      process.env.NEXT_PUBLIC_MAGICBLOCK_ROUTER_URL ??
+      "https://devnet-router.magicblock.app",
+    rpcUrl:
+      process.env.NEXT_PUBLIC_SOLANA_RPC_URL ??
+      "https://rpc.magicblock.app/devnet",
+  },
+
+  apiUrl: process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000",
+} as const;
+
+export { required };

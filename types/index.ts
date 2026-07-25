@@ -1,0 +1,59 @@
+// Shared domain types used across slices, hooks, and integration clients.
+
+export type MarketSymbol = "BTC" | "ETH" | "SOL";
+
+export type Direction = "long" | "short";
+
+export interface MarketInfo {
+  symbol: MarketSymbol;
+  /** Bulk market identifier, e.g. "BTC-USD". */
+  bulkSymbol: string;
+  /** Human label. */
+  label: string;
+}
+
+export interface Position {
+  symbol: MarketSymbol;
+  direction: Direction;
+  /** Base-asset size (signed handled by direction). */
+  size: number;
+  entryPrice: number;
+  leverage: number;
+  liquidationPrice: number;
+  marginUsed: number;
+  unrealizedPnl: number;
+  /** ms epoch when opened. */
+  openedAt: number;
+}
+
+export interface Balance {
+  /** Total account equity. */
+  equity: number;
+  /** Free balance available for new margin. */
+  available: number;
+  /** Margin currently locked in open positions. */
+  marginUsed: number;
+}
+
+export type OrderStatus =
+  | "idle"
+  | "submitting"
+  | "filled"
+  | "rejected"
+  | "error";
+
+export interface CompletedTrade {
+  id: string;
+  symbol: MarketSymbol;
+  direction: Direction;
+  entryPrice: number;
+  exitPrice: number;
+  leverage: number;
+  size: number;
+  pnl: number;
+  roi: number;
+  /** ms duration held. */
+  durationMs: number;
+  openedAt: number;
+  closedAt: number;
+}

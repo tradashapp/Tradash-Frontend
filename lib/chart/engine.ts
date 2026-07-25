@@ -208,6 +208,9 @@ export class ChartEngine {
     if (pos) {
       reach = Math.max(reach, Math.abs(pos.entryPrice - this.center || 0));
       reach = Math.max(reach, Math.abs(pos.entryPrice - price));
+      if (pos.trailStopPrice != null) {
+        reach = Math.max(reach, Math.abs(pos.trailStopPrice - price));
+      }
     }
     const needed = Math.max(reach * 1.3, floor);
     this.center += (price - this.center) * 0.06;
@@ -261,6 +264,13 @@ export class ChartEngine {
       if (liqY >= top - 2 && liqY <= bottom + 2) {
         this.drawHLine(liqY, plotW, this.theme.liqLine, [2, 3], 1);
         this.drawTag(liqY, plotW, "Liq", this.theme.liqLine, "#08090c", false);
+      }
+
+      // Trailing-stop line — accent-colored, ratchets with price to lock profit.
+      if (pos.trailStopPrice != null) {
+        const trailY = yOf(pos.trailStopPrice);
+        this.drawHLine(trailY, plotW, accent, [6, 3], 1.5);
+        this.drawTag(trailY, plotW, "Trail", accent, "#08090c", true);
       }
     }
 

@@ -32,6 +32,9 @@ export default function TradePage() {
         entryPrice: trade.position.entryPrice,
         liquidationPrice: trade.position.liquidationPrice,
         pnl: trade.position.unrealizedPnl,
+        trailStopPrice: trade.position.trailActive
+          ? trade.position.trailStopPrice
+          : undefined,
       }
     : null;
 
@@ -71,10 +74,11 @@ export default function TradePage() {
       <footer className="relative z-20 px-4 pb-6">
         <TradeControls
           position={trade.position}
+          trailActive={trade.trailActive}
           onLong={trade.openLong}
           onShort={trade.openShort}
-          onIncrease={trade.increase}
-          onDecrease={trade.decrease}
+          onToggleTrail={trade.toggleTrail}
+          onClose={trade.close}
         />
       </footer>
 

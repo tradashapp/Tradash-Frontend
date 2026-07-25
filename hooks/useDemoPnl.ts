@@ -9,6 +9,7 @@ import {
   trailHit,
 } from "@/lib/perp";
 import { patchDemoPosition, settleDemo } from "@/store/slices/tradingModeSlice";
+import { recordClose } from "@/lib/history";
 
 // While in demo mode with an open position, this loop:
 //  - recomputes unrealized PnL from the live oracle price
@@ -29,6 +30,7 @@ export function useDemoPnl() {
     if (mode !== "demo" || !position || price == null) return;
 
     if (isLiquidated(position, price)) {
+      recordClose(dispatch, position, price, -position.marginUsed);
       dispatch(settleDemo(-position.marginUsed)); // lose full margin
       return;
     }
@@ -43,6 +45,7 @@ export function useDemoPnl() {
     // Trailing stop: ratchet toward profit, auto-close on reversal into it.
     if (position.trailActive && position.trailStopPrice != null) {
       if (trailHit(position.direction, position.trailStopPrice, price)) {
+        recordClose(dispatch, position, price, pnl);
         dispatch(settleDemo(pnl)); // lock in the current PnL
         return;
       }

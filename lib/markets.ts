@@ -10,6 +10,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
     label: "Bitcoin",
     pythLazerId: 1,
     exponent: -8,
+    logo: "/images/crypto/bitcoin.png",
   },
   ETH: {
     symbol: "ETH",
@@ -17,6 +18,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
     label: "Ethereum",
     pythLazerId: 2,
     exponent: -8,
+    logo: "/images/crypto/ethereum.svg",
   },
   SOL: {
     symbol: "SOL",
@@ -24,6 +26,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
     label: "Solana",
     pythLazerId: 6,
     exponent: -8,
+    logo: "/images/crypto/solana.jpeg",
   },
 };
 

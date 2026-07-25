@@ -1,29 +1,27 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  ArrowUp01Icon,
-  ArrowDown01Icon,
-  Analytics01Icon,
-} from "@hugeicons/core-free-icons";
+import { ArrowUp01Icon, ArrowDown01Icon } from "@hugeicons/core-free-icons";
 import { useAppSelector } from "@/store/hooks";
-import { MARKETS } from "@/lib/markets";
 import { CanvasChart } from "@/components/chart/CanvasChart";
 import { DotGrid, type DotGridHandle } from "@/components/background/DotGrid";
+import { MarketHeader } from "@/components/trade/MarketHeader";
+import { MarketSwitcher } from "@/components/sheets/MarketSwitcher";
 import type { ChartFrame } from "@/lib/chart/engine";
 
 // The homepage IS the trading screen. Phase 1: live chart + price-reactive dot
-// grid + live header. Trade buttons wired in Phase 3.
+// grid + top-left market header (clickable → asset switcher). Trade buttons
+// wired in Phase 3.
 export default function TradePage() {
   const activeSymbol = useAppSelector((s) => s.market.active);
-  const price = useAppSelector((s) => s.price.prices[activeSymbol]);
   const position = useAppSelector((s) => s.position.current);
-  const market = MARKETS[activeSymbol];
 
   // Fill only appears while in a position: green for +PnL, red for -PnL.
   const fillMode: "none" | "up" | "down" =
     position == null ? "none" : position.unrealizedPnl >= 0 ? "up" : "down";
+
+  const [switcherOpen, setSwitcherOpen] = useState(false);
 
   const gridRef = useRef<DotGridHandle | null>(null);
   // Chart pushes each frame here; forward it to the dot grid imperatively.
@@ -47,24 +45,9 @@ export default function TradePage() {
         />
       </div>
 
-      {/* Header: market + live price */}
-      <header className="relative z-20 flex items-center justify-between px-5 pt-5">
-        <div className="flex items-center gap-2">
-          <HugeiconsIcon icon={Analytics01Icon} size={20} className="text-up" />
-          <span className="text-sm font-medium text-text-muted">
-            {market.label}
-          </span>
-        </div>
-        <div className="tabular text-right">
-          <div className="text-2xl font-semibold">
-            {price != null
-              ? `$${price.toLocaleString(undefined, {
-                  maximumFractionDigits: 2,
-                })}`
-              : "—"}
-          </div>
-          <div className="text-xs text-text-muted">{market.bulkSymbol}</div>
-        </div>
+      {/* Top-left market identity — logo + live price + name, opens switcher */}
+      <header className="relative z-20 flex items-start px-3 pt-4">
+        <MarketHeader symbol={activeSymbol} onOpen={() => setSwitcherOpen(true)} />
       </header>
 
       {/* Spacer pushes buttons to the bottom without covering the chart */}
@@ -89,6 +72,12 @@ export default function TradePage() {
           DOWN
         </button>
       </footer>
+
+      {/* Asset switcher bottom sheet */}
+      <MarketSwitcher
+        open={switcherOpen}
+        onClose={() => setSwitcherOpen(false)}
+      />
     </main>
   );
 }

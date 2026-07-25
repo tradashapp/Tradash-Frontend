@@ -116,9 +116,9 @@ export class ChartEngine {
     this.theme = { ...this.theme, ...theme };
   }
 
-  /** Control the position-aware fill (none while flat; up/down while in a trade). */
-  setFillMode(mode: FillMode) {
-    this.fillMode = mode;
+  /** Set (or clear) the active position overlay: entry/liq lines + PnL fill. */
+  setPosition(overlay: PositionOverlay | null) {
+    this.position = overlay;
   }
 
   /** Clear the window (e.g. on market switch) so the new feed starts fresh. */
@@ -200,12 +200,15 @@ export class ChartEngine {
     // huge spikes. Both center and half ease per frame so the scale glides
     // instead of snapping (this is what removes the zigzag jitter).
     const floor = price * 0.0012; // ~0.12% minimum visible half-range
-    const needed = Math.max(
-      Math.max(price - range.min, range.max - price) * 1.3,
-      floor
-    );
+    // When a position is open, make sure the entry (and liq, if near) fit in view.
+    const pos = this.position;
+    let reach = Math.max(price - range.min, range.max - price);
+    if (pos) {
+      reach = Math.max(reach, Math.abs(pos.entryPrice - this.center || 0));
+      reach = Math.max(reach, Math.abs(pos.entryPrice - price));
+    }
+    const needed = Math.max(reach * 1.3, floor);
     this.center += (price - this.center) * 0.06;
-    // Ease up quickly (so a real move fits) but zoom back in slowly (calm).
     const ease = needed > this.half ? 0.12 : 0.02;
     this.half += (needed - this.half) * ease;
     const half = Math.max(this.half, floor);
@@ -216,40 +219,112 @@ export class ChartEngine {
     const xOf = (i: number) => (i / (samples.length - 1)) * plotW;
     const yOf = (p: number) => bottom - ((p - min) / span) * usableH;
 
-    // --- Position-aware fill (only while in a trade) --------------------------
-    if (this.fillMode !== "none") {
-      this.tracePath(samples, xOf, yOf, /*close*/ true, plotW, bottom);
-      const isUp = this.fillMode === "up";
-      const grad = ctx.createLinearGradient(0, top, 0, bottom);
-      grad.addColorStop(0, isUp ? this.theme.fillUp : this.theme.fillDown);
-      grad.addColorStop(
-        1,
-        isUp ? "rgba(22,199,132,0)" : "rgba(234,57,67,0)"
-      );
+    // Profit/loss determines the accent color for the line, fill, and marker.
+    const inProfit = !pos || pos.pnl >= 0;
+    const accent = inProfit ? this.theme.up : this.theme.down;
+
+    const lx = xOf(samples.length - 1);
+    const ly = yOf(price);
+
+    // --- Position overlay: gradient band between entry and mark lines ----------
+    if (pos) {
+      const entryY = yOf(pos.entryPrice);
+      // Fill the band bounded by the price line on top/bottom and the entry line.
+      this.tracePath(samples, xOf, yOf, /*close*/ false, plotW, bottom);
+      // Continue the path back along the entry line to close the band.
+      ctx.lineTo(plotW, entryY);
+      ctx.lineTo(0, entryY);
+      ctx.closePath();
+      const gTop = Math.min(ly, entryY);
+      const gBot = Math.max(ly, entryY);
+      const grad = ctx.createLinearGradient(0, gTop, 0, gBot);
+      const fillCol = inProfit
+        ? "rgba(114, 233, 18, 0.22)"
+        : "rgba(230, 67, 45, 0.22)";
+      const faded = inProfit
+        ? "rgba(114, 233, 18, 0.02)"
+        : "rgba(230, 67, 45, 0.02)";
+      // Fade away from the mark line toward the entry line.
+      grad.addColorStop(0, ly <= entryY ? fillCol : faded);
+      grad.addColorStop(1, ly <= entryY ? faded : fillCol);
       ctx.fillStyle = grad;
       ctx.fill();
+
+      // Neutral entry line.
+      this.drawHLine(entryY, plotW, this.theme.entryLine, [4, 4], 1);
+      this.drawTag(entryY, plotW, "Entry", this.theme.entryLine, "#08090c", false);
+
+      // Liquidation line (only if within the visible window).
+      const liqY = yOf(pos.liquidationPrice);
+      if (liqY >= top - 2 && liqY <= bottom + 2) {
+        this.drawHLine(liqY, plotW, this.theme.liqLine, [2, 3], 1);
+        this.drawTag(liqY, plotW, "Liq", this.theme.liqLine, "#08090c", false);
+      }
     }
 
-    // --- Smooth line ----------------------------------------------------------
+    // --- Smooth price (mark) line ---------------------------------------------
     this.tracePath(samples, xOf, yOf, /*close*/ false, plotW, bottom);
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
     ctx.lineWidth = 2;
-    ctx.shadowColor = this.theme.lineGlow;
+    ctx.shadowColor = inProfit
+      ? "rgba(114, 233, 18, 0.5)"
+      : "rgba(230, 67, 45, 0.5)";
     ctx.shadowBlur = 12;
-    ctx.strokeStyle = this.theme.line;
+    ctx.strokeStyle = accent;
     ctx.stroke();
     ctx.shadowBlur = 0;
 
-    // Latest point.
-    const lx = xOf(samples.length - 1);
-    const ly = yOf(price);
-
-    // --- Right price scale + current-price marker -----------------------------
+    // --- Right price scale + current-price marker (with PnL when in a trade) ---
     this.drawScale(min, span, top, bottom, usableH, plotW);
-    this.drawCurrentMarker(lx, ly, plotW, price);
+    this.drawCurrentMarker(lx, ly, plotW, price, accent, pos?.pnl);
 
     return 1 - (ly - top) / usableH;
+  }
+
+  /** Draw a horizontal dashed line across the plot. */
+  private drawHLine(
+    y: number,
+    plotW: number,
+    color: string,
+    dash: number[],
+    width: number
+  ) {
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.setLineDash(dash);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(plotW, y);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /** Small right-aligned tag in the gutter (for entry/liq labels). */
+  private drawTag(
+    y: number,
+    plotW: number,
+    text: string,
+    bg: string,
+    fg: string,
+    bold: boolean
+  ) {
+    const { ctx, w } = this;
+    ctx.font = `${bold ? "700" : "600"} 10px ui-monospace, monospace`;
+    const padX = 5;
+    const tw = ctx.measureText(text).width;
+    const bw = tw + padX * 2;
+    const bh = 15;
+    const x = w - AXIS_RIGHT_INSET - bw;
+    ctx.fillStyle = bg;
+    this.roundRect(x, y - bh / 2, bw, bh, 3);
+    ctx.fill();
+    ctx.fillStyle = fg;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.fillText(text, x + padX, y);
   }
 
   /**
@@ -339,14 +414,16 @@ export class ChartEngine {
     lx: number,
     ly: number,
     plotW: number,
-    price: number
+    price: number,
+    accent: string,
+    pnl?: number
   ) {
-    const { ctx } = this;
+    const { ctx, w } = this;
 
     // Dashed leader from the line's leading point to the scale.
     ctx.save();
     ctx.setLineDash([3, 3]);
-    ctx.strokeStyle = this.theme.line;
+    ctx.strokeStyle = accent;
     ctx.globalAlpha = 0.5;
     ctx.beginPath();
     ctx.moveTo(lx, ly);
@@ -357,30 +434,47 @@ export class ChartEngine {
     // Leading dot.
     ctx.beginPath();
     ctx.arc(lx, ly, 3.5, 0, Math.PI * 2);
-    ctx.fillStyle = this.theme.line;
+    ctx.fillStyle = accent;
     ctx.fill();
 
-    // Price pill on the scale — bigger than the axis labels so the current
-    // price stands out. Right-aligned to the same inset as the labels so its
-    // full contents are always in view, even for long numbers.
-    const { w } = this;
-    const label = this.fmtPrice(price);
+    // Marker pill on the mark line. When in a position, show the live PnL under
+    // the price (this replaces the removed on-screen PnL card).
+    const priceLabel = this.fmtPrice(price);
+    const pnlLabel =
+      pnl != null
+        ? `${pnl >= 0 ? "+" : "−"}$${Math.abs(pnl).toLocaleString(undefined, {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })}`
+        : null;
+
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
     ctx.font = "700 15px ui-monospace, SFMono-Regular, Menlo, monospace";
+    const priceW = ctx.measureText(priceLabel).width;
+    ctx.font = "700 11px ui-monospace, SFMono-Regular, Menlo, monospace";
+    const pnlW = pnlLabel ? ctx.measureText(pnlLabel).width : 0;
+
     const padX = 9;
-    const textW = ctx.measureText(label).width;
-    const pillW = textW + padX * 2;
-    const pillH = 26;
-    const pillX = w - AXIS_RIGHT_INSET - pillW; // right edge at the inset
+    const pillW = Math.max(priceW, pnlW) + padX * 2;
+    const pillH = pnlLabel ? 34 : 26;
+    const pillX = w - AXIS_RIGHT_INSET - pillW;
     const pillY = ly - pillH / 2;
 
-    ctx.fillStyle = this.theme.line;
+    ctx.fillStyle = accent;
     this.roundRect(pillX, pillY, pillW, pillH, 5);
     ctx.fill();
 
     ctx.fillStyle = "#08090c";
-    ctx.textAlign = "left";
-    ctx.textBaseline = "middle";
-    ctx.fillText(label, pillX + padX, ly);
+    if (pnlLabel) {
+      ctx.font = "700 14px ui-monospace, SFMono-Regular, Menlo, monospace";
+      ctx.fillText(priceLabel, pillX + padX, ly - 7);
+      ctx.font = "700 11px ui-monospace, SFMono-Regular, Menlo, monospace";
+      ctx.fillText(pnlLabel, pillX + padX, ly + 8);
+    } else {
+      ctx.font = "700 15px ui-monospace, SFMono-Regular, Menlo, monospace";
+      ctx.fillText(priceLabel, pillX + padX, ly);
+    }
   }
 
   private roundRect(x: number, y: number, w: number, h: number, r: number) {

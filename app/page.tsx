@@ -18,7 +18,12 @@ import type { ChartFrame } from "@/lib/chart/engine";
 export default function TradePage() {
   const activeSymbol = useAppSelector((s) => s.market.active);
   const price = useAppSelector((s) => s.price.prices[activeSymbol]);
+  const position = useAppSelector((s) => s.position.current);
   const market = MARKETS[activeSymbol];
+
+  // Fill only appears while in a position: green for +PnL, red for -PnL.
+  const fillMode: "none" | "up" | "down" =
+    position == null ? "none" : position.unrealizedPnl >= 0 ? "up" : "down";
 
   const gridRef = useRef<DotGridHandle | null>(null);
   // Chart pushes each frame here; forward it to the dot grid imperatively.
@@ -35,7 +40,11 @@ export default function TradePage() {
 
       {/* Live chart, filling the viewport behind the UI */}
       <div className="absolute inset-0 z-10">
-        <CanvasChart symbol={activeSymbol} onFrame={handleFrame} />
+        <CanvasChart
+          symbol={activeSymbol}
+          fillMode={fillMode}
+          onFrame={handleFrame}
+        />
       </div>
 
       {/* Header: market + live price */}

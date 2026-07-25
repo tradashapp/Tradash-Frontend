@@ -1,12 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
-import { ChartEngine, type ChartFrame } from "@/lib/chart/engine";
+import { ChartEngine, type ChartFrame, type FillMode } from "@/lib/chart/engine";
 import { useLivePrice } from "@/hooks/useLivePrice";
 import type { MarketSymbol } from "@/types";
 
 interface Props {
   symbol: MarketSymbol;
+  /** Position-aware fill: "none" while flat, "up"/"down" by PnL when in a trade. */
+  fillMode?: FillMode;
   /** Called each animation frame with the latest chart state (for the dot grid). */
   onFrame?: (f: ChartFrame) => void;
   className?: string;
@@ -14,7 +16,7 @@ interface Props {
 
 // Wraps the custom ChartEngine in a React component. The engine owns the rAF
 // loop; React only manages its lifecycle and feeds it oracle ticks.
-export function CanvasChart({ symbol, onFrame, className }: Props) {
+export function CanvasChart({ symbol, fillMode = "none", onFrame, className }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const engineRef = useRef<ChartEngine | null>(null);
   const onFrameRef = useRef(onFrame);
@@ -45,6 +47,11 @@ export function CanvasChart({ symbol, onFrame, className }: Props) {
   useEffect(() => {
     engineRef.current?.reset();
   }, [symbol]);
+
+  // Push position-aware fill mode into the engine.
+  useEffect(() => {
+    engineRef.current?.setFillMode(fillMode);
+  }, [fillMode]);
 
   // Feed oracle ticks straight into the engine's interpolator.
   const handleTick = useCallback((price: number) => {

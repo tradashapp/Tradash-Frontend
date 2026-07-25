@@ -45,7 +45,7 @@ export function AccountSheet({ open, onClose, agent }: Props) {
             onClick={onClose}
           />
           <motion.div
-            className="fixed inset-x-0 bottom-0 z-50 rounded-t-3xl bg-bg-elevated p-4 pb-8"
+            className="glass fixed inset-x-0 bottom-0 z-50 rounded-t-3xl p-4 pb-8"
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
@@ -53,28 +53,22 @@ export function AccountSheet({ open, onClose, agent }: Props) {
           >
             <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-white/15" />
 
-            {/* Demo / Live segmented toggle */}
-            <div className="mb-4 flex rounded-2xl bg-bg-overlay p-1">
-              {(["demo", "live"] as const).map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => dispatch(setMode(m))}
-                  className={`flex-1 rounded-xl py-2 text-sm font-semibold capitalize transition-colors ${
-                    mode === m
-                      ? m === "live"
-                        ? "bg-up text-black"
-                        : "bg-white/10 text-text"
-                      : "text-text-muted"
-                  }`}
-                >
-                  {m}
-                </button>
-              ))}
+            {/* Live trading on/off switch — a menu option, not tabs. */}
+            <div className="glass-inset mb-3 flex items-center justify-between rounded-2xl px-4 py-3.5">
+              <div className="leading-tight">
+                <div className="text-sm font-medium">Live trading</div>
+                <div className="text-xs text-text-muted">
+                  {mode === "live" ? "Trading real funds" : "Demo — simulated funds"}
+                </div>
+              </div>
+              <ToggleSwitch
+                on={mode === "live"}
+                onChange={(on) => dispatch(setMode(on ? "live" : "demo"))}
+              />
             </div>
 
             {/* Balance */}
-            <div className="mb-4 rounded-2xl bg-bg-overlay p-4">
+            <div className="glass-inset mb-4 rounded-2xl p-4">
               <div className="text-xs text-text-muted">
                 {mode === "demo" ? "Demo balance" : "Account equity"}
               </div>
@@ -92,7 +86,7 @@ export function AccountSheet({ open, onClose, agent }: Props) {
               <button
                 type="button"
                 onClick={() => dispatch(resetDemo())}
-                className="w-full rounded-2xl bg-bg-overlay py-3 text-sm font-medium text-text-muted transition-colors hover:text-text"
+                className="glass-inset w-full rounded-2xl py-3 text-sm font-medium text-text-muted transition-colors hover:text-text"
               >
                 Reset demo balance
               </button>
@@ -132,7 +126,7 @@ export function AccountSheet({ open, onClose, agent }: Props) {
                 <button
                   type="button"
                   onClick={() => logout()}
-                  className="mt-1 flex w-full items-center justify-center gap-2 rounded-2xl bg-bg-overlay py-3 text-sm font-medium text-text-muted transition-colors hover:text-down"
+                  className="glass-inset mt-1 flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-sm font-medium text-text-muted transition-colors hover:text-down"
                 >
                   <HugeiconsIcon icon={Logout01Icon} size={18} />
                   Disconnect
@@ -148,7 +142,7 @@ export function AccountSheet({ open, onClose, agent }: Props) {
 
 function OnboardRow({ label, done }: { label: string; done: boolean }) {
   return (
-    <div className="flex items-center gap-2 rounded-xl bg-bg-overlay px-3 py-2.5 text-sm">
+    <div className="glass-inset flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm">
       <HugeiconsIcon
         icon={CheckmarkCircle02Icon}
         size={18}
@@ -156,5 +150,32 @@ function OnboardRow({ label, done }: { label: string; done: boolean }) {
       />
       <span className={done ? "text-text" : "text-text-muted"}>{label}</span>
     </div>
+  );
+}
+
+// iOS-style on/off switch. On = live trading (brand green).
+function ToggleSwitch({
+  on,
+  onChange,
+}: {
+  on: boolean;
+  onChange: (on: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      onClick={() => onChange(!on)}
+      className={`relative h-7 w-12 rounded-full transition-colors ${
+        on ? "bg-up" : "bg-white/15"
+      }`}
+    >
+      <span
+        className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${
+          on ? "left-6" : "left-1"
+        }`}
+      />
+    </button>
   );
 }

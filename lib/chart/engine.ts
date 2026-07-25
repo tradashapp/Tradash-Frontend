@@ -2,28 +2,40 @@ import { PriceInterpolator } from "@/lib/oracle/interpolation";
 import { PriceSeries } from "./priceSeries";
 import { formatPrice } from "@/lib/format";
 
+// Brand palette. Up/profit = brand green; down/loss = red.
+const UP = "#72E912";
+const DOWN = "#E6432D";
+
 export interface ChartTheme {
-  line: string;
+  line: string; // neutral line color when flat
   lineGlow: string;
-  /** Fill colors used only while a position is open. */
-  fillUp: string;
-  fillDown: string;
+  up: string;
+  down: string;
   axisText: string;
   axisLine: string;
+  entryLine: string; // neutral entry marker
+  liqLine: string; // liquidation warning
 }
 
 const DEFAULT_THEME: ChartTheme = {
-  line: "#16c784",
-  lineGlow: "rgba(22, 199, 132, 0.55)",
-  fillUp: "rgba(22, 199, 132, 0.20)",
-  fillDown: "rgba(234, 57, 67, 0.20)",
+  line: UP,
+  lineGlow: "rgba(114, 233, 18, 0.5)",
+  up: UP,
+  down: DOWN,
   axisText: "#8b90a0",
   axisLine: "rgba(255, 255, 255, 0.06)",
+  entryLine: "rgba(232, 234, 237, 0.55)",
+  liqLine: "rgba(230, 67, 45, 0.7)",
 };
 
-// Whether/how to fill under the line. Fill only appears while in a position:
-// green when the position's PnL is positive, red when negative.
-export type FillMode = "none" | "up" | "down";
+// Position overlay data the chart draws: entry line, mark-line color by PnL,
+// gradient between entry and mark, and a liquidation line.
+export interface PositionOverlay {
+  entryPrice: number;
+  liquidationPrice: number;
+  /** Positive → profit (green), negative → loss (red). */
+  pnl: number;
+}
 
 // Per-frame chart state other layers (e.g. the dot grid) can read.
 export interface ChartFrame {
@@ -74,8 +86,8 @@ export class ChartEngine {
   private center = 0;
   private half = 0;
 
-  // Position-aware fill.
-  private fillMode: FillMode = "none";
+  // Active position overlay (null while flat).
+  private position: PositionOverlay | null = null;
 
   constructor(
     canvas: HTMLCanvasElement,

@@ -43,7 +43,7 @@ export function MarketSwitcher({ open, onClose }: Props) {
             onClick={onClose}
           />
           <motion.div
-            className="fixed inset-x-0 bottom-0 z-50 rounded-t-3xl bg-bg-elevated p-4 pb-8"
+            className="glass fixed inset-x-0 bottom-0 z-50 rounded-t-3xl p-4 pb-8"
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
@@ -63,7 +63,7 @@ export function MarketSwitcher({ open, onClose }: Props) {
                     key={symbol}
                     type="button"
                     onClick={() => select(symbol)}
-                    className="flex items-center gap-3 rounded-2xl px-3 py-3 transition-colors bg-bg-overlay hover:bg-bg-overlay"
+                    className="glass-inset flex items-center gap-3 rounded-2xl px-3 py-3 transition-colors hover:bg-white/10"
                   >
                     <Image
                       src={m.logo}

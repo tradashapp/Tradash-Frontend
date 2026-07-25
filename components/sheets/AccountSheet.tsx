@@ -8,22 +8,34 @@ import {
   CheckmarkCircle02Icon,
   Loading03Icon,
   Logout01Icon,
+  Settings02Icon,
+  Clock01Icon,
+  ArrowRight01Icon,
 } from "@hugeicons/core-free-icons";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { setMode, resetDemo } from "@/store/slices/tradingModeSlice";
 import { formatUsd } from "@/lib/format";
+import { ToggleSwitch } from "@/components/ui/ToggleSwitch";
 import type { useAgentWallet } from "@/hooks/useAgentWallet";
 
 interface Props {
   open: boolean;
   onClose: () => void;
   agent: ReturnType<typeof useAgentWallet>;
+  onOpenSettings: () => void;
+  onOpenHistory: () => void;
 }
 
 // Central account hub (bottom sheet like the market switcher): switch Demo/Live,
 // see balance, connect wallet, run onboarding. Keeps the chart clean — nothing
 // permanent on screen.
-export function AccountSheet({ open, onClose, agent }: Props) {
+export function AccountSheet({
+  open,
+  onClose,
+  agent,
+  onOpenSettings,
+  onOpenHistory,
+}: Props) {
   const dispatch = useAppDispatch();
   const { login, logout, authenticated } = usePrivy();
 
@@ -79,6 +91,26 @@ export function AccountSheet({ open, onClose, agent }: Props) {
                     ? formatUsd(liveEquity)
                     : "—"}
               </div>
+            </div>
+
+            {/* Navigation: settings + history */}
+            <div className="mb-4 flex flex-col gap-2">
+              <NavRow
+                icon={Settings02Icon}
+                label="Settings"
+                onClick={() => {
+                  onClose();
+                  onOpenSettings();
+                }}
+              />
+              <NavRow
+                icon={Clock01Icon}
+                label="Trade history"
+                onClick={() => {
+                  onClose();
+                  onOpenHistory();
+                }}
+              />
             </div>
 
             {/* Mode-specific actions */}
@@ -140,6 +172,28 @@ export function AccountSheet({ open, onClose, agent }: Props) {
   );
 }
 
+function NavRow({
+  icon,
+  label,
+  onClick,
+}: {
+  icon: typeof Settings02Icon;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="glass-inset flex items-center gap-3 rounded-2xl px-4 py-3 text-sm transition-colors hover:bg-white/10"
+    >
+      <HugeiconsIcon icon={icon} size={18} className="text-text-muted" />
+      <span className="flex-1 text-left">{label}</span>
+      <HugeiconsIcon icon={ArrowRight01Icon} size={16} className="text-text-muted" />
+    </button>
+  );
+}
+
 function OnboardRow({ label, done }: { label: string; done: boolean }) {
   return (
     <div className="glass-inset flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm">
@@ -153,29 +207,3 @@ function OnboardRow({ label, done }: { label: string; done: boolean }) {
   );
 }
 
-// iOS-style on/off switch. On = live trading (brand green).
-function ToggleSwitch({
-  on,
-  onChange,
-}: {
-  on: boolean;
-  onChange: (on: boolean) => void;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      onClick={() => onChange(!on)}
-      className={`relative h-7 w-12 rounded-full transition-colors ${
-        on ? "bg-up" : "bg-white/15"
-      }`}
-    >
-      <span
-        className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${
-          on ? "left-6" : "left-1"
-        }`}
-      />
-    </button>
-  );
-}

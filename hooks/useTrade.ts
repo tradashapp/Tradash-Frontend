@@ -11,6 +11,7 @@ import {
 } from "@/store/slices/tradingModeSlice";
 import { patchPosition } from "@/store/slices/positionSlice";
 import { setOrderStatus, setOrderError } from "@/store/slices/tradingSlice";
+import { recordClose } from "@/lib/history";
 import { openMarket, reduceMarket, baseSizeFromUsd } from "@/lib/bulk/orders";
 import type { AgentSigner } from "@/lib/bulk/signing";
 import type { Direction, Position } from "@/types";
@@ -78,7 +79,8 @@ export function useTrade(signer: AgentSigner | null) {
     const market = MARKETS[position.symbol];
 
     if (mode === "demo") {
-      // Realize PnL into the demo balance.
+      // Log the completed trade, then realize PnL into the demo balance.
+      if (price != null) recordClose(dispatch, position, price, position.unrealizedPnl);
       dispatch(settleDemo(position.unrealizedPnl));
       return;
     }

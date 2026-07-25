@@ -6,10 +6,20 @@ import user from "./slices/userSlice";
 import trading from "./slices/tradingSlice";
 import tradingMode from "./slices/tradingModeSlice";
 import settings from "./slices/settingsSlice";
+import history from "./slices/historySlice";
 
 export const makeStore = () =>
   configureStore({
-    reducer: { market, price, position, user, trading, tradingMode, settings },
+    reducer: {
+      market,
+      price,
+      position,
+      user,
+      trading,
+      tradingMode,
+      settings,
+      history,
+    },
     // Live-price commits fire often; leave the default middleware but keep
     // serializable checks lenient in dev-heavy paths later if needed.
     middleware: (getDefault) => getDefault(),

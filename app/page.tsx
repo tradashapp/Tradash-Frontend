@@ -9,6 +9,8 @@ import { BalancePill } from "@/components/trade/BalancePill";
 import { TradeControls } from "@/components/trade/TradeControls";
 import { MarketSwitcher } from "@/components/sheets/MarketSwitcher";
 import { AccountSheet } from "@/components/sheets/AccountSheet";
+import { SettingsSheet } from "@/components/sheets/SettingsSheet";
+import { HistorySheet } from "@/components/sheets/HistorySheet";
 import { useAgentWallet } from "@/hooks/useAgentWallet";
 import { useBulkAccount } from "@/hooks/useBulkAccount";
 import { useDemoPnl } from "@/hooks/useDemoPnl";
@@ -40,6 +42,8 @@ export default function TradePage() {
 
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const gridRef = useRef<DotGridHandle | null>(null);
   const handleFrame = useCallback((f: ChartFrame) => {
@@ -90,7 +94,11 @@ export default function TradePage() {
         open={accountOpen}
         onClose={() => setAccountOpen(false)}
         agent={agent}
+        onOpenSettings={() => setSettingsOpen(true)}
+        onOpenHistory={() => setHistoryOpen(true)}
       />
+      <SettingsSheet open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <HistorySheet open={historyOpen} onClose={() => setHistoryOpen(false)} />
     </main>
   );
 }

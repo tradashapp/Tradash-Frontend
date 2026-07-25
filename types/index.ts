@@ -14,6 +14,8 @@ export interface MarketInfo {
   pythLazerId: number;
   /** Price scaling exponent; USD price = rawI64 * 10^exponent. */
   exponent: number;
+  /** Public path to the asset logo. */
+  logo: string;
 }
 
 export interface Position {

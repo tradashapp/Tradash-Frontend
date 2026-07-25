@@ -1,5 +1,6 @@
 import { PriceInterpolator } from "@/lib/oracle/interpolation";
 import { PriceSeries } from "./priceSeries";
+import { formatPrice } from "@/lib/format";
 
 export interface ChartTheme {
   line: string;
@@ -33,9 +34,10 @@ export interface ChartFrame {
   velocity: number;
 }
 
-// Right-hand gutter reserved for the price scale.
-const AXIS_WIDTH = 64;
-const TICK_COUNT = 6;
+// Right-hand gutter reserved for the price scale. Wide enough for "$560,500.2".
+const AXIS_WIDTH = 82;
+// More gridlines for a denser scale.
+const TICK_COUNT = 9;
 
 /**
  * Custom canvas chart engine. Runs a single rAF loop: ease price → push sample
@@ -311,7 +313,7 @@ export class ChartEngine {
 
       // Label in the right gutter.
       ctx.fillStyle = this.theme.axisText;
-      ctx.fillText(this.fmtPrice(price), plotW + 8, y);
+      ctx.fillText(this.fmtPrice(price), plotW + 9, y);
     }
     ctx.restore();
   }
@@ -341,13 +343,14 @@ export class ChartEngine {
     ctx.fillStyle = this.theme.line;
     ctx.fill();
 
-    // Price pill on the scale, pointing at the current price.
+    // Price pill on the scale — a touch bigger than the axis labels so the
+    // current price stands out.
     const label = this.fmtPrice(price);
-    ctx.font = "600 11px ui-monospace, SFMono-Regular, Menlo, monospace";
-    const padX = 6;
+    ctx.font = "700 13px ui-monospace, SFMono-Regular, Menlo, monospace";
+    const padX = 7;
     const textW = ctx.measureText(label).width;
     const pillW = textW + padX * 2;
-    const pillH = 18;
+    const pillH = 22;
     const pillX = plotW + 2;
     const pillY = ly - pillH / 2;
 
@@ -373,11 +376,7 @@ export class ChartEngine {
   }
 
   private fmtPrice(p: number): string {
-    // Adaptive precision: whole-dollar for large assets, cents for small.
-    const frac = p >= 1000 ? 0 : p >= 1 ? 2 : 4;
-    return p.toLocaleString(undefined, {
-      minimumFractionDigits: frac,
-      maximumFractionDigits: frac,
-    });
+    // Shared magnitude-based formatting, with a leading "$" on the scale.
+    return `$${formatPrice(p)}`;
   }
 }

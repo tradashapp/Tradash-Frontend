@@ -15,6 +15,8 @@ import type { Position } from "@/types";
 interface Props {
   position: Position | null;
   trailActive: boolean;
+  trailEligible: boolean;
+  trailPct: number;
   onLong: () => void;
   onShort: () => void;
   onToggleTrail: () => void;
@@ -26,6 +28,8 @@ interface Props {
 export function TradeControls({
   position,
   trailActive,
+  trailEligible,
+  trailPct,
   onLong,
   onShort,
   onToggleTrail,
@@ -58,6 +62,8 @@ export function TradeControls({
     <ActivePosition
       position={position}
       trailActive={trailActive}
+      trailEligible={trailEligible}
+      trailPct={trailPct}
       onToggleTrail={onToggleTrail}
       onClose={onClose}
     />
@@ -67,11 +73,15 @@ export function TradeControls({
 function ActivePosition({
   position,
   trailActive,
+  trailEligible,
+  trailPct,
   onToggleTrail,
   onClose,
 }: {
   position: Position;
   trailActive: boolean;
+  trailEligible: boolean;
+  trailPct: number;
   onToggleTrail: () => void;
   onClose: () => void;
 }) {

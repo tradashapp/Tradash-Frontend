@@ -49,6 +49,7 @@ export function useDemoPnl() {
       const nextStop = ratchetTrail(
         position.direction,
         position.trailStopPrice,
+        position.entryPrice,
         price,
         trailPct
       );

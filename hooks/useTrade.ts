@@ -3,7 +3,7 @@
 import { useCallback } from "react";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { MARKETS } from "@/lib/markets";
-import { openPosition, trailStopFor } from "@/lib/perp";
+import { openPosition, trailStopFor, canTrail } from "@/lib/perp";
 import {
   setDemoPosition,
   patchDemoPosition,
@@ -100,21 +100,43 @@ export function useTrade(signer: AgentSigner | null) {
     }
   }, [mode, position, signer, dispatch]);
 
-  // Toggle the trailing stop. Activating seeds the stop at the default distance
-  // behind the current price; the ratchet + auto-close runs in useDemoPnl (demo)
-  // / the account WS-driven path (live). Deactivating clears it.
+  // Can a trail be armed right now? Only when in enough profit that the clamped
+  // stop lands strictly in the profit zone (never at/below entry).
+  const trailEligible =
+    position != null &&
+    price != null &&
+    canTrail(
+      position.direction,
+      position.entryPrice,
+      price,
+      settings.defaultTrailPct
+    );
+
+  // Toggle the trailing stop. Activating seeds the stop clamped to entry (so it
+  // sits in the profit band between entry and mark); the ratchet + auto-close
+  // runs in useDemoPnl (demo) / the WS-driven path (live). Deactivating clears it.
   const toggleTrail = useCallback(() => {
     if (!position || price == null) return;
-    const patch = position.trailActive
-      ? { trailActive: false, trailStopPrice: undefined }
-      : {
-          trailActive: true,
-          trailStopPrice: trailStopFor(
-            position.direction,
-            price,
-            settings.defaultTrailPct
-          ),
-        };
+    if (position.trailActive) {
+      const patch = { trailActive: false, trailStopPrice: undefined };
+      dispatch(mode === "demo" ? patchDemoPosition(patch) : patchPosition(patch));
+      return;
+    }
+    // Guard: only arm when eligible.
+    if (
+      !canTrail(position.direction, position.entryPrice, price, settings.defaultTrailPct)
+    ) {
+      return;
+    }
+    const patch = {
+      trailActive: true,
+      trailStopPrice: trailStopFor(
+        position.direction,
+        price,
+        position.entryPrice,
+        settings.defaultTrailPct
+      ),
+    };
     dispatch(mode === "demo" ? patchDemoPosition(patch) : patchPosition(patch));
   }, [position, price, mode, settings.defaultTrailPct, dispatch]);
 
@@ -125,6 +147,8 @@ export function useTrade(signer: AgentSigner | null) {
     openShort: () => open("short"),
     toggleTrail,
     trailActive: position?.trailActive ?? false,
+    trailEligible,
+    trailPct: settings.defaultTrailPct,
     close,
     hasPosition: position != null,
   };

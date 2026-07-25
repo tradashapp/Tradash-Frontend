@@ -75,6 +75,8 @@ export default function TradePage() {
         <TradeControls
           position={trade.position}
           trailActive={trade.trailActive}
+          trailEligible={trade.trailEligible}
+          trailPct={trade.trailPct}
           onLong={trade.openLong}
           onShort={trade.openShort}
           onToggleTrail={trade.toggleTrail}

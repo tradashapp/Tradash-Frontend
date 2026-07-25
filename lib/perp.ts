@@ -75,31 +75,43 @@ export function isLiquidated(pos: Position, currentPrice: number): boolean {
 }
 
 // --- Trailing stop -----------------------------------------------------------
+//
+// A trailing stop sits in the PROFIT zone (between entry and mark) and only
+// ratchets in the profit direction — for a long it can only climb, for a short
+// only fall. It is CLAMPED to entry so it can never lock a loss: a trail always
+// closes in profit (worst case ~breakeven at entry). You can only arm it once
+// price is more than `trailPct` in your favor, otherwise the line would land at
+// or below entry (see canTrail).
 
-/** The trail stop price for a given reference price + distance fraction. */
+/**
+ * Raw trail stop `trailPct` behind a reference price, then clamped to entry so
+ * it never crosses into loss. Long: stop below price but ≥ entry. Short: stop
+ * above price but ≤ entry.
+ */
 export function trailStopFor(
   direction: Direction,
   refPrice: number,
+  entryPrice: number,
   trailPct: number
 ): number {
-  // Long: stop sits below price; short: above.
-  return direction === "long"
-    ? refPrice * (1 - trailPct)
-    : refPrice * (1 + trailPct);
+  if (direction === "long") {
+    return Math.max(refPrice * (1 - trailPct), entryPrice);
+  }
+  return Math.min(refPrice * (1 + trailPct), entryPrice);
 }
 
 /**
- * Ratchet an existing trail stop toward profit only. Returns the new stop price
- * (never moves against the position). For a long the stop only rises; for a
- * short it only falls.
+ * Ratchet an existing trail stop toward profit only — it never moves backward,
+ * and never crosses entry. Long: only rises; short: only falls.
  */
 export function ratchetTrail(
   direction: Direction,
   currentStop: number,
+  entryPrice: number,
   currentPrice: number,
   trailPct: number
 ): number {
-  const candidate = trailStopFor(direction, currentPrice, trailPct);
+  const candidate = trailStopFor(direction, currentPrice, entryPrice, trailPct);
   return direction === "long"
     ? Math.max(currentStop, candidate)
     : Math.min(currentStop, candidate);
@@ -114,4 +126,23 @@ export function trailHit(
   return direction === "long"
     ? currentPrice <= stopPrice
     : currentPrice >= stopPrice;
+}
+
+/**
+ * Whether a trail can be armed right now: the position must be in profit by MORE
+ * than the trail distance, so the clamped stop lands strictly above entry (long)
+ * / below entry (short) — i.e. it actually locks profit rather than sitting at
+ * breakeven. Needs a small buffer beyond trailPct so there's room to work.
+ */
+export function canTrail(
+  direction: Direction,
+  entryPrice: number,
+  currentPrice: number,
+  trailPct: number
+): boolean {
+  const profitFrac =
+    direction === "long"
+      ? currentPrice / entryPrice - 1
+      : 1 - currentPrice / entryPrice;
+  return profitFrac > trailPct;
 }

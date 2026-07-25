@@ -40,6 +40,7 @@ export class ChartEngine {
   private h = 0;
   private theme: ChartTheme;
   private lastPrice: number | null = null;
+  private seeded = false;
   private onFrame?: (f: ChartFrame) => void;
   private padding = { top: 24, bottom: 24 };
 
@@ -71,6 +72,7 @@ export class ChartEngine {
     this.interp.reset();
     this.series.clear();
     this.lastPrice = null;
+    this.seeded = false;
   }
 
   resize() {
@@ -101,6 +103,14 @@ export class ChartEngine {
     const price = this.interp.tick();
     const now = performance.now();
     if (price != null) {
+      // On the first real price, backfill the window flat at that price so the
+      // line starts as a level baseline instead of ramping up from empty.
+      if (!this.seeded) {
+        this.seeded = true;
+        for (let i = 0; i < this.series.capacity; i++) {
+          this.series.push(now - (this.series.capacity - i) * 16, price);
+        }
+      }
       this.series.push(now, price);
     }
     const velocity = price != null && this.lastPrice != null ? price - this.lastPrice : 0;

@@ -14,9 +14,10 @@ const PROGRAM_ID = new PublicKey(
 // Signed i64 (little-endian) price sits at this byte offset in the account data.
 const PRICE_OFFSET = 73;
 
-// The ER endpoint that serves the price accounts. Falls back to the template's
-// devnet host if our env isn't set.
-const RPC_URL = config.magicblock.rpcUrl || "https://devnet.magicblock.app";
+// The Ephemeral Rollup endpoint that streams the price accounts live. The
+// price feeds are delegated to an ER, so the base-layer RPC only holds
+// snapshots — we must read/subscribe on the ER host (verified ~16 ticks/sec).
+const RPC_URL = config.magicblock.erUrl || "https://devnet.magicblock.app";
 const WS_URL = RPC_URL.replace(/^http/, "ws");
 
 let connection: Connection | null = null;
@@ -82,7 +83,7 @@ export function subscribeToPrice(
       const p = decodePrice(info.data, exponent);
       if (p != null) onPrice(p);
     },
-    "confirmed"
+    "processed"
   );
 
   return () => {

@@ -32,9 +32,14 @@ export const config = {
   },
 
   magicblock: {
+    // Ephemeral Rollup endpoint — the price feeds stream live here (~16 ticks/s).
+    erUrl:
+      process.env.NEXT_PUBLIC_MAGICBLOCK_ER_URL ??
+      "https://devnet.magicblock.app",
     routerUrl:
       process.env.NEXT_PUBLIC_MAGICBLOCK_ROUTER_URL ??
       "https://devnet-router.magicblock.app",
+    // Base-layer RPC (snapshots / non-streaming reads).
     rpcUrl:
       process.env.NEXT_PUBLIC_SOLANA_RPC_URL ??
       "https://rpc.magicblock.app/devnet",

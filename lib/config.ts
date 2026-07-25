@@ -19,7 +19,10 @@ export const config = {
   privyAppId: process.env.NEXT_PUBLIC_PRIVY_APP_ID ?? "",
 
   bulk: {
-    restUrl: process.env.NEXT_PUBLIC_BULK_REST_URL ?? "https://api.bulk.trade",
+    // Verified base: exchange-api.bulk.trade/api/v1 (mutations POST /order, reads POST /account).
+    restUrl:
+      process.env.NEXT_PUBLIC_BULK_REST_URL ??
+      "https://exchange-api.bulk.trade/api/v1",
     accountWsUrl:
       process.env.NEXT_PUBLIC_BULK_ACCOUNT_WS_URL ??
       "wss://exchange-ws1.bulk.trade",

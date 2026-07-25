@@ -28,11 +28,15 @@ function getConnection(): Connection {
   return connection;
 }
 
+// Encode ASCII seed strings without depending on Node's Buffer global (which
+// isn't present in the browser).
+const utf8 = (s: string) => new TextEncoder().encode(s);
+
 /** Derive the price-feed PDA for a market. Seed is the feed id as a string. */
 export function feedAddress(symbol: MarketSymbol): PublicKey {
   const feedName = MARKETS[symbol].pythLazerId.toString();
   return PublicKey.findProgramAddressSync(
-    [Buffer.from("price_feed"), Buffer.from("pyth-lazer"), Buffer.from(feedName)],
+    [utf8("price_feed"), utf8("pyth-lazer"), utf8(feedName)],
     PROGRAM_ID
   )[0];
 }

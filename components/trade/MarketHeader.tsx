@@ -24,7 +24,7 @@ export function MarketHeader({ symbol, onOpen }: Props) {
     <button
       type="button"
       onClick={onOpen}
-      className="group flex items-center gap-3 rounded-2xl px-2 py-1.5 text-left transition-colors hover:bg-bg-overlay/60"
+      className="group flex items-center gap-3 rounded-2xl px-2 py-1.5 text-left transition-colors bg-bg-overlay/50 hover:bg-bg-overlay"
     >
       <Image
         src={market.logo}

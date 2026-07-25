@@ -34,8 +34,11 @@ export interface ChartFrame {
   velocity: number;
 }
 
-// Right-hand gutter reserved for the price scale. Wide enough for "$560,500.2".
-const AXIS_WIDTH = 82;
+// Right-hand gutter reserved for the price scale. Wide enough for the widest
+// label (e.g. "$560,500.20") plus the pill, with breathing room from the edge.
+const AXIS_WIDTH = 96;
+// Inset from the canvas's right edge so labels/pill never touch the border.
+const AXIS_RIGHT_INSET = 10;
 // More gridlines for a denser scale.
 const TICK_COUNT = 9;
 
@@ -295,8 +298,10 @@ export class ChartEngine {
     ctx.save();
     ctx.font =
       "11px ui-monospace, SFMono-Regular, Menlo, monospace";
-    ctx.textAlign = "left";
+    // Right-align labels to a fixed inset so long numbers never clip.
+    ctx.textAlign = "right";
     ctx.textBaseline = "middle";
+    const labelX = w - AXIS_RIGHT_INSET;
 
     for (let i = 0; i <= TICK_COUNT; i++) {
       const frac = i / TICK_COUNT;
@@ -311,9 +316,9 @@ export class ChartEngine {
       ctx.lineTo(plotW, y);
       ctx.stroke();
 
-      // Label in the right gutter.
+      // Label in the right gutter, right-aligned.
       ctx.fillStyle = this.theme.axisText;
-      ctx.fillText(this.fmtPrice(price), plotW + 9, y);
+      ctx.fillText(this.fmtPrice(price), labelX, y);
     }
     ctx.restore();
   }
@@ -343,19 +348,21 @@ export class ChartEngine {
     ctx.fillStyle = this.theme.line;
     ctx.fill();
 
-    // Price pill on the scale — a touch bigger than the axis labels so the
-    // current price stands out.
+    // Price pill on the scale — bigger than the axis labels so the current
+    // price stands out. Right-aligned to the same inset as the labels so its
+    // full contents are always in view, even for long numbers.
+    const { w } = this;
     const label = this.fmtPrice(price);
-    ctx.font = "700 13px ui-monospace, SFMono-Regular, Menlo, monospace";
-    const padX = 7;
+    ctx.font = "700 15px ui-monospace, SFMono-Regular, Menlo, monospace";
+    const padX = 9;
     const textW = ctx.measureText(label).width;
     const pillW = textW + padX * 2;
-    const pillH = 22;
-    const pillX = plotW + 2;
+    const pillH = 26;
+    const pillX = w - AXIS_RIGHT_INSET - pillW; // right edge at the inset
     const pillY = ly - pillH / 2;
 
     ctx.fillStyle = this.theme.line;
-    this.roundRect(pillX, pillY, pillW, pillH, 4);
+    this.roundRect(pillX, pillY, pillW, pillH, 5);
     ctx.fill();
 
     ctx.fillStyle = "#08090c";

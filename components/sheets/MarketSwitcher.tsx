@@ -63,7 +63,7 @@ export function MarketSwitcher({ open, onClose }: Props) {
                     key={symbol}
                     type="button"
                     onClick={() => select(symbol)}
-                    className="flex items-center gap-3 rounded-2xl px-3 py-3 transition-colors hover:bg-bg-overlay"
+                    className="flex items-center gap-3 rounded-2xl px-3 py-3 transition-colors bg-bg-overlay hover:bg-bg-overlay"
                   >
                     <Image
                       src={m.logo}

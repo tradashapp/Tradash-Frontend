@@ -3,13 +3,13 @@
 import { useCallback } from "react";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { MARKETS } from "@/lib/markets";
-import { openPosition } from "@/lib/perp";
+import { openPosition, trailStopFor } from "@/lib/perp";
 import {
   setDemoPosition,
   patchDemoPosition,
   settleDemo,
 } from "@/store/slices/tradingModeSlice";
-import { computeSize } from "@/lib/perp";
+import { patchPosition } from "@/store/slices/positionSlice";
 import { setOrderStatus, setOrderError } from "@/store/slices/tradingSlice";
 import { openMarket, reduceMarket, baseSizeFromUsd } from "@/lib/bulk/orders";
 import type { AgentSigner } from "@/lib/bulk/signing";
@@ -100,89 +100,31 @@ export function useTrade(signer: AgentSigner | null) {
     }
   }, [mode, position, signer, dispatch]);
 
-  // Increase the position by `pct` of the default margin (adds size at price).
-  const increase = useCallback(
-    async (pct: number) => {
-      if (!position || price == null) return;
-      const market = MARKETS[position.symbol];
-      const addMargin = settings.defaultPositionSize * pct;
-      const addSize = computeSize(addMargin, position.leverage, price);
-
-      if (mode === "demo") {
-        // Blend entry price by size-weighted average.
-        const newSize = position.size + addSize;
-        const newEntry =
-          (position.entryPrice * position.size + price * addSize) / newSize;
-        dispatch(
-          patchDemoPosition({
-            size: newSize,
-            entryPrice: newEntry,
-            marginUsed: position.marginUsed + addMargin,
-          })
-        );
-        return;
-      }
-      if (!signer) return dispatch(setOrderError("Connect wallet to trade live"));
-      dispatch(setOrderStatus("submitting"));
-      try {
-        await openMarket(signer, {
-          bulkSymbol: market.bulkSymbol,
-          isLong: position.direction === "long",
-          size: addSize,
-        });
-        dispatch(setOrderStatus("filled"));
-      } catch (e) {
-        dispatch(setOrderError(e instanceof Error ? e.message : "Increase failed"));
-      }
-    },
-    [position, price, mode, settings, signer, dispatch]
-  );
-
-  // Decrease by `pct` of the position (1 / "max" fully closes).
-  const decrease = useCallback(
-    async (pct: number) => {
-      if (!position) return;
-      if (pct >= 1) return close();
-      const market = MARKETS[position.symbol];
-      const reduceSize = position.size * pct;
-
-      if (mode === "demo") {
-        // Realize the reduced portion's PnL; keep the rest open.
-        const realized = position.unrealizedPnl * pct;
-        dispatch(settleDemo(realized)); // settleDemo clears position; re-open remainder
-        dispatch(
-          setDemoPosition({
-            ...position,
-            size: position.size - reduceSize,
-            marginUsed: position.marginUsed * (1 - pct),
-            unrealizedPnl: position.unrealizedPnl * (1 - pct),
-          })
-        );
-        return;
-      }
-      if (!signer) return dispatch(setOrderError("Connect wallet to trade live"));
-      dispatch(setOrderStatus("submitting"));
-      try {
-        await reduceMarket(signer, {
-          bulkSymbol: market.bulkSymbol,
-          positionIsLong: position.direction === "long",
-          size: reduceSize,
-        });
-        dispatch(setOrderStatus("filled"));
-      } catch (e) {
-        dispatch(setOrderError(e instanceof Error ? e.message : "Decrease failed"));
-      }
-    },
-    [position, mode, signer, dispatch, close]
-  );
+  // Toggle the trailing stop. Activating seeds the stop at the default distance
+  // behind the current price; the ratchet + auto-close runs in useDemoPnl (demo)
+  // / the account WS-driven path (live). Deactivating clears it.
+  const toggleTrail = useCallback(() => {
+    if (!position || price == null) return;
+    const patch = position.trailActive
+      ? { trailActive: false, trailStopPrice: undefined }
+      : {
+          trailActive: true,
+          trailStopPrice: trailStopFor(
+            position.direction,
+            price,
+            settings.defaultTrailPct
+          ),
+        };
+    dispatch(mode === "demo" ? patchDemoPosition(patch) : patchPosition(patch));
+  }, [position, price, mode, settings.defaultTrailPct, dispatch]);
 
   return {
     mode,
     position: position as Position | null,
     openLong: () => open("long"),
     openShort: () => open("short"),
-    increase,
-    decrease,
+    toggleTrail,
+    trailActive: position?.trailActive ?? false,
     close,
     hasPosition: position != null,
   };

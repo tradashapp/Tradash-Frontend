@@ -8,6 +8,8 @@ export interface SettingsState {
   defaultLeverage: number;
   takeProfitPct: number | null;
   stopLossPct: number | null;
+  /** Trailing-stop distance behind price, as a fraction (e.g. 0.01 = 1%). */
+  defaultTrailPct: number;
   preferredMarket: MarketSymbol;
   theme: "dark" | "light";
   soundEnabled: boolean;
@@ -19,6 +21,7 @@ const initialState: SettingsState = {
   defaultLeverage: 10,
   takeProfitPct: null,
   stopLossPct: null,
+  defaultTrailPct: 0.01, // 1% trailing distance by default
   preferredMarket: "BTC",
   theme: "dark",
   soundEnabled: true,

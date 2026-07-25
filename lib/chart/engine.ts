@@ -35,6 +35,8 @@ export interface PositionOverlay {
   liquidationPrice: number;
   /** Positive → profit (green), negative → loss (red). */
   pnl: number;
+  /** Active trailing-stop price, drawn as a line that ratchets with price. */
+  trailStopPrice?: number;
 }
 
 // Per-frame chart state other layers (e.g. the dot grid) can read.

@@ -1,22 +1,19 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { ArrowUp01Icon, ArrowDown01Icon } from "@hugeicons/core-free-icons";
 import { useAppSelector } from "@/store/hooks";
 import { CanvasChart } from "@/components/chart/CanvasChart";
 import { DotGrid, type DotGridHandle } from "@/components/background/DotGrid";
 import { MarketHeader } from "@/components/trade/MarketHeader";
 import { BalancePill } from "@/components/trade/BalancePill";
-import { PositionPanel } from "@/components/trade/PositionPanel";
+import { TradeControls } from "@/components/trade/TradeControls";
 import { MarketSwitcher } from "@/components/sheets/MarketSwitcher";
 import { AccountSheet } from "@/components/sheets/AccountSheet";
 import { useAgentWallet } from "@/hooks/useAgentWallet";
 import { useBulkAccount } from "@/hooks/useBulkAccount";
 import { useDemoPnl } from "@/hooks/useDemoPnl";
 import { useTrade } from "@/hooks/useTrade";
-import type { ChartFrame } from "@/lib/chart/engine";
+import type { ChartFrame, PositionOverlay } from "@/lib/chart/engine";
 
 // The homepage IS the trading screen. Demo and Live coexist; UP/DOWN and Close
 // route through useTrade to the demo simulator or the live Bulk client by mode.
@@ -29,13 +26,14 @@ export default function TradePage() {
   useDemoPnl();
   const trade = useTrade(agent.signer);
 
-  // Position-aware chart fill (green +PnL / red -PnL while in a trade).
-  const fillMode: "none" | "up" | "down" =
-    trade.position == null
-      ? "none"
-      : trade.position.unrealizedPnl >= 0
-        ? "up"
-        : "down";
+  // Position overlay for the chart (entry/liq lines + PnL fill), or null when flat.
+  const chartPosition: PositionOverlay | null = trade.position
+    ? {
+        entryPrice: trade.position.entryPrice,
+        liquidationPrice: trade.position.liquidationPrice,
+        pnl: trade.position.unrealizedPnl,
+      }
+    : null;
 
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
@@ -56,7 +54,7 @@ export default function TradePage() {
       <div className="absolute inset-0 z-10">
         <CanvasChart
           symbol={activeSymbol}
-          fillMode={fillMode}
+          position={chartPosition}
           onFrame={handleFrame}
         />
       </div>
@@ -69,42 +67,15 @@ export default function TradePage() {
 
       <div className="relative z-20 flex-1" />
 
-      {/* Trade controls: UP/DOWN when flat, PositionPanel when in a trade */}
+      {/* Trade controls: UP/DOWN when flat, detail strip + Increase/Decrease in a trade */}
       <footer className="relative z-20 px-4 pb-6">
-        <AnimatePresence mode="wait">
-          {trade.hasPosition && trade.position ? (
-            <PositionPanel
-              key="panel"
-              position={trade.position}
-              onClose={trade.close}
-            />
-          ) : (
-            <motion.div
-              key="buttons"
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 16 }}
-              className="grid grid-cols-2 gap-3"
-            >
-              <button
-                type="button"
-                onClick={trade.openLong}
-                className="flex items-center justify-center gap-2 rounded-2xl bg-up-soft py-5 text-lg font-semibold text-up backdrop-blur-sm transition-transform duration-150 ease-snap active:scale-95"
-              >
-                <HugeiconsIcon icon={ArrowUp01Icon} size={22} />
-                UP
-              </button>
-              <button
-                type="button"
-                onClick={trade.openShort}
-                className="flex items-center justify-center gap-2 rounded-2xl bg-down-soft py-5 text-lg font-semibold text-down backdrop-blur-sm transition-transform duration-150 ease-snap active:scale-95"
-              >
-                <HugeiconsIcon icon={ArrowDown01Icon} size={22} />
-                DOWN
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <TradeControls
+          position={trade.position}
+          onLong={trade.openLong}
+          onShort={trade.openShort}
+          onIncrease={trade.increase}
+          onDecrease={trade.decrease}
+        />
       </footer>
 
       {/* Sheets */}

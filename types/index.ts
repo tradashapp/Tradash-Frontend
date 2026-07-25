@@ -30,6 +30,9 @@ export interface Position {
   unrealizedPnl: number;
   /** ms epoch when opened. */
   openedAt: number;
+  /** Trailing stop: active flag + the current stop price (ratchets toward profit). */
+  trailActive?: boolean;
+  trailStopPrice?: number;
 }
 
 export interface Balance {

@@ -73,3 +73,45 @@ export function isLiquidated(pos: Position, currentPrice: number): boolean {
     ? currentPrice <= pos.liquidationPrice
     : currentPrice >= pos.liquidationPrice;
 }
+
+// --- Trailing stop -----------------------------------------------------------
+
+/** The trail stop price for a given reference price + distance fraction. */
+export function trailStopFor(
+  direction: Direction,
+  refPrice: number,
+  trailPct: number
+): number {
+  // Long: stop sits below price; short: above.
+  return direction === "long"
+    ? refPrice * (1 - trailPct)
+    : refPrice * (1 + trailPct);
+}
+
+/**
+ * Ratchet an existing trail stop toward profit only. Returns the new stop price
+ * (never moves against the position). For a long the stop only rises; for a
+ * short it only falls.
+ */
+export function ratchetTrail(
+  direction: Direction,
+  currentStop: number,
+  currentPrice: number,
+  trailPct: number
+): number {
+  const candidate = trailStopFor(direction, currentPrice, trailPct);
+  return direction === "long"
+    ? Math.max(currentStop, candidate)
+    : Math.min(currentStop, candidate);
+}
+
+/** Whether price has crossed the trail stop (position should auto-close). */
+export function trailHit(
+  direction: Direction,
+  stopPrice: number,
+  currentPrice: number
+): boolean {
+  return direction === "long"
+    ? currentPrice <= stopPrice
+    : currentPrice >= stopPrice;
+}

@@ -21,7 +21,7 @@ const initialState: SettingsState = {
   defaultLeverage: 10,
   takeProfitPct: null,
   stopLossPct: null,
-  defaultTrailPct: 0.01, // 1% trailing distance by default
+  defaultTrailPct: 0.001, // 1% trailing distance by default
   preferredMarket: "BTC",
   theme: "dark",
   soundEnabled: true,

@@ -15,6 +15,7 @@ import { useAgentWallet } from "@/hooks/useAgentWallet";
 import { useBulkAccount } from "@/hooks/useBulkAccount";
 import { useDemoPnl } from "@/hooks/useDemoPnl";
 import { useLiveTrail } from "@/hooks/useLiveTrail";
+import { useFeedback } from "@/hooks/useFeedback";
 import { useTrade } from "@/hooks/useTrade";
 import type { ChartFrame, PositionOverlay } from "@/lib/chart/engine";
 
@@ -25,6 +26,7 @@ export default function TradePage() {
 
   // Wallet / account / demo lifecycle hooks.
   const agent = useAgentWallet();
+  useFeedback();
   useBulkAccount(agent.masterAddress);
   useDemoPnl();
   useLiveTrail(agent.signer);

@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { MARKETS } from "@/lib/markets";
 import { ratchetTrail, trailHit } from "@/lib/perp";
+import { tickProfit } from "@/lib/sound";
 import { patchPosition } from "@/store/slices/positionSlice";
 import { reduceMarket } from "@/lib/bulk/orders";
 import type { AgentSigner } from "@/lib/bulk/signing";
@@ -24,6 +25,11 @@ export function useLiveTrail(signer: AgentSigner | null) {
   );
   // Prevents firing the close order more than once while the WS confirms flat.
   const closing = useRef(false);
+
+  // Celebrate live profit-direction moves (PnL kept fresh by the account WS).
+  useEffect(() => {
+    if (mode === "live" && position) tickProfit(position.unrealizedPnl);
+  }, [mode, position]);
 
   useEffect(() => {
     if (

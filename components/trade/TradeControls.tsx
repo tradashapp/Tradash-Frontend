@@ -1,5 +1,6 @@
 "use client";
 
+import { AnimatePresence, motion } from "framer-motion";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   ArrowUp01Icon,
@@ -37,38 +38,53 @@ export function TradeControls({
   onToggleTrail,
   onClose,
 }: Props) {
-  if (!position) {
-    return (
-      <div className="grid grid-cols-2 gap-3">
-        <button
-          type="button"
-          onClick={onLong}
-          className="flex items-center justify-center gap-2 rounded-2xl bg-up-soft py-5 text-lg font-semibold text-up backdrop-blur-sm transition-transform duration-150 ease-snap active:scale-95"
-        >
-          <HugeiconsIcon icon={ArrowUp01Icon} size={22} />
-          UP
-        </button>
-        <button
-          type="button"
-          onClick={onShort}
-          className="flex items-center justify-center gap-2 rounded-2xl bg-down-soft py-5 text-lg font-semibold text-down backdrop-blur-sm transition-transform duration-150 ease-snap active:scale-95"
-        >
-          <HugeiconsIcon icon={ArrowDown01Icon} size={22} />
-          DOWN
-        </button>
-      </div>
-    );
-  }
-
   return (
-    <ActivePosition
-      position={position}
-      trailActive={trailActive}
-      trailEligible={trailEligible}
-      trailPct={trailPct}
-      onToggleTrail={onToggleTrail}
-      onClose={onClose}
-    />
+    <AnimatePresence mode="wait" initial={false}>
+      {!position ? (
+        <motion.div
+          key="flat"
+          className="grid grid-cols-2 gap-3"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 12 }}
+          transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+        >
+          <button
+            type="button"
+            onClick={onLong}
+            className="flex items-center justify-center gap-2 rounded-2xl bg-up-soft py-5 text-lg font-semibold text-up backdrop-blur-sm transition-transform duration-150 ease-snap active:scale-95"
+          >
+            <HugeiconsIcon icon={ArrowUp01Icon} size={22} />
+            UP
+          </button>
+          <button
+            type="button"
+            onClick={onShort}
+            className="flex items-center justify-center gap-2 rounded-2xl bg-down-soft py-5 text-lg font-semibold text-down backdrop-blur-sm transition-transform duration-150 ease-snap active:scale-95"
+          >
+            <HugeiconsIcon icon={ArrowDown01Icon} size={22} />
+            DOWN
+          </button>
+        </motion.div>
+      ) : (
+        <motion.div
+          key="active"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 12 }}
+          transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+        >
+          <ActivePosition
+            position={position}
+            trailActive={trailActive}
+            trailEligible={trailEligible}
+            trailPct={trailPct}
+            onToggleTrail={onToggleTrail}
+            onClose={onClose}
+          />
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
 

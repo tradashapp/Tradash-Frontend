@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { memo, useCallback, useEffect, useRef } from "react";
 import {
   ChartEngine,
   type ChartFrame,
@@ -20,7 +20,7 @@ interface Props {
 
 // Wraps the custom ChartEngine in a React component. The engine owns the rAF
 // loop; React only manages its lifecycle and feeds it oracle ticks.
-export function CanvasChart({ symbol, position = null, onFrame, className }: Props) {
+function CanvasChartImpl({ symbol, position = null, onFrame, className }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const engineRef = useRef<ChartEngine | null>(null);
   const onFrameRef = useRef(onFrame);
@@ -71,3 +71,29 @@ export function CanvasChart({ symbol, position = null, onFrame, className }: Pro
     />
   );
 }
+
+// The heavy work (the canvas rAF loop) never re-runs on re-render — it's driven
+// imperatively. Re-rendering only re-runs the cheap setPosition effect, so we
+// compare every position field EXACTLY (including PnL, which the mark-line pill
+// shows live) and just ignore onFrame identity to avoid churn from the parent.
+function samePosition(
+  a: PositionOverlay | null | undefined,
+  b: PositionOverlay | null | undefined
+): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return (
+    a.entryPrice === b.entryPrice &&
+    a.liquidationPrice === b.liquidationPrice &&
+    a.trailStopPrice === b.trailStopPrice &&
+    a.pnl === b.pnl
+  );
+}
+
+export const CanvasChart = memo(CanvasChartImpl, (a, b) => {
+  return (
+    a.symbol === b.symbol &&
+    a.className === b.className &&
+    samePosition(a.position, b.position)
+  );
+});

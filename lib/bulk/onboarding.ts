@@ -93,6 +93,7 @@ export async function authorizeAgentWallet(
   const kc = await ensureKeychain();
   const prepared = kc.prepareAgentWallet(agentPubkey, false, {
     account: masterAccount,
+    nonce: nonce(),
   });
   return prepareSignSubmit(prepared, signBytes);
 }
@@ -107,6 +108,7 @@ export async function approveBuilderCode(
   const kc = await ensureKeychain();
   const prepared = kc.prepareApproveBuilderCode(recipient, feeBps, {
     account: masterAccount,
+    nonce: nonce(),
   });
   return prepareSignSubmit(prepared, signBytes);
 }

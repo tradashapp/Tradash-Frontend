@@ -31,9 +31,12 @@ export async function makeAgentSigner(
     account: masterAccount,
     signOrderFor(order: unknown) {
       // account = master (whose position), signer = agent (who signs).
+      // Pass an explicit nonce — without it the WASM calls SystemTime::now()
+      // which panics ("time not implemented") in the browser.
       const prepared = kc.prepareOrder(order, {
         account: masterAccount,
         signer: signer.pubkey,
+        nonce: Date.now(),
       });
       return signer.signPrepared(prepared);
     },

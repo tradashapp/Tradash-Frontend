@@ -127,7 +127,9 @@ export function useAgentWallet() {
         });
       } catch (e) {
         if (config.bulk.network === "mainnet") throw e;
-        /* testnet: likely already funded or rate-limited — continue */
+        // testnet: usually "already funded" / 24h rate limit — non-fatal, but
+        // surface it so a real faucet problem isn't invisible.
+        console.warn("[onboard] faucet step skipped/failed:", e);
       }
 
       // 1. Agent keypair (reuse if present).

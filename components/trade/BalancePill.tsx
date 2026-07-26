@@ -4,6 +4,8 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { Wallet01Icon } from "@hugeicons/core-free-icons";
 import { useAppSelector } from "@/store/hooks";
 import { formatUsd } from "@/lib/format";
+import { playSound } from "@/lib/sound";
+import { haptic } from "@/lib/haptics";
 
 interface Props {
   onOpen: () => void;
@@ -27,7 +29,11 @@ export function BalancePill({ onOpen }: Props) {
   return (
     <button
       type="button"
-      onClick={onOpen}
+      onClick={() => {
+        playSound("tap");
+        haptic("tap");
+        onOpen();
+      }}
       className="group flex items-center gap-2 rounded-2xl bg-bg-overlay/60 px-3 py-1.5 backdrop-blur-sm transition-colors hover:bg-bg-overlay"
     >
       <HugeiconsIcon

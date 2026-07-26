@@ -10,6 +10,8 @@ import {
 import { useAppSelector } from "@/store/hooks";
 import { formatPrice, formatUsd } from "@/lib/format";
 import { roi } from "@/lib/perp";
+import { playSound } from "@/lib/sound";
+import { haptic } from "@/lib/haptics";
 import type { Position } from "@/types";
 
 interface Props {
@@ -121,7 +123,11 @@ function ActivePosition({
         <div className="flex flex-col">
           <button
             type="button"
-            onClick={onToggleTrail}
+            onClick={() => {
+              playSound("tap");
+              haptic("tap");
+              onToggleTrail();
+            }}
             disabled={!trailActive && !trailEligible}
             className={`flex items-center justify-center gap-2 rounded-2xl py-4 text-base font-semibold backdrop-blur-sm transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 ${
               trailActive ? "bg-up text-black" : "bg-up-soft text-up"

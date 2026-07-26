@@ -21,7 +21,10 @@ const bulkToSym = Object.fromEntries(
 // (open→flat) to record the completed trade to history + the backend. This
 // catches ALL live closes — manual, trail, liquidation, TP/SL — since every
 // close ends with the position going flat.
-export function useBulkAccount(walletAddress: string | null) {
+export function useBulkAccount(
+  walletAddress: string | null,
+  privyId: string | null
+) {
   const dispatch = useAppDispatch();
   const store = useAppStore();
   // Last-seen open live position, to reconstruct the trade when it goes flat.
@@ -35,15 +38,17 @@ export function useBulkAccount(walletAddress: string | null) {
       return;
     }
 
-    // Load this user's persisted live history from the backend.
-    api
-      .fetchHistory(walletAddress)
-      .then((trades) => {
-        if (trades.length) dispatch(hydrateHistory(trades));
-      })
-      .catch(() => {
-        /* offline / no backend — keep whatever is local */
-      });
+    // Load this user's persisted live history from the backend (by Privy DID).
+    if (privyId) {
+      api
+        .fetchHistory(privyId)
+        .then((trades) => {
+          if (trades.length) dispatch(hydrateHistory(trades));
+        })
+        .catch(() => {
+          /* offline / no backend — keep whatever is local */
+        });
+    }
 
     // Seed snapshot (unsigned).
     fetchAccount(walletAddress)
@@ -75,9 +80,11 @@ export function useBulkAccount(walletAddress: string | null) {
           const exit =
             store.getState().price.prices[prev.symbol] ?? prev.entryPrice;
           const trade = recordClose(dispatch, prev, exit, prev.unrealizedPnl);
-          api.recordTrade(walletAddress, trade).catch(() => {
-            /* best-effort; it's already in local history */
-          });
+          if (privyId) {
+            api.recordTrade(privyId, trade).catch(() => {
+              /* best-effort; it's already in local history */
+            });
+          }
         }
         lastOpen.current = p;
         dispatch(setPosition(p));
@@ -85,7 +92,7 @@ export function useBulkAccount(walletAddress: string | null) {
     });
 
     return unsub;
-  }, [walletAddress, dispatch, store]);
+  }, [walletAddress, privyId, dispatch, store]);
 }
 
 function snapshotToPosition(open: {

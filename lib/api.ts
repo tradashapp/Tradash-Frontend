@@ -61,29 +61,42 @@ function fromApiTrade(t: ApiTrade & { id?: string }): CompletedTrade {
   };
 }
 
+// Identity sync payload — keyed by the stable Privy DID so one person maps to
+// one backend user across every login method.
+export interface UserSync {
+  privyId: string;
+  walletAddress?: string | null;
+  authMethod?: string | null;
+  linkedAccounts?: { type: string; [k: string]: unknown }[];
+  referralCode?: string | null;
+}
+
 export const api = {
-  /** Ensure the user row exists (called after Privy connect). */
-  ensureUser: (wallet: string) =>
-    req(`/users/${wallet}`, { method: "POST" }),
+  /** Get-or-create + sync the user by Privy DID after login. */
+  syncUser: ({ privyId, ...identity }: UserSync) =>
+    req(`/users/${encodeURIComponent(privyId)}`, {
+      method: "POST",
+      body: JSON.stringify(identity),
+    }),
 
   /** Record that a master-signed onboarding step completed. */
-  recordOnboard: (wallet: string, step: "agent" | "builder") =>
-    req(`/users/${wallet}/onboard`, {
+  recordOnboard: (privyId: string, step: "agent" | "builder") =>
+    req(`/users/${encodeURIComponent(privyId)}/onboard`, {
       method: "POST",
       body: JSON.stringify({ step }),
     }),
 
   /** Persist a completed live trade. */
-  recordTrade: (wallet: string, trade: CompletedTrade) =>
-    req(`/users/${wallet}/trades`, {
+  recordTrade: (privyId: string, trade: CompletedTrade) =>
+    req(`/users/${encodeURIComponent(privyId)}/trades`, {
       method: "POST",
       body: JSON.stringify(toApiTrade(trade)),
     }),
 
   /** Fetch a user's live trade history (newest first). */
-  fetchHistory: async (wallet: string): Promise<CompletedTrade[]> => {
+  fetchHistory: async (privyId: string): Promise<CompletedTrade[]> => {
     const rows = await req<(ApiTrade & { id?: string })[]>(
-      `/users/${wallet}/trades`
+      `/users/${encodeURIComponent(privyId)}/trades`
     );
     return rows.map(fromApiTrade);
   },

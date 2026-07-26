@@ -38,11 +38,26 @@ export function useAgentWallet() {
   const [signer, setSigner] = useState<AgentSigner | null>(null);
   const [onboarding, setOnboarding] = useState(false);
 
-  // The connected Solana master account address.
+  // Privy DID — the stable identity across ALL login methods. This is the
+  // backend key, so email/google/wallet logins for one person stay one user.
+  const privyId = user?.id ?? null;
+
+  // The embedded Solana wallet Privy creates for every user — this is the Bulk
+  // master account. Pick the Solana wallet specifically (not EVM / external).
+  const solanaWallet = user?.linkedAccounts.find(
+    (a): a is typeof a & { address: string; chainType?: string } =>
+      a.type === "wallet" &&
+      "chainType" in a &&
+      (a as { chainType?: string }).chainType === "solana"
+  );
   const masterAddress =
-    user?.wallet?.address ??
-    user?.linkedAccounts.find((a) => a.type === "wallet")?.address ??
-    null;
+    solanaWallet?.address ?? user?.wallet?.address ?? null;
+
+  // The auth method the user logged in with (first non-wallet linked account,
+  // else 'wallet').
+  const authMethod =
+    user?.linkedAccounts.find((a) => a.type !== "wallet")?.type ??
+    (user?.linkedAccounts.length ? "wallet" : null);
 
   // Wrap Privy's signMessage into the base58-signature contract the keychain
   // onboarding expects.
@@ -54,11 +69,23 @@ export function useAgentWallet() {
     [signMessage]
   );
 
-  // Track the wallet in Redux + ensure the backend user exists.
+  // Track the wallet in Redux + sync the backend user by Privy DID (carrying the
+  // embedded wallet, auth method, and linked accounts so one person = one row).
   useEffect(() => {
     dispatch(setWallet(masterAddress));
-    if (masterAddress) api.ensureUser(masterAddress).catch(() => {});
-  }, [masterAddress, dispatch]);
+    if (privyId) {
+      api
+        .syncUser({
+          privyId,
+          walletAddress: masterAddress,
+          authMethod,
+          linkedAccounts: user?.linkedAccounts as
+            | { type: string }[]
+            | undefined,
+        })
+        .catch(() => {});
+    }
+  }, [privyId, masterAddress, authMethod, user?.linkedAccounts, dispatch]);
 
   // Rehydrate an existing agent signer for this wallet.
   useEffect(() => {
@@ -97,7 +124,7 @@ export function useAgentWallet() {
       // 2. Authorize the agent on the master account (master-signed).
       await authorizeAgentWallet(masterAddress, stored.pubkey, masterSign);
       dispatch(setAgentAuthorized(true));
-      api.recordOnboard(masterAddress, "agent").catch(() => {});
+      if (privyId) api.recordOnboard(privyId, "agent").catch(() => {});
 
       // 3. Approve our builder code (master-signed) — required for revenue.
       if (config.builder.recipient && config.builder.feeBps) {
@@ -108,7 +135,7 @@ export function useAgentWallet() {
           masterSign
         );
         dispatch(setBuilderApproved(true));
-        api.recordOnboard(masterAddress, "builder").catch(() => {});
+        if (privyId) api.recordOnboard(privyId, "builder").catch(() => {});
       }
 
       // 4. Ready signer.
@@ -118,10 +145,12 @@ export function useAgentWallet() {
     } finally {
       setOnboarding(false);
     }
-  }, [masterAddress, onboarding, masterSign, dispatch]);
+  }, [privyId, masterAddress, onboarding, masterSign, dispatch]);
 
   return {
+    privyId,
     masterAddress,
+    authMethod,
     authenticated,
     signer,
     isReady: signer !== null,

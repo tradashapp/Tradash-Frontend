@@ -24,7 +24,7 @@ export default function TradePage() {
   // Lifecycle hooks.
   const agent = useAgentWallet();
   useFeedback();
-  useBulkAccount(agent.masterAddress);
+  useBulkAccount(agent.masterAddress, agent.privyId);
   useDemoPnl();
   useLiveTrail(agent.signer);
   const trade = useTrade(agent.signer);

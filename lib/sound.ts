@@ -59,3 +59,35 @@ export function playSound(name: SoundName) {
   node.volume = VOLUME[name];
   node.play().catch(() => {});
 }
+
+// --- Profit-move ticker ------------------------------------------------------
+// Plays "profit" on each significant step UP in PnL (never on loss moves).
+// Tracks the last milestone per position; reset when a position opens/closes.
+let profitAnchor: number | null = null;
+let profitStep = 1;
+
+/** Begin tracking profit moves for a new position (step = $ per profit tick). */
+export function beginProfitTracking(step: number) {
+  profitAnchor = 0;
+  profitStep = Math.max(step, 0.01);
+}
+
+export function stopProfitTracking() {
+  profitAnchor = null;
+}
+
+/** Feed the current PnL; plays "profit" when it climbs past the next step. */
+export function tickProfit(pnl: number) {
+  if (profitAnchor == null) return;
+  // Only react while in profit and moving further into profit.
+  if (pnl <= profitAnchor) {
+    // Ratchet the anchor down with losses so re-crossing up re-triggers, but
+    // never below zero (we only celebrate profit-direction moves).
+    if (pnl < profitAnchor) profitAnchor = Math.max(0, pnl);
+    return;
+  }
+  if (pnl - profitAnchor >= profitStep) {
+    profitAnchor = pnl;
+    playSound("profit");
+  }
+}

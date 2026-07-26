@@ -12,8 +12,15 @@ import {
 import { patchPosition } from "@/store/slices/positionSlice";
 import { setOrderStatus, setOrderError } from "@/store/slices/tradingSlice";
 import { recordClose } from "@/lib/history";
-import { playSound } from "@/lib/sound";
+import {
+  playSound,
+  beginProfitTracking,
+  stopProfitTracking,
+} from "@/lib/sound";
 import { haptic } from "@/lib/haptics";
+
+// A "significant" profit move ~= 5% of the margin at risk.
+const profitStepFor = (marginUsd: number) => Math.max(marginUsd * 0.05, 1);
 import { openMarket, reduceMarket, baseSizeFromUsd } from "@/lib/bulk/orders";
 import type { AgentSigner } from "@/lib/bulk/signing";
 import type { Direction, Position } from "@/types";
@@ -49,6 +56,7 @@ export function useTrade(signer: AgentSigner | null) {
         dispatch(setDemoPosition(pos));
         playSound("open");
         haptic("open");
+        beginProfitTracking(profitStepFor(pos.marginUsed));
         return;
       }
 
@@ -72,6 +80,7 @@ export function useTrade(signer: AgentSigner | null) {
         dispatch(setOrderStatus("filled"));
         playSound("open");
         haptic("open");
+        beginProfitTracking(profitStepFor(settings.defaultPositionSize));
         // Position appears via the account WS.
       } catch (e) {
         dispatch(setOrderError(e instanceof Error ? e.message : "Order failed"));
@@ -90,6 +99,7 @@ export function useTrade(signer: AgentSigner | null) {
       dispatch(settleDemo(position.unrealizedPnl));
       playSound("close");
       haptic("close");
+      stopProfitTracking();
       return;
     }
 
@@ -107,6 +117,7 @@ export function useTrade(signer: AgentSigner | null) {
       dispatch(setOrderStatus("filled"));
       playSound("close");
       haptic("close");
+      stopProfitTracking();
       // Trade recorded to history when the WS confirms the position is flat.
     } catch (e) {
       dispatch(setOrderError(e instanceof Error ? e.message : "Close failed"));

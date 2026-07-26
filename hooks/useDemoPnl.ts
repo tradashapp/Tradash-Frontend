@@ -51,6 +51,8 @@ export function useDemoPnl() {
       if (trailHit(position.direction, position.trailStopPrice, price)) {
         recordClose(dispatch, position, price, pnl);
         dispatch(settleDemo(pnl)); // lock in the current PnL
+        playSound("close");
+        haptic("close");
         return;
       }
       const nextStop = ratchetTrail(

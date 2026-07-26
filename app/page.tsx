@@ -14,6 +14,7 @@ import { HistorySheet } from "@/components/sheets/HistorySheet";
 import { useAgentWallet } from "@/hooks/useAgentWallet";
 import { useBulkAccount } from "@/hooks/useBulkAccount";
 import { useDemoPnl } from "@/hooks/useDemoPnl";
+import { useLiveTrail } from "@/hooks/useLiveTrail";
 import { useTrade } from "@/hooks/useTrade";
 import type { ChartFrame, PositionOverlay } from "@/lib/chart/engine";
 
@@ -26,6 +27,7 @@ export default function TradePage() {
   const agent = useAgentWallet();
   useBulkAccount(agent.masterAddress);
   useDemoPnl();
+  useLiveTrail(agent.signer);
   const trade = useTrade(agent.signer);
 
   // Position overlay for the chart (entry/liq lines + PnL fill), or null when flat.

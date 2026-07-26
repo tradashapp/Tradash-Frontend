@@ -9,8 +9,6 @@ import { BalancePill } from "@/components/trade/BalancePill";
 import { TradeControls } from "@/components/trade/TradeControls";
 import { MarketSwitcher } from "@/components/sheets/MarketSwitcher";
 import { AccountSheet } from "@/components/sheets/AccountSheet";
-import { SettingsSheet } from "@/components/sheets/SettingsSheet";
-import { HistorySheet } from "@/components/sheets/HistorySheet";
 import { useAgentWallet } from "@/hooks/useAgentWallet";
 import { useBulkAccount } from "@/hooks/useBulkAccount";
 import { useDemoPnl } from "@/hooks/useDemoPnl";

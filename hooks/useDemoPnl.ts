@@ -10,7 +10,7 @@ import {
 } from "@/lib/perp";
 import { patchDemoPosition, settleDemo } from "@/store/slices/tradingModeSlice";
 import { recordClose } from "@/lib/history";
-import { playSound } from "@/lib/sound";
+import { playSound, tickProfit } from "@/lib/sound";
 import { haptic } from "@/lib/haptics";
 
 // While in demo mode with an open position, this loop:
@@ -45,6 +45,9 @@ export function useDemoPnl() {
       position.entryPrice,
       price
     );
+
+    // Celebrate significant profit-direction moves (never on loss moves).
+    tickProfit(pnl);
 
     // Trailing stop: ratchet toward profit, auto-close on reversal into it.
     if (position.trailActive && position.trailStopPrice != null) {

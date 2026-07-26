@@ -12,6 +12,7 @@ import {
   type StoredAgent,
 } from "@/lib/bulk/agentStore";
 import { generateAgentKeypair, makeAgentSigner, type AgentSigner } from "@/lib/bulk/signing";
+import { fetchAccount } from "@/lib/bulk/client";
 import {
   fundAccount,
   authorizeAgentWallet,
@@ -88,7 +89,10 @@ export function useAgentWallet() {
     }
   }, [privyId, masterAddress, authMethod, user?.linkedAccounts, dispatch]);
 
-  // Rehydrate an existing agent signer for this wallet.
+  // Rehydrate an existing agent signer — but ONLY if Bulk actually has it
+  // authorized. A stored key that Bulk doesn't recognize (e.g. from a failed
+  // earlier onboarding) would otherwise masquerade as "ready" and every order
+  // would fail with "unauthorized signer". We verify against the live account.
   useEffect(() => {
     let cancelled = false;
     if (!masterAddress) {
@@ -96,14 +100,25 @@ export function useAgentWallet() {
       return;
     }
     const stored = loadAgent(masterAddress);
-    if (stored) {
-      makeAgentSigner(stored.secretBase58, masterAddress).then((s) => {
-        if (!cancelled) {
-          setSigner(s);
-          dispatch(setAgentAuthorized(true));
-        }
-      });
+    if (!stored) {
+      setSigner(null);
+      dispatch(setAgentAuthorized(false));
+      return;
     }
+    (async () => {
+      const acct = await fetchAccount(masterAddress).catch(() => null);
+      const authorized =
+        acct?.authorizedAgentWallets?.includes(stored.pubkey) ?? false;
+      if (cancelled) return;
+      if (authorized) {
+        setSigner(await makeAgentSigner(stored.secretBase58, masterAddress));
+        dispatch(setAgentAuthorized(true));
+      } else {
+        // Stored key isn't authorized on-chain — not usable. Force re-onboard.
+        setSigner(null);
+        dispatch(setAgentAuthorized(false));
+      }
+    })();
     return () => {
       cancelled = true;
     };

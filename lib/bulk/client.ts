@@ -53,9 +53,33 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   }
 }
 
-/** Submit a signed transaction envelope (order, agent-wallet, abc, etc.). */
-export function submitSigned(signedEnvelope: unknown): Promise<OrderResponse> {
-  return post<OrderResponse>("/order", signedEnvelope);
+/**
+ * Submit a signed transaction envelope (order, agent-wallet, abc, etc.).
+ *
+ * CRITICAL: Bulk returns HTTP 200 even when the action FAILED — the real result
+ * is inside `response.data.statuses[]` (e.g. `{error:{message:"unauthorized
+ * signer"}}` or `{agentWalletFailed:{message}}`). We must inspect it and throw
+ * on a failure status, otherwise onboarding/orders silently "succeed".
+ */
+export async function submitSigned(
+  signedEnvelope: unknown
+): Promise<OrderResponse> {
+  const res = await post<OrderResponse>("/order", signedEnvelope);
+  const status = res?.response?.data?.statuses?.[0] as
+    | Record<string, unknown>
+    | undefined;
+  if (res?.status === "error" || (status && "error" in status)) {
+    const msg =
+      (status?.error as { message?: string } | undefined)?.message ??
+      res?.error ??
+      "Bulk request failed";
+    throw new Error(`Bulk order error: ${msg}`);
+  }
+  if (status && "agentWalletFailed" in status) {
+    const msg = (status.agentWalletFailed as { message?: string }).message;
+    throw new Error(`Agent wallet authorization failed: ${msg}`);
+  }
+  return res;
 }
 
 /**

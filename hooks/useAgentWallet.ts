@@ -114,14 +114,20 @@ export function useAgentWallet() {
     if (!masterAddress || onboarding) return;
     setOnboarding(true);
     try {
-      // 0. Fund + create the Bulk account via the testnet faucet (master-signed).
-      //    A fresh Privy wallet has NO Bulk account until it's funded — this is
-      //    what creates it. Tolerate failure (e.g. already funded / 24h rate
-      //    limit): if the account already exists, later steps still work.
+      // 0. Fund + create the Bulk account. A fresh Privy wallet has NO Bulk
+      //    account until funded — this creates it. On testnet that's the faucet;
+      //    on mainnet it's a real USDC deposit (config.bulk.network switches it).
+      //    Tolerate failure on testnet (already funded / 24h rate limit); on
+      //    mainnet a failed deposit should surface, so only swallow on testnet.
       try {
-        await claimFaucet(masterAddress, masterSign);
-      } catch {
-        /* likely already funded or rate-limited — continue */
+        await fundAccount(masterAddress, masterSign, {
+          network: config.bulk.network,
+          // TODO(mainnet): collect the deposit amount from the user first.
+          depositAmount: undefined,
+        });
+      } catch (e) {
+        if (config.bulk.network === "mainnet") throw e;
+        /* testnet: likely already funded or rate-limited — continue */
       }
 
       // 1. Agent keypair (reuse if present).

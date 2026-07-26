@@ -11,11 +11,30 @@ import type {
 
 const BASE = config.bulk.restUrl;
 
+// The keychain WASM returns actions as JS `Map`s (and may nest Maps). JSON
+// stringifies a Map as `{}`, which would send EMPTY actions to Bulk — so we
+// must deep-convert Maps to plain objects before serializing. This is required
+// for EVERY signed request (orders, agent-wallet, builder-code, faucet, etc.).
+function demap(v: unknown): unknown {
+  if (v instanceof Map) {
+    const o: Record<string, unknown> = {};
+    for (const [k, val] of v) o[String(k)] = demap(val);
+    return o;
+  }
+  if (Array.isArray(v)) return v.map(demap);
+  if (v && typeof v === "object") {
+    const o: Record<string, unknown> = {};
+    for (const k of Object.keys(v)) o[k] = demap((v as Record<string, unknown>)[k]);
+    return o;
+  }
+  return v;
+}
+
 async function post<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify(demap(body)),
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");

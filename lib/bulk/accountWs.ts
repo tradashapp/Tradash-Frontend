@@ -18,16 +18,20 @@ export interface AccountEvents {
   onPosition?: (p: Position | null) => void;
 }
 
+// Real WS shapes (verified live 2026-07-26). Account messages arrive as
+// { type:"account", data:{ type:"accountSnapshot"|<delta>, margin:{...}, positions:[...] } }
 interface RawMargin {
-  equity?: number;
-  available?: number;
+  totalBalance?: number;
+  availableBalance?: number;
   marginUsed?: number;
 }
 
 interface RawPosition {
   symbol?: string;
   size?: number;
-  price?: number;
+  price?: number; // avg entry
+  fairPrice?: number; // mark
+  notional?: number;
   leverage?: number;
   liquidationPrice?: number;
   unrealizedPnl?: number;
@@ -37,6 +41,8 @@ function toPosition(r: RawPosition): Position | null {
   const sym = r.symbol ? bulkToSymbol[r.symbol] : undefined;
   if (!sym || !r.size || r.size === 0 || r.price == null) return null;
   const direction: Direction = r.size > 0 ? "long" : "short";
+  const marginUsed =
+    r.notional && r.leverage ? Math.abs(r.notional) / r.leverage : 0;
   return {
     symbol: sym,
     direction,
@@ -44,7 +50,7 @@ function toPosition(r: RawPosition): Position | null {
     entryPrice: r.price,
     leverage: r.leverage ?? 1,
     liquidationPrice: r.liquidationPrice ?? 0,
-    marginUsed: 0,
+    marginUsed,
     unrealizedPnl: r.unrealizedPnl ?? 0,
     openedAt: Date.now(),
   };
@@ -59,38 +65,33 @@ export function subscribeAccount(
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
   const handleMessage = (raw: string) => {
-    let msg: Record<string, unknown>;
+    let msg: { type?: string; data?: Record<string, unknown> };
     try {
       msg = JSON.parse(raw);
     } catch {
       return;
     }
 
-    // Margin channel → balance.
-    const margin = (msg.margin ?? msg.marginUpdate) as RawMargin | undefined;
+    // Only account messages carry margin/positions; ignore subscriptionResponse etc.
+    if (msg.type !== "account" || !msg.data) return;
+    const data = msg.data;
+
+    // Margin → balance.
+    const margin = data.margin as RawMargin | undefined;
     if (margin && events.onBalance) {
       events.onBalance({
-        equity: margin.equity ?? 0,
-        available: margin.available ?? 0,
+        equity: margin.totalBalance ?? 0,
+        available: margin.availableBalance ?? 0,
         marginUsed: margin.marginUsed ?? 0,
       });
     }
 
-    // Snapshot carries an array of positions; deltas carry one.
-    const snapshotPositions = (msg.positions ??
-      (msg.accountSnapshot as { positions?: RawPosition[] } | undefined)
-        ?.positions) as RawPosition[] | undefined;
-    if (snapshotPositions && events.onPosition) {
-      // MVP: one position at a time — take the first open one for the account.
-      const open = snapshotPositions.map(toPosition).find((p) => p !== null);
+    // Positions array (snapshot + deltas both carry the full array here).
+    const positions = data.positions as RawPosition[] | undefined;
+    if (positions && events.onPosition) {
+      // MVP: one position at a time — take the first open one.
+      const open = positions.map(toPosition).find((p) => p !== null);
       events.onPosition(open ?? null);
-    } else {
-      const single = (msg.position ?? msg.positionUpdate) as
-        | RawPosition
-        | undefined;
-      if (single && events.onPosition) {
-        events.onPosition(toPosition(single));
-      }
     }
   };
 

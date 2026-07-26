@@ -11,6 +11,12 @@ import type { OrderResponse } from "./types";
 /** Signs raw bytes with the master wallet, returning a base58 signature. */
 export type MasterSignBytes = (message: Uint8Array) => Promise<string>;
 
+// IMPORTANT: the WASM `prepare*` fns call SystemTime::now() for the nonce when
+// none is given — which PANICS ("time not implemented") in both the browser and
+// Node. We MUST always pass an explicit nonce so the WASM never touches the
+// system clock. Use ms-epoch (u64).
+const nonce = () => Date.now();
+
 async function prepareSignSubmit(
   prepared: { messageBytes: Uint8Array; finalize: (sig: string) => unknown },
   signBytes: MasterSignBytes
@@ -35,7 +41,7 @@ export async function claimFaucet(
   signBytes: MasterSignBytes
 ): Promise<OrderResponse> {
   const kc = await ensureKeychain();
-  const prepared = kc.prepareFaucet({ account: masterAccount });
+  const prepared = kc.prepareFaucet({ account: masterAccount, nonce: nonce() });
   return prepareSignSubmit(prepared, signBytes);
 }
 
@@ -55,7 +61,7 @@ export async function depositCollateral(
     masterAccount, // from: user's Solana wallet
     masterAccount, // to: their Bulk trading account
     amount,
-    { account: masterAccount, kind: "external", marginSymbol: "USDC" }
+    { account: masterAccount, kind: "external", marginSymbol: "USDC", nonce: nonce() }
   );
   return prepareSignSubmit(prepared, signBytes);
 }

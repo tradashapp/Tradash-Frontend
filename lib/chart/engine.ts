@@ -201,7 +201,7 @@ export class ChartEngine {
     // stops a nearly-flat window from zooming in so far that tiny ticks look like
     // huge spikes. Both center and half ease per frame so the scale glides
     // instead of snapping (this is what removes the zigzag jitter).
-    const floor = price * 0.0012; // ~0.12% minimum visible half-range
+    const floor = price * 0.0005; // ~0.05% minimum visible half-range (zoomed in)
     // When a position is open, make sure the entry (and liq, if near) fit in view.
     const pos = this.position;
     let reach = Math.max(price - range.min, range.max - price);
@@ -212,7 +212,7 @@ export class ChartEngine {
         reach = Math.max(reach, Math.abs(pos.trailStopPrice - price));
       }
     }
-    const needed = Math.max(reach * 1.3, floor);
+    const needed = Math.max(reach * 1.15, floor);
     this.center += (price - this.center) * 0.06;
     const ease = needed > this.half ? 0.12 : 0.02;
     this.half += (needed - this.half) * ease;

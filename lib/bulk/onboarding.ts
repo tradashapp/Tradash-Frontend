@@ -20,6 +20,64 @@ async function prepareSignSubmit(
   return submitSigned(signed);
 }
 
+// --- Account funding (creates the Bulk account) ------------------------------
+// A fresh wallet has NO Bulk account until it's funded. HOW it's funded depends
+// on the network, so `fundAccount` below branches on config.bulk.network:
+//   testnet → faucet (free test funds); mainnet → real USDC deposit.
+// Switching networks is a one-line config change, not a code change.
+
+/**
+ * TESTNET: claim the faucet to create + fund the account (~10,000 test units,
+ * once per 24h per account). Master-signed.
+ */
+export async function claimFaucet(
+  masterAccount: string,
+  signBytes: MasterSignBytes
+): Promise<OrderResponse> {
+  const kc = await ensureKeychain();
+  const prepared = kc.prepareFaucet({ account: masterAccount });
+  return prepareSignSubmit(prepared, signBytes);
+}
+
+/**
+ * MAINNET: deposit USDC collateral from the user's wallet into Bulk (external
+ * transfer), which creates + funds the account. Master-signed. `amount` is a
+ * plain number (USDC).
+ */
+export async function depositCollateral(
+  masterAccount: string,
+  amount: number,
+  signBytes: MasterSignBytes
+): Promise<OrderResponse> {
+  const kc = await ensureKeychain();
+  // Deposit into the user's own Bulk account (from == to == master wallet).
+  const prepared = kc.prepareTransfer(
+    masterAccount, // from: user's Solana wallet
+    masterAccount, // to: their Bulk trading account
+    amount,
+    { account: masterAccount, kind: "external", marginSymbol: "USDC" }
+  );
+  return prepareSignSubmit(prepared, signBytes);
+}
+
+/**
+ * Fund + create the Bulk account for a fresh wallet, using the right method for
+ * the current network. On mainnet a `depositAmount` (USDC) is required.
+ */
+export async function fundAccount(
+  masterAccount: string,
+  signBytes: MasterSignBytes,
+  opts: { network: "testnet" | "mainnet"; depositAmount?: number }
+): Promise<OrderResponse> {
+  if (opts.network === "mainnet") {
+    if (!opts.depositAmount || opts.depositAmount <= 0) {
+      throw new Error("A USDC deposit amount is required to fund on mainnet");
+    }
+    return depositCollateral(masterAccount, opts.depositAmount, signBytes);
+  }
+  return claimFaucet(masterAccount, signBytes);
+}
+
 /** Authorize the agent session key on the master account. */
 export async function authorizeAgentWallet(
   masterAccount: string,

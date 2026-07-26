@@ -26,6 +26,12 @@ export const config = {
     accountWsUrl:
       process.env.NEXT_PUBLIC_BULK_ACCOUNT_WS_URL ??
       "wss://exchange-ws1.bulk.trade",
+    // "testnet" → new accounts are created/funded via the faucet during onboarding.
+    // "mainnet" → the faucet step is skipped; accounts are funded by a real USDC
+    // deposit (external transfer) instead. Flip this one value to go live.
+    network: (process.env.NEXT_PUBLIC_BULK_NETWORK ?? "testnet") as
+      | "testnet"
+      | "mainnet",
   },
 
   builder: {

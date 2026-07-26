@@ -13,6 +13,7 @@ import {
 } from "@/lib/bulk/agentStore";
 import { generateAgentKeypair, makeAgentSigner, type AgentSigner } from "@/lib/bulk/signing";
 import {
+  fundAccount,
   authorizeAgentWallet,
   approveBuilderCode,
   type MasterSignBytes,
@@ -113,6 +114,16 @@ export function useAgentWallet() {
     if (!masterAddress || onboarding) return;
     setOnboarding(true);
     try {
+      // 0. Fund + create the Bulk account via the testnet faucet (master-signed).
+      //    A fresh Privy wallet has NO Bulk account until it's funded — this is
+      //    what creates it. Tolerate failure (e.g. already funded / 24h rate
+      //    limit): if the account already exists, later steps still work.
+      try {
+        await claimFaucet(masterAddress, masterSign);
+      } catch {
+        /* likely already funded or rate-limited — continue */
+      }
+
       // 1. Agent keypair (reuse if present).
       let stored = loadAgent(masterAddress);
       if (!stored) {

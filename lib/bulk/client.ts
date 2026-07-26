@@ -1,7 +1,8 @@
 import { config } from "@/lib/config";
 import type {
   AccountQuery,
-  FullAccount,
+  AccountResponseItem,
+  BulkFullAccount,
   OrderResponse,
 } from "./types";
 
@@ -28,11 +29,22 @@ export function submitSigned(signedEnvelope: unknown): Promise<OrderResponse> {
   return post<OrderResponse>("/order", signedEnvelope);
 }
 
-/** Read full account state (unsigned): balance, margin, positions. */
-export function fetchAccount(
+/**
+ * Read full account state (unsigned): margin + positions. The API returns an
+ * array `[{ fullAccount: {...} }]`. For an account that has never traded, Bulk
+ * returns 500 with an empty body — we treat that as a flat/empty account rather
+ * than an error, so a brand-new user's app doesn't break.
+ */
+export async function fetchAccount(
   user: string,
   symbol?: string
-): Promise<FullAccount> {
+): Promise<BulkFullAccount | null> {
   const query: AccountQuery = { type: "fullAccount", user, symbol };
-  return post<FullAccount>("/account", query);
+  try {
+    const arr = await post<AccountResponseItem[]>("/account", query);
+    return arr?.[0]?.fullAccount ?? null;
+  } catch {
+    // 500/empty = no account yet. Treat as flat.
+    return null;
+  }
 }

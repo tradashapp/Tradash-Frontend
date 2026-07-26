@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { subscribeAccount } from "@/lib/bulk/accountWs";
 import { fetchAccount } from "@/lib/bulk/client";
+import type { BulkPosition } from "@/lib/bulk/types";
 import { MARKETS } from "@/lib/markets";
 import { api } from "@/lib/api";
 import { useAppDispatch, useAppStore } from "@/store/hooks";
@@ -50,14 +51,20 @@ export function useBulkAccount(
         });
     }
 
-    // Seed snapshot (unsigned).
+    // Seed snapshot (unsigned). null = account has never traded (flat).
     fetchAccount(walletAddress)
       .then((acct) => {
+        if (!acct) {
+          dispatch(setBalance({ equity: 0, available: 0, marginUsed: 0 }));
+          dispatch(setPosition(null));
+          lastOpen.current = null;
+          return;
+        }
         dispatch(
           setBalance({
-            equity: acct.equity,
-            available: acct.available,
-            marginUsed: acct.marginUsed,
+            equity: acct.margin.totalBalance,
+            available: acct.margin.availableBalance,
+            marginUsed: acct.margin.marginUsed,
           })
         );
         const open = acct.positions.find((p) => p.size !== 0);
@@ -95,17 +102,13 @@ export function useBulkAccount(
   }, [walletAddress, privyId, dispatch, store]);
 }
 
-function snapshotToPosition(open: {
-  symbol: string;
-  size: number;
-  price: number;
-  leverage: number;
-  liquidationPrice: number;
-  unrealizedPnl: number;
-}): Position | null {
+function snapshotToPosition(open: BulkPosition): Position | null {
   const sym = bulkToSym[open.symbol];
   if (!sym) return null;
   const direction: Direction = open.size > 0 ? "long" : "short";
+  // Margin used = notional / leverage (Bulk gives notional + leverage).
+  const marginUsed =
+    open.leverage > 0 ? Math.abs(open.notional) / open.leverage : 0;
   return {
     symbol: sym,
     direction,
@@ -113,7 +116,7 @@ function snapshotToPosition(open: {
     entryPrice: open.price,
     leverage: open.leverage,
     liquidationPrice: open.liquidationPrice,
-    marginUsed: 0,
+    marginUsed,
     unrealizedPnl: open.unrealizedPnl,
     openedAt: Date.now(),
   };

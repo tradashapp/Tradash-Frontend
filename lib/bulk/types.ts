@@ -88,18 +88,46 @@ export interface AccountQuery {
   symbol?: string;
 }
 
-export interface BulkPosition {
-  symbol: string;
-  size: number;
-  price: number; // avg entry
-  leverage: number;
-  liquidationPrice: number;
+// --- Real /account response shape (verified live 2026-07-26) ------------------
+// POST /account returns an ARRAY: [{ fullAccount: {...} }]. The account nests
+// margin + positions with these exact field names.
+
+export interface BulkMargin {
+  totalBalance: number;
+  availableBalance: number;
+  marginUsed: number;
+  notional: number;
+  realizedPnl: number;
   unrealizedPnl: number;
+  fees: number;
+  funding: number;
 }
 
-export interface FullAccount {
-  equity: number;
-  available: number;
-  marginUsed: number;
+export interface BulkPosition {
+  symbol: string;
+  size: number; // signed: >0 long, <0 short
+  price: number; // avg entry
+  fairPrice: number; // current mark price
+  notional: number;
+  realizedPnl: number;
+  unrealizedPnl: number;
+  leverage: number;
+  liquidationPrice: number;
+  maintenanceMargin: number;
+  iso: boolean;
+}
+
+export interface BulkFullAccount {
+  kind: string; // "MasterEOA"
+  name: string | null;
+  authorizedAgentWallets: string[];
+  margin: BulkMargin;
   positions: BulkPosition[];
+  openOrders: unknown[];
+  leverageSettings: { symbol: string; leverage: number }[];
+}
+
+/** The raw array item returned by POST /account. */
+export interface AccountResponseItem {
+  fullAccount: BulkFullAccount;
 }

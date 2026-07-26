@@ -12,6 +12,8 @@ import {
 import { patchPosition } from "@/store/slices/positionSlice";
 import { setOrderStatus, setOrderError } from "@/store/slices/tradingSlice";
 import { recordClose } from "@/lib/history";
+import { playSound } from "@/lib/sound";
+import { haptic } from "@/lib/haptics";
 import { openMarket, reduceMarket, baseSizeFromUsd } from "@/lib/bulk/orders";
 import type { AgentSigner } from "@/lib/bulk/signing";
 import type { Direction, Position } from "@/types";
@@ -45,6 +47,8 @@ export function useTrade(signer: AgentSigner | null) {
           entryPrice: price,
         });
         dispatch(setDemoPosition(pos));
+        playSound("open");
+        haptic("open");
         return;
       }
 
@@ -66,6 +70,8 @@ export function useTrade(signer: AgentSigner | null) {
           size,
         });
         dispatch(setOrderStatus("filled"));
+        playSound("open");
+        haptic("open");
         // Position appears via the account WS.
       } catch (e) {
         dispatch(setOrderError(e instanceof Error ? e.message : "Order failed"));
@@ -82,6 +88,8 @@ export function useTrade(signer: AgentSigner | null) {
       // Log the completed trade, then realize PnL into the demo balance.
       if (price != null) recordClose(dispatch, position, price, position.unrealizedPnl);
       dispatch(settleDemo(position.unrealizedPnl));
+      playSound("close");
+      haptic("close");
       return;
     }
 
@@ -97,6 +105,9 @@ export function useTrade(signer: AgentSigner | null) {
         size: position.size,
       });
       dispatch(setOrderStatus("filled"));
+      playSound("close");
+      haptic("close");
+      // Trade recorded to history when the WS confirms the position is flat.
     } catch (e) {
       dispatch(setOrderError(e instanceof Error ? e.message : "Close failed"));
     }

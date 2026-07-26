@@ -10,6 +10,8 @@ import {
 } from "@/lib/perp";
 import { patchDemoPosition, settleDemo } from "@/store/slices/tradingModeSlice";
 import { recordClose } from "@/lib/history";
+import { playSound } from "@/lib/sound";
+import { haptic } from "@/lib/haptics";
 
 // While in demo mode with an open position, this loop:
 //  - recomputes unrealized PnL from the live oracle price
@@ -32,6 +34,8 @@ export function useDemoPnl() {
     if (isLiquidated(position, price)) {
       recordClose(dispatch, position, price, -position.marginUsed);
       dispatch(settleDemo(-position.marginUsed)); // lose full margin
+      playSound("close");
+      haptic("close");
       return;
     }
 

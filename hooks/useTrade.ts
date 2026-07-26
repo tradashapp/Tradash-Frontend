@@ -76,6 +76,7 @@ export function useTrade(signer: AgentSigner | null) {
           bulkSymbol: market.bulkSymbol,
           isLong: direction === "long",
           size,
+          refPrice: price,
         });
         dispatch(setOrderStatus("filled"));
         playSound("open");
@@ -113,6 +114,7 @@ export function useTrade(signer: AgentSigner | null) {
         bulkSymbol: market.bulkSymbol,
         positionIsLong: position.direction === "long",
         size: position.size,
+        refPrice: price ?? position.entryPrice,
       });
       dispatch(setOrderStatus("filled"));
       playSound("close");

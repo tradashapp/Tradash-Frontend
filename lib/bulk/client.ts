@@ -31,16 +31,26 @@ function demap(v: unknown): unknown {
 }
 
 async function post<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(demap(body)),
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`Bulk ${path} ${res.status}: ${text}`);
+  // Order acks can be slow (we've seen the gateway 504 while the order still
+  // filled). Give it a long timeout; callers should reconcile via the account
+  // WS / a follow-up /account read rather than trusting a timeout as failure.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 120_000);
+  try {
+    const res = await fetch(`${BASE}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(demap(body)),
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`Bulk ${path} ${res.status}: ${text.slice(0, 200)}`);
+    }
+    return (await res.json()) as T;
+  } finally {
+    clearTimeout(timer);
   }
-  return (await res.json()) as T;
 }
 
 /** Submit a signed transaction envelope (order, agent-wallet, abc, etc.). */

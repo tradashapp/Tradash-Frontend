@@ -50,6 +50,7 @@ export function useLiveTrail(signer: AgentSigner | null) {
         bulkSymbol: MARKETS[position.symbol].bulkSymbol,
         positionIsLong: position.direction === "long",
         size: position.size,
+        refPrice: price,
       })
         .catch(() => {
           // Let it retry on the next tick if the order failed.

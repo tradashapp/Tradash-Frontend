@@ -97,7 +97,7 @@ export function useAgentWallet() {
     }
     const stored = loadAgent(masterAddress);
     if (stored) {
-      makeAgentSigner(stored.secretBase58).then((s) => {
+      makeAgentSigner(stored.secretBase58, masterAddress).then((s) => {
         if (!cancelled) {
           setSigner(s);
           dispatch(setAgentAuthorized(true));
@@ -156,7 +156,7 @@ export function useAgentWallet() {
       }
 
       // 4. Ready signer.
-      setSigner(await makeAgentSigner(stored.secretBase58));
+      setSigner(await makeAgentSigner(stored.secretBase58, masterAddress));
     } catch (e) {
       dispatch(setOrderError(e instanceof Error ? e.message : "Onboarding failed"));
     } finally {

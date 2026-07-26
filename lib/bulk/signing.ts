@@ -1,26 +1,41 @@
 import { ensureKeychain } from "./keychain";
+import type { Keychain } from "./keychain";
 
-// One-tap trade signing with the agent session key. The WasmSigner is built
-// from the agent's base58 secret and signs orders locally (no wallet popup).
-// `sign(order, nonce)` returns a finalized signed transaction envelope ready to
-// POST to /order — the WASM handles wincode encoding + signature internally.
+// One-tap trade signing with the agent session key. The agent signs orders on
+// behalf of the MASTER account (agent-wallet flow): we `prepareOrder` with
+// { account: master, signer: agent }, then the agent signs the prepared bytes
+// via `signPrepared`. The WASM handles wincode encoding + the envelope.
 
 export interface AgentSigner {
+  /** Agent (session key) pubkey. */
   pubkey: string;
-  /** Sign a single order/cancel action → signed envelope for /order. */
-  signOrder(order: unknown, nonce?: number): unknown;
+  /** Master account the agent trades for. */
+  account: string;
+  /**
+   * Prepare a verbose order for the master account, sign it with the agent, and
+   * return the finalized envelope ready to POST. Runs in the browser (the WASM
+   * prepare* path needs the browser environment).
+   */
+  signOrderFor(order: unknown): unknown;
 }
 
-/** Build an agent signer from a base58 secret key (32 or 64 byte). */
+/** Build an agent signer bound to the master account it trades for. */
 export async function makeAgentSigner(
-  agentSecretBase58: string
+  agentSecretBase58: string,
+  masterAccount: string
 ): Promise<AgentSigner> {
-  const kc = await ensureKeychain();
+  const kc: typeof Keychain = await ensureKeychain();
   const signer = kc.WasmSigner.fromBase58(agentSecretBase58);
   return {
     pubkey: signer.pubkey,
-    signOrder(order: unknown, nonce?: number) {
-      return signer.sign(order, nonce ?? Date.now());
+    account: masterAccount,
+    signOrderFor(order: unknown) {
+      // account = master (whose position), signer = agent (who signs).
+      const prepared = kc.prepareOrder(order, {
+        account: masterAccount,
+        signer: signer.pubkey,
+      });
+      return signer.signPrepared(prepared);
     },
   };
 }

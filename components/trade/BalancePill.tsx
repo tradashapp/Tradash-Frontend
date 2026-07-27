@@ -4,7 +4,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { Wallet01Icon } from "@hugeicons/core-free-icons";
 import { useAppSelector } from "@/store/hooks";
 import { formatUsd } from "@/lib/format";
-import { displayPnl } from "@/lib/perp";
+import { demoPnlAt } from "@/lib/perp";
 import { playSound } from "@/lib/sound";
 import { haptic } from "@/lib/haptics";
 
@@ -27,18 +27,15 @@ export function BalancePill({ onOpen }: Props) {
     pos ? s.price.prices[pos.symbol] : undefined
   );
 
-  // Float with the position's MagicBlock-derived PnL. For live, strip Bulk's own
-  // unrealized PnL out of equity first (it's already baked in) to avoid double-
-  // counting, then add our display PnL so the number tracks the chart.
-  const floatPnl = pos ? displayPnl(pos, price) : 0;
+  // Balance floats with the open position's PnL.
+  //  - DEMO: demo balance + MagicBlock-derived PnL.
+  //  - LIVE: Bulk's equity already includes Bulk's real unrealizedPnl, so it IS
+  //    the floating balance — just use it (it updates via the account WS).
   let balance: number | null;
   if (mode === "demo") {
-    balance = demoBalance + floatPnl;
-  } else if (liveBalance != null) {
-    const realizedBase = liveBalance.equity - (liveBalance.unrealizedPnl ?? 0);
-    balance = realizedBase + floatPnl;
+    balance = demoBalance + (pos ? demoPnlAt(pos, price) : 0);
   } else {
-    balance = null;
+    balance = liveBalance?.equity ?? null;
   }
 
   return (

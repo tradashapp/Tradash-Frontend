@@ -31,15 +31,12 @@ export function roi(pnl: number, marginUsd: number): number {
 }
 
 /**
- * Display PnL for a position at the current MagicBlock price, using the
- * basis-adjusted entry (Bulk entry − entryBasis) so the chart's price feed and
- * the PnL agree. Used by the chart overlay, the PnL readout, and the floating
- * balance. Returns 0 if price is unknown.
+ * DEMO display PnL at the current MagicBlock price. (Live PnL comes straight
+ * from Bulk's real unrealizedPnl — do not use this for live.)
  */
-export function displayPnl(pos: Position, currentPrice: number | undefined): number {
+export function demoPnlAt(pos: Position, currentPrice: number | undefined): number {
   if (currentPrice == null) return pos.unrealizedPnl;
-  const chartEntry = pos.entryPrice - (pos.entryBasis ?? 0);
-  return unrealizedPnl(pos.direction, pos.size, chartEntry, currentPrice);
+  return unrealizedPnl(pos.direction, pos.size, pos.entryPrice, currentPrice);
 }
 
 /**

@@ -6,6 +6,7 @@ import { MarketSwitcher } from "@/components/sheets/MarketSwitcher";
 import { AccountSheet } from "@/components/sheets/AccountSheet";
 import { OnboardingTutorial } from "@/components/onboarding/OnboardingTutorial";
 import { InstallSheet } from "@/components/sheets/InstallSheet";
+import { RegisterSW } from "@/components/pwa/RegisterSW";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { DesktopLayout } from "@/components/layout/DesktopLayout";
 import { useAgentWallet } from "@/hooks/useAgentWallet";
@@ -94,6 +95,7 @@ export default function TradePage() {
         onClose={() => setTutorialOpen(false)}
       />
       <InstallSheet open={installOpen} onClose={() => setInstallOpen(false)} />
+      <RegisterSW />
     </>
   );
 }

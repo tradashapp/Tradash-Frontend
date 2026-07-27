@@ -12,7 +12,13 @@ self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE).then((c) => c.addAll(SHELL)).catch(() => {})
   );
-  self.skipWaiting();
+  // Do NOT auto-skipWaiting — wait for the user to tap "Refresh" in the update
+  // toast, which posts SKIP_WAITING below. (Avoids reloading mid-action.)
+});
+
+// The page's "Refresh" button asks the waiting worker to take over.
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {

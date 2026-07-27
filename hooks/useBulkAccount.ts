@@ -16,8 +16,17 @@ import {
 import { clearPendingChartEntry } from "@/store/slices/tradingSlice";
 import { hydrateHistory } from "@/store/slices/historySlice";
 import { recordClose } from "@/lib/history";
+import { useToast, type ToastOptions } from "@/components/toast/ToastProvider";
 import type { Direction, MarketSymbol, Position } from "@/types";
 import type { AppDispatch, AppStore } from "@/store";
+
+type ToastFn = (title: string, opts?: ToastOptions) => string;
+
+const fmtUsd = (n: number) =>
+  `${n >= 0 ? "+" : "−"}$${Math.abs(n).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 
 const bulkToSym = Object.fromEntries(
   (Object.keys(MARKETS) as MarketSymbol[]).map((s) => [MARKETS[s].bulkSymbol, s])
@@ -32,6 +41,7 @@ export function useBulkAccount(
 ) {
   const dispatch = useAppDispatch();
   const store = useAppStore();
+  const { toast } = useToast();
   // Last-seen open live position per market, to reconstruct trades on close.
   const lastOpen = useRef<Partial<Record<MarketSymbol, Position>>>({});
 
@@ -97,10 +107,14 @@ export function useBulkAccount(
             lastOpen.current[p.symbol]
           );
         }
+        // New opens (were flat, now present) → confirm the pending open toast.
+        for (const sym of Object.keys(incoming) as MarketSymbol[]) {
+          if (!lastOpen.current[sym]) toastOpen(toast, incoming[sym]!);
+        }
         // Detect closes: symbols we had open but are no longer present.
         for (const sym of Object.keys(lastOpen.current) as MarketSymbol[]) {
           if (!incoming[sym]) {
-            recordCloseFor(store, dispatch, privyId, lastOpen.current[sym]!);
+            recordCloseFor(store, dispatch, privyId, lastOpen.current[sym]!, toast);
           }
         }
         lastOpen.current = incoming;
@@ -111,13 +125,14 @@ export function useBulkAccount(
       onPositionDelta: (symbol, p) => {
         const prev = lastOpen.current[symbol] ?? null;
         if (prev && !p) {
-          recordCloseFor(store, dispatch, privyId, prev);
+          recordCloseFor(store, dispatch, privyId, prev, toast);
           delete lastOpen.current[symbol];
           dispatch(setPosition({ symbol, position: null }));
           return;
         }
         if (p) {
           const next = enrich(store, dispatch, p, prev ?? undefined);
+          if (!prev) toastOpen(toast, next); // flat → open: confirm the fill
           lastOpen.current[symbol] = next;
           dispatch(setPosition({ symbol, position: next }));
         }
@@ -125,7 +140,7 @@ export function useBulkAccount(
     });
 
     return unsub;
-  }, [walletAddress, privyId, dispatch, store]);
+  }, [walletAddress, privyId, dispatch, store, toast]);
 }
 
 // Attach the PnL anchor (Bulk PnL + MagicBlock price now), preserve openedAt, and
@@ -155,11 +170,27 @@ function recordCloseFor(
   store: AppStore,
   dispatch: AppDispatch,
   privyId: string | null,
-  prev: Position
+  prev: Position,
+  toast: ToastFn
 ) {
   const exit = store.getState().price.prices[prev.symbol] ?? prev.entryPrice;
   const trade = recordClose(dispatch, prev, exit, prev.unrealizedPnl);
   if (privyId) api.recordTrade(privyId, trade).catch(() => {});
+  // Confirm the close (upgrades the pending close-<sym> loading toast if present).
+  toast(`Closed ${prev.symbol}`, {
+    type: prev.unrealizedPnl >= 0 ? "success" : "info",
+    id: `close-${prev.symbol}`,
+    description: `Realized ${fmtUsd(prev.unrealizedPnl)}`,
+  });
+}
+
+// Confirm a live open (upgrades the pending open-<sym> loading toast).
+function toastOpen(toast: ToastFn, pos: Position) {
+  toast(`${pos.direction === "long" ? "Long" : "Short"} ${pos.symbol} opened`, {
+    type: "success",
+    id: `open-${pos.symbol}`,
+    description: `${pos.leverage}× · ${fmtUsd(pos.marginUsed).replace("+", "")} margin`,
+  });
 }
 
 function snapshotToPosition(open: BulkPosition): Position | null {

@@ -22,18 +22,26 @@ import {
   stopProfitTracking,
 } from "@/lib/sound";
 import { haptic } from "@/lib/haptics";
-
-// A "significant" profit move ~= 5% of the margin at risk.
-const profitStepFor = (marginUsd: number) => Math.max(marginUsd * 0.05, 1);
+import { useToast } from "@/components/toast/ToastProvider";
 import { openMarket, reduceMarket, baseSizeFromUsd } from "@/lib/bulk/orders";
 import type { AgentSigner } from "@/lib/bulk/signing";
 import type { Direction, Position } from "@/types";
+
+// A "significant" profit move ~= 5% of the margin at risk.
+const profitStepFor = (marginUsd: number) => Math.max(marginUsd * 0.05, 1);
+
+const fmtUsd = (n: number) =>
+  `${n >= 0 ? "+" : "−"}$${Math.abs(n).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 
 // The single entry point the UI uses to trade. Routes to the demo simulator or
 // the live Bulk client based on the current mode, behind one identical API.
 // Live trading requires a ready agent signer (passed in from useAgentWallet).
 export function useTrade(signer: AgentSigner | null) {
   const dispatch = useAppDispatch();
+  const { toast } = useToast();
   const mode = useAppSelector((s) => s.tradingMode.mode);
   const activeSymbol = useAppSelector((s) => s.market.active);
   const settings = useAppSelector((s) => s.settings);
@@ -81,12 +89,19 @@ export function useTrade(signer: AgentSigner | null) {
         playSound("open");
         haptic("open");
         beginProfitTracking(profitStepFor(pos.marginUsed));
+        toast(`${direction === "long" ? "Long" : "Short"} ${activeSymbol} opened`, {
+          type: "success",
+          description: `${settings.defaultLeverage}× · ${fmtUsd(
+            pos.marginUsed
+          ).replace("+", "")} margin`,
+        });
         return;
       }
 
       // Live: one-tap market order via the agent signer.
       if (!signer) {
         dispatch(setOrderError("Connect wallet to trade live"));
+        toast("Connect wallet to trade live", { type: "error" });
         return;
       }
       // Snapshot the MagicBlock price at THIS instant (the tap) so the chart's
@@ -96,6 +111,12 @@ export function useTrade(signer: AgentSigner | null) {
         setPendingChartEntry({ symbol: activeSymbol, price })
       );
       dispatch(setOrderStatus("submitting"));
+      // Loading toast, keyed per market, upgraded to success by useBulkAccount
+      // when the WS confirms the fill.
+      toast(`Opening ${direction === "long" ? "long" : "short"} ${activeSymbol}…`, {
+        type: "loading",
+        id: `open-${activeSymbol}`,
+      });
       try {
         const size = baseSizeFromUsd(
           settings.defaultPositionSize,
@@ -112,12 +133,18 @@ export function useTrade(signer: AgentSigner | null) {
         playSound("open");
         haptic("open");
         beginProfitTracking(profitStepFor(settings.defaultPositionSize));
-        // Position appears via the account WS.
+        // Success toast fires from useBulkAccount when the WS confirms the position.
       } catch (e) {
-        dispatch(setOrderError(e instanceof Error ? e.message : "Order failed"));
+        const msg = e instanceof Error ? e.message : "Order failed";
+        dispatch(setOrderError(msg));
+        toast("Order failed", {
+          type: "error",
+          id: `open-${activeSymbol}`,
+          description: msg.replace(/^Bulk order error:\s*/, ""),
+        });
       }
     },
-    [mode, price, activeSymbol, settings, signer, dispatch]
+    [mode, price, activeSymbol, settings, signer, dispatch, toast]
   );
 
   const close = useCallback(async () => {
@@ -131,14 +158,23 @@ export function useTrade(signer: AgentSigner | null) {
       playSound("close");
       haptic("close");
       stopProfitTracking();
+      toast(`Closed ${position.symbol}`, {
+        type: position.unrealizedPnl >= 0 ? "success" : "info",
+        description: `Realized ${fmtUsd(position.unrealizedPnl)}`,
+      });
       return;
     }
 
     if (!signer) {
       dispatch(setOrderError("Connect wallet to trade live"));
+      toast("Connect wallet to trade live", { type: "error" });
       return;
     }
     dispatch(setOrderStatus("submitting"));
+    toast(`Closing ${position.symbol}…`, {
+      type: "loading",
+      id: `close-${position.symbol}`,
+    });
     try {
       await reduceMarket(signer, {
         bulkSymbol: market.bulkSymbol,
@@ -150,11 +186,17 @@ export function useTrade(signer: AgentSigner | null) {
       playSound("close");
       haptic("close");
       stopProfitTracking();
-      // Trade recorded to history when the WS confirms the position is flat.
+      // Success toast fires from useBulkAccount when the WS confirms flat.
     } catch (e) {
-      dispatch(setOrderError(e instanceof Error ? e.message : "Close failed"));
+      const msg = e instanceof Error ? e.message : "Close failed";
+      dispatch(setOrderError(msg));
+      toast("Close failed", {
+        type: "error",
+        id: `close-${position.symbol}`,
+        description: msg.replace(/^Bulk order error:\s*/, ""),
+      });
     }
-  }, [mode, position, signer, dispatch]);
+  }, [mode, position, price, signer, dispatch, toast]);
 
   // Can a trail be armed right now? Only when in enough profit that the clamped
   // stop lands strictly in the profit zone (never at/below entry).
@@ -181,6 +223,7 @@ export function useTrade(signer: AgentSigner | null) {
           ? patchDemoPosition({ symbol: sym, patch })
           : patchPosition({ symbol: sym, patch })
       );
+      toast(`Trailing stop off · ${sym}`, { type: "info" });
       return;
     }
     // Guard: only arm when eligible.
@@ -203,7 +246,13 @@ export function useTrade(signer: AgentSigner | null) {
         ? patchDemoPosition({ symbol: sym, patch })
         : patchPosition({ symbol: sym, patch })
     );
-  }, [position, price, mode, settings.defaultTrailPct, dispatch]);
+    toast(`Trailing stop armed · ${sym}`, {
+      type: "success",
+      description: `Locks profit if price reverses ${(
+        settings.defaultTrailPct * 100
+      ).toFixed(1)}%`,
+    });
+  }, [position, price, mode, settings.defaultTrailPct, dispatch, toast]);
 
   return {
     mode,

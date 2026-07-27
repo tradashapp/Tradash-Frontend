@@ -15,8 +15,6 @@ export interface ChartTheme {
   axisLine: string;
   entryLine: string; // neutral entry marker
   liqLine: string; // liquidation warning
-  markerNeutral: string; // mark-price pill border when flat (no position)
-  glassFill: string; // frosted-dark pill background (matches sheet glass)
 }
 
 const DEFAULT_THEME: ChartTheme = {
@@ -28,8 +26,6 @@ const DEFAULT_THEME: ChartTheme = {
   axisLine: "rgba(255, 255, 255, 0.06)",
   entryLine: "rgba(232, 234, 237, 0.55)",
   liqLine: "rgba(230, 67, 45, 0.7)",
-  markerNeutral: "#e8eaed",
-  glassFill: "rgba(10, 12, 16, 0.9)",
 };
 
 // Position overlay data the chart draws: entry line, mark-line color by PnL,
@@ -292,14 +288,8 @@ export class ChartEngine {
     ctx.shadowBlur = 0;
 
     // --- Right price scale + current-price marker (with PnL when in a trade) ---
-    // Marker color: green profit / red loss / neutral when flat (no position).
-    const markerColor = !pos
-      ? this.theme.markerNeutral
-      : pos.pnl >= 0
-        ? this.theme.up
-        : this.theme.down;
     this.drawScale(min, span, top, bottom, usableH, plotW);
-    this.drawCurrentMarker(lx, ly, plotW, price, accent, markerColor, pos?.pnl);
+    this.drawCurrentMarker(lx, ly, plotW, price, accent, pos?.pnl);
 
     return 1 - (ly - top) / usableH;
   }
@@ -438,7 +428,6 @@ export class ChartEngine {
     plotW: number,
     price: number,
     accent: string,
-    markerColor: string,
     pnl?: number
   ) {
     const { ctx, w } = this;
@@ -461,8 +450,7 @@ export class ChartEngine {
     ctx.fill();
 
     // Marker pill on the mark line. When in a position, show the live PnL under
-    // the price. Glass (frosted-dark) background + a border colored by state:
-    // green (profit) / red (loss) / neutral (no position).
+    // the price (this replaces the removed on-screen PnL card).
     const priceLabel = this.fmtPrice(price);
     const pnlLabel =
       pnl != null
@@ -479,35 +467,25 @@ export class ChartEngine {
     ctx.font = "700 11px ui-monospace, SFMono-Regular, Menlo, monospace";
     const pnlW = pnlLabel ? ctx.measureText(pnlLabel).width : 0;
 
-    const padX = 10;
+    const padX = 9;
     const pillW = Math.max(priceW, pnlW) + padX * 2;
-    const pillH = pnlLabel ? 36 : 28;
+    const pillH = pnlLabel ? 34 : 26;
     const pillX = w - AXIS_RIGHT_INSET - pillW;
     const pillY = ly - pillH / 2;
 
-    // Frosted-dark glass fill (canvas can't backdrop-blur; this reads as the
-    // same dark frosted surface as the sheets since the chart behind is dark).
-    ctx.fillStyle = this.theme.glassFill;
-    this.roundRect(pillX, pillY, pillW, pillH, 7);
+    ctx.fillStyle = accent;
+    // rounded-full: radius = half the height so the ends are fully rounded.
+    this.roundRect(pillX, pillY, pillW, pillH, pillH / 2);
     ctx.fill();
 
-    // Colored border (green/red/neutral) — the pill's defining accent.
-    ctx.lineWidth = 1.5;
-    ctx.strokeStyle = markerColor;
-    this.roundRect(pillX + 0.75, pillY + 0.75, pillW - 1.5, pillH - 1.5, 6.25);
-    ctx.stroke();
-
-    // Text colored to match the state.
+    ctx.fillStyle = "#08090c";
     if (pnlLabel) {
       ctx.font = "700 14px ui-monospace, SFMono-Regular, Menlo, monospace";
-      ctx.fillStyle = "#e8eaed"; // price stays neutral/legible
-      ctx.fillText(priceLabel, pillX + padX, ly - 8);
+      ctx.fillText(priceLabel, pillX + padX, ly - 7);
       ctx.font = "700 11px ui-monospace, SFMono-Regular, Menlo, monospace";
-      ctx.fillStyle = markerColor; // PnL in the state color
       ctx.fillText(pnlLabel, pillX + padX, ly + 8);
     } else {
       ctx.font = "700 15px ui-monospace, SFMono-Regular, Menlo, monospace";
-      ctx.fillStyle = "#e8eaed";
       ctx.fillText(priceLabel, pillX + padX, ly);
     }
   }

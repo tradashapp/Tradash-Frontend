@@ -1,8 +1,11 @@
 // Minimal service worker for PWA installability + basic offline shell.
-// Network-first for navigations (so live data/app updates are fresh), falling
-// back to the cached shell when offline. Static assets are cached on the fly.
+//
+// IMPORTANT: it must NEVER cache JS/CSS bundles or dev/HMR assets cache-first —
+// doing so serves stale app code even after a rebuild (a classic PWA gotcha).
+// So we only cache the navigation shell + a tight allowlist of static media
+// (icons/manifest), and always go network-first for everything else.
 
-const CACHE = "tradash-v1";
+const CACHE = "tradash-v2";
 const SHELL = ["/"];
 
 self.addEventListener("install", (event) => {
@@ -19,17 +22,21 @@ self.addEventListener("activate", (event) => {
       .then((keys) =>
         Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
       )
+      .then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
+
+// Only these static, rarely-changing assets are safe to cache-first.
+const CACHEABLE = /\.(png|svg|ico|webmanifest|woff2?)$/i;
 
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   if (request.method !== "GET") return;
 
   const url = new URL(request.url);
-  // Never cache API / oracle / websocket-ish or cross-origin calls — always live.
-  if (url.origin !== self.location.origin) return;
+  if (url.origin !== self.location.origin) return; // never touch cross-origin
+  // Never cache Next internals (JS/CSS bundles, HMR, RSC) — always live.
+  if (url.pathname.startsWith("/_next/")) return;
 
   // Navigations: network-first, fall back to cached shell offline.
   if (request.mode === "navigate") {
@@ -45,16 +52,18 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Same-origin static assets: cache-first with background refresh.
-  event.respondWith(
-    caches.match(request).then(
-      (cached) =>
-        cached ||
-        fetch(request).then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(request, copy)).catch(() => {});
-          return res;
-        })
-    )
-  );
+  // Only whitelisted static media is cache-first; everything else is network.
+  if (CACHEABLE.test(url.pathname)) {
+    event.respondWith(
+      caches.match(request).then(
+        (cached) =>
+          cached ||
+          fetch(request).then((res) => {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put(request, copy)).catch(() => {});
+            return res;
+          })
+      )
+    );
+  }
 });

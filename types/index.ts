@@ -33,6 +33,16 @@ export interface Position {
   /** Trailing stop: active flag + the current stop price (ratchets toward profit). */
   trailActive?: boolean;
   trailStopPrice?: number;
+  /**
+   * Live PnL anchoring (Bulk only pushes PnL on trade events, not per tick). We
+   * record Bulk's real PnL and the MagicBlock price at the moment of each Bulk
+   * update, then interpolate between updates using MagicBlock price movement:
+   *   pnl = pnlAnchor + (mbNow − priceAnchorMb) × size × dir
+   * This stays truthful (re-syncs to Bulk each update) AND smooth (moves per
+   * frame with the chart). Absent for demo.
+   */
+  pnlAnchor?: number;
+  priceAnchorMb?: number;
 }
 
 export interface Balance {

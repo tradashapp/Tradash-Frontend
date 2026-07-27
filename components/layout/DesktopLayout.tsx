@@ -15,6 +15,7 @@ import { BalancePill } from "@/components/trade/BalancePill";
 import { TradeControls } from "@/components/trade/TradeControls";
 import { useAppSelector } from "@/store/hooks";
 import { formatPrice, formatUsd } from "@/lib/format";
+import { Odometer } from "@/components/ui/Odometer";
 import { roi } from "@/lib/perp";
 import type { ChartFrame, PositionOverlay } from "@/lib/chart/engine";
 import type { MarketSymbol } from "@/types";
@@ -116,10 +117,9 @@ function PositionMetrics({ trade }: { trade: ReturnType<typeof useTrade> }) {
       <div>
         <div className="text-xs text-text-muted">Unrealized PnL</div>
         <div
-          className={`tabular text-2xl font-bold ${profit ? "text-up" : "text-down"}`}
+          className={`text-2xl font-bold ${profit ? "text-up" : "text-down"}`}
         >
-          {profit ? "+" : "−"}
-          {formatUsd(Math.abs(pos.unrealizedPnl))}
+          <Odometer value={`${profit ? "+" : "−"}${formatUsd(Math.abs(pos.unrealizedPnl))}`} />
         </div>
       </div>
       <Row label="Direction" value={`${pos.direction.toUpperCase()} ${pos.leverage}×`} />
@@ -145,11 +145,11 @@ function Row({
     <div className="flex items-center justify-between text-sm">
       <span className="text-text-muted">{label}</span>
       <span
-        className={`tabular font-semibold ${
+        className={`font-semibold ${
           color === "up" ? "text-up" : color === "down" ? "text-down" : "text-text"
         }`}
       >
-        {value}
+        <Odometer value={value} />
       </span>
     </div>
   );

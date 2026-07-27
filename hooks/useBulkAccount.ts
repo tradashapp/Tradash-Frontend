@@ -93,8 +93,22 @@ export function useBulkAccount(
             });
           }
         }
-        lastOpen.current = p;
-        dispatch(setPosition(p));
+
+        let next = p;
+        if (next) {
+          // Capture the feed basis ONCE, when the position first opens: the gap
+          // between Bulk's entry price and the MagicBlock price at that moment.
+          // Preserve it across later updates (the entry never changes).
+          const mbPrice = store.getState().price.prices[next.symbol];
+          const existingBasis = prev?.entryBasis;
+          const basis =
+            existingBasis ??
+            (mbPrice != null ? next.entryPrice - mbPrice : 0);
+          next = { ...next, entryBasis: basis, openedAt: prev?.openedAt ?? next.openedAt };
+        }
+
+        lastOpen.current = next;
+        dispatch(setPosition(next));
       },
     });
 

@@ -33,6 +33,13 @@ export interface Position {
   /** Trailing stop: active flag + the current stop price (ratchets toward profit). */
   trailActive?: boolean;
   trailStopPrice?: number;
+  /**
+   * Feed basis for live positions: (Bulk entry price − MagicBlock price at open).
+   * The chart runs on MagicBlock prices, so we subtract this from the Bulk entry
+   * to place the entry line where the MagicBlock line actually was at entry —
+   * keeping chart PnL/color consistent with Bulk's direction. 0 for demo.
+   */
+  entryBasis?: number;
 }
 
 export interface Balance {

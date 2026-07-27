@@ -40,21 +40,36 @@ export function useTrade(signer: AgentSigner | null) {
   const rawPosition = mode === "demo" ? demoPosition : livePosition;
 
   // On-chart display PnL is recomputed from the SAME MagicBlock price the chart
-  // shows, using the position's entry/size/direction. This keeps the line, the
-  // gradient color, and the PnL number visually coherent (Bulk's fair price can
-  // differ from MagicBlock's). Bulk remains authoritative for account equity and
-  // the realized PnL banked on close.
+  // shows, against a BASIS-ADJUSTED entry: Bulk's entry price shifted onto the
+  // MagicBlock axis by the feed offset captured at open (entryBasis). This keeps
+  // the line, the gradient color, and the PnL number coherent AND matching
+  // Bulk's profit/loss direction. Bulk stays authoritative for account equity +
+  // the realized PnL banked on close (which also includes funding fees).
   const position: Position | null =
     rawPosition && price != null
-      ? {
-          ...rawPosition,
-          unrealizedPnl: unrealizedPnl(
-            rawPosition.direction,
-            rawPosition.size,
-            rawPosition.entryPrice,
-            price
-          ),
-        }
+      ? (() => {
+          const basis = rawPosition.entryBasis ?? 0;
+          const chartEntry = rawPosition.entryPrice - basis;
+          return {
+            ...rawPosition,
+            // Shift entry + liq + trail onto the MagicBlock axis so all chart
+            // overlays line up with the (MagicBlock) price line.
+            entryPrice: chartEntry,
+            liquidationPrice: rawPosition.liquidationPrice
+              ? rawPosition.liquidationPrice - basis
+              : rawPosition.liquidationPrice,
+            trailStopPrice:
+              rawPosition.trailStopPrice != null
+                ? rawPosition.trailStopPrice - basis
+                : rawPosition.trailStopPrice,
+            unrealizedPnl: unrealizedPnl(
+              rawPosition.direction,
+              rawPosition.size,
+              chartEntry,
+              price
+            ),
+          };
+        })()
       : rawPosition;
 
   const open = useCallback(

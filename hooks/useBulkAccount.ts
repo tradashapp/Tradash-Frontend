@@ -100,13 +100,22 @@ export function useBulkAccount(
         // the original open time for accurate hold duration.
         let next = p;
         if (next) {
-          const mbNow = store.getState().price.prices[next.symbol];
+          const state = store.getState();
+          const mbNow = state.price.prices[next.symbol];
+          // On the FIRST open (flat→open), use the MagicBlock price captured at
+          // the tap for the entry-line visual; otherwise keep the existing one.
+          const tapEntry = !prev
+            ? state.trading.pendingChartEntry[MARKETS[next.symbol].bulkSymbol] ??
+              state.trading.pendingChartEntry[next.symbol]
+            : prev.chartEntryPrice;
           next = {
             ...next,
             openedAt: prev?.openedAt ?? next.openedAt,
             pnlAnchor: next.unrealizedPnl,
             priceAnchorMb: mbNow,
+            chartEntryPrice: tapEntry ?? mbNow ?? next.entryPrice,
           };
+          if (!prev) dispatch(clearPendingChartEntry(next.symbol));
         }
 
         lastOpen.current = next;

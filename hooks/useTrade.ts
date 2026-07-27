@@ -10,7 +10,11 @@ import {
   settleDemo,
 } from "@/store/slices/tradingModeSlice";
 import { patchPosition } from "@/store/slices/positionSlice";
-import { setOrderStatus, setOrderError } from "@/store/slices/tradingSlice";
+import {
+  setOrderStatus,
+  setOrderError,
+  setPendingChartEntry,
+} from "@/store/slices/tradingSlice";
 import { recordClose } from "@/lib/history";
 import {
   playSound,
@@ -36,6 +40,8 @@ export function useTrade(signer: AgentSigner | null) {
   const livePosition = useAppSelector((s) => s.position.current);
   const demoPosition = useAppSelector((s) => s.tradingMode.demo.position);
   const price = useAppSelector((s) => s.price.prices[activeSymbol]);
+
+  const rawPosition = mode === "demo" ? demoPosition : livePosition;
 
   // Display PnL model:
   //  - LIVE: anchored to Bulk's real PnL (truth), interpolated smoothly with the
@@ -77,6 +83,12 @@ export function useTrade(signer: AgentSigner | null) {
         dispatch(setOrderError("Connect wallet to trade live"));
         return;
       }
+      // Snapshot the MagicBlock price at THIS instant (the tap) so the chart's
+      // entry line lands exactly where the user clicked. Consumed when the
+      // position appears via the WS. Purely visual — PnL stays Bulk-anchored.
+      dispatch(
+        setPendingChartEntry({ symbol: activeSymbol, price })
+      );
       dispatch(setOrderStatus("submitting"));
       try {
         const size = baseSizeFromUsd(

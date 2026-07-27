@@ -43,6 +43,12 @@ export interface Position {
    */
   pnlAnchor?: number;
   priceAnchorMb?: number;
+  /**
+   * MagicBlock price at the moment the order was tapped — used ONLY to draw the
+   * entry line where the user clicked on the chart. PnL is unaffected (Bulk-
+   * anchored). Falls back to entryPrice if absent.
+   */
+  chartEntryPrice?: number;
 }
 
 export interface Balance {

@@ -12,6 +12,12 @@ interface TradingState {
   agentAuthorized: boolean;
   /** Builder code approved by master account (abc signed) — required for revenue. */
   builderApproved: boolean;
+  /**
+   * MagicBlock price captured the instant UP/DOWN is tapped, per symbol. Used
+   * purely to draw the live entry line where the user clicked on the chart
+   * (PnL comes from Bulk). Consumed when the live position first appears.
+   */
+  pendingChartEntry: Partial<Record<string, number>>;
 }
 
 const initialState: TradingState = {
@@ -19,6 +25,7 @@ const initialState: TradingState = {
   lastError: null,
   agentAuthorized: false,
   builderApproved: false,
+  pendingChartEntry: {},
 };
 
 const tradingSlice = createSlice({
@@ -41,6 +48,16 @@ const tradingSlice = createSlice({
     setBuilderApproved(state, action: PayloadAction<boolean>) {
       state.builderApproved = action.payload;
     },
+    /** Stash the tap-time MagicBlock price for a symbol (chart entry line). */
+    setPendingChartEntry(
+      state,
+      action: PayloadAction<{ symbol: string; price: number }>
+    ) {
+      state.pendingChartEntry[action.payload.symbol] = action.payload.price;
+    },
+    clearPendingChartEntry(state, action: PayloadAction<string>) {
+      delete state.pendingChartEntry[action.payload];
+    },
   },
 });
 
@@ -49,5 +66,7 @@ export const {
   setOrderError,
   setAgentAuthorized,
   setBuilderApproved,
+  setPendingChartEntry,
+  clearPendingChartEntry,
 } = tradingSlice.actions;
 export default tradingSlice.reducer;

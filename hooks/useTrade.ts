@@ -3,7 +3,7 @@
 import { useCallback } from "react";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { MARKETS } from "@/lib/markets";
-import { openPosition, trailStopFor, canTrail } from "@/lib/perp";
+import { openPosition, trailStopFor, canTrail, unrealizedPnl } from "@/lib/perp";
 import {
   setDemoPosition,
   patchDemoPosition,
@@ -37,7 +37,25 @@ export function useTrade(signer: AgentSigner | null) {
   const demoPosition = useAppSelector((s) => s.tradingMode.demo.position);
   const price = useAppSelector((s) => s.price.prices[activeSymbol]);
 
-  const position = mode === "demo" ? demoPosition : livePosition;
+  const rawPosition = mode === "demo" ? demoPosition : livePosition;
+
+  // On-chart display PnL is recomputed from the SAME MagicBlock price the chart
+  // shows, using the position's entry/size/direction. This keeps the line, the
+  // gradient color, and the PnL number visually coherent (Bulk's fair price can
+  // differ from MagicBlock's). Bulk remains authoritative for account equity and
+  // the realized PnL banked on close.
+  const position: Position | null =
+    rawPosition && price != null
+      ? {
+          ...rawPosition,
+          unrealizedPnl: unrealizedPnl(
+            rawPosition.direction,
+            rawPosition.size,
+            rawPosition.entryPrice,
+            price
+          ),
+        }
+      : rawPosition;
 
   const open = useCallback(
     async (direction: Direction) => {

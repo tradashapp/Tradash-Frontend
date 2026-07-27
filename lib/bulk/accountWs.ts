@@ -64,6 +64,14 @@ export function subscribeAccount(
   let closed = false;
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
+  const emitBalance = (m: RawMargin) => {
+    events.onBalance?.({
+      equity: m.totalBalance ?? 0,
+      available: m.availableBalance ?? 0,
+      marginUsed: m.marginUsed ?? 0,
+    });
+  };
+
   const handleMessage = (raw: string) => {
     let msg: { type?: string; data?: Record<string, unknown> };
     try {
@@ -75,23 +83,38 @@ export function subscribeAccount(
     // Only account messages carry margin/positions; ignore subscriptionResponse etc.
     if (msg.type !== "account" || !msg.data) return;
     const data = msg.data;
+    const kind = data.type as string | undefined;
 
-    // Margin → balance.
-    const margin = data.margin as RawMargin | undefined;
-    if (margin && events.onBalance) {
-      events.onBalance({
-        equity: margin.totalBalance ?? 0,
-        available: margin.availableBalance ?? 0,
-        marginUsed: margin.marginUsed ?? 0,
-      });
-    }
+    switch (kind) {
+      // Full snapshot: margin nested + positions array.
+      case "accountSnapshot": {
+        const margin = data.margin as RawMargin | undefined;
+        if (margin) emitBalance(margin);
+        const positions = data.positions as RawPosition[] | undefined;
+        if (positions && events.onPosition) {
+          const open = positions.map(toPosition).find((p) => p !== null);
+          events.onPosition(open ?? null);
+        }
+        break;
+      }
 
-    // Positions array (snapshot + deltas both carry the full array here).
-    const positions = data.positions as RawPosition[] | undefined;
-    if (positions && events.onPosition) {
-      // MVP: one position at a time — take the first open one.
-      const open = positions.map(toPosition).find((p) => p !== null);
-      events.onPosition(open ?? null);
+      // Delta: margin fields are directly on `data` (no nesting).
+      case "marginUpdate": {
+        emitBalance(data as RawMargin);
+        break;
+      }
+
+      // Delta: a SINGLE position directly on `data`. size 0 = closed → flat.
+      case "positionUpdate": {
+        if (!events.onPosition) break;
+        const raw = data as RawPosition;
+        events.onPosition(!raw.size ? null : toPosition(raw));
+        break;
+      }
+
+      // fill / orderUpdate / feeTierUpdate etc. carry no balance/position we use.
+      default:
+        break;
     }
   };
 

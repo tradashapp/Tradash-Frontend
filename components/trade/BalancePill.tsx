@@ -20,27 +20,31 @@ export function BalancePill({ onOpen }: Props) {
   const mode = useAppSelector((s) => s.tradingMode.mode);
 
   const demoBalance = useAppSelector((s) => s.tradingMode.demo.balance);
-  const demoPos = useAppSelector((s) => s.tradingMode.demo.position);
+  const demoPositions = useAppSelector((s) => s.tradingMode.demo.positions);
   const liveBalance = useAppSelector((s) => s.user.balance);
-  const livePos = useAppSelector((s) => s.position.current);
-  const pos = mode === "demo" ? demoPos : livePos;
-  const price = useAppSelector((s) =>
-    pos ? s.price.prices[pos.symbol] : undefined
-  );
+  const livePositions = useAppSelector((s) => s.position.bySymbol);
+  const prices = useAppSelector((s) => s.price.prices);
 
-  // Balance floats smoothly with the open position's PnL.
-  //  - DEMO: demo balance + MagicBlock-derived PnL.
-  //  - LIVE: Bulk equity already bakes in the ANCHORED Bulk PnL, so strip that
-  //    (equity − pnlAnchor) to get the realized base, then add the interpolated
-  //    live PnL so it moves per-frame and re-syncs to Bulk on each WS update.
+  // Balance floats smoothly with the SUM of all open positions' PnL (one per
+  // market). Demo: demoBalance + Σ MagicBlock-derived PnL. Live: Bulk equity
+  // already bakes in each position's anchored PnL, so strip those anchors to get
+  // the realized base, then add each interpolated live PnL.
   let balance: number | null;
   if (mode === "demo") {
-    balance = demoBalance + (pos ? demoPnlAt(pos, price) : 0);
+    let sum = 0;
+    for (const p of Object.values(demoPositions)) {
+      if (p) sum += demoPnlAt(p, prices[p.symbol]);
+    }
+    balance = demoBalance + sum;
   } else if (liveBalance != null) {
-    const realizedBase = pos
-      ? liveBalance.equity - (pos.pnlAnchor ?? pos.unrealizedPnl)
-      : liveBalance.equity;
-    balance = realizedBase + (pos ? livePnlAt(pos, price) : 0);
+    let anchored = 0;
+    let live = 0;
+    for (const p of Object.values(livePositions)) {
+      if (!p) continue;
+      anchored += p.pnlAnchor ?? p.unrealizedPnl;
+      live += livePnlAt(p, prices[p.symbol]);
+    }
+    balance = liveBalance.equity - anchored + live;
   } else {
     balance = null;
   }

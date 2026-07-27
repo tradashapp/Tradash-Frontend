@@ -8,72 +8,78 @@ import { tickProfit } from "@/lib/sound";
 import { patchPosition } from "@/store/slices/positionSlice";
 import { reduceMarket } from "@/lib/bulk/orders";
 import type { AgentSigner } from "@/lib/bulk/signing";
+import type { MarketSymbol } from "@/types";
 
-// Live trailing stop. Mirrors useDemoPnl's ratchet, but on hit it submits a
-// REAL reduce-only close via the agent signer. Runs off the live price in the
-// store.
+// Live trailing stop, per market. Mirrors useDemoPnl's ratchet, but on hit it
+// submits a REAL reduce-only close via the agent signer. Runs off each market's
+// live price.
 //
-// LIMITATION: this trails only while the app/tab is open. A true always-on
-// trailing stop needs a server-side keeper watching price 24/7 — deferred.
+// LIMITATION: trails only while the app/tab is open. A true always-on trailing
+// stop needs a server-side keeper watching price 24/7 — deferred.
 export function useLiveTrail(signer: AgentSigner | null) {
   const dispatch = useAppDispatch();
   const mode = useAppSelector((s) => s.tradingMode.mode);
-  const position = useAppSelector((s) => s.position.current);
+  const positions = useAppSelector((s) => s.position.bySymbol);
+  const prices = useAppSelector((s) => s.price.prices);
   const trailPct = useAppSelector((s) => s.settings.defaultTrailPct);
-  const price = useAppSelector((s) =>
-    position ? s.price.prices[position.symbol] : undefined
-  );
-  // Prevents firing the close order more than once while the WS confirms flat.
-  const closing = useRef(false);
+  const activeSymbol = useAppSelector((s) => s.market.active);
+  // Per-market lock so we don't fire the close order twice before the WS confirms.
+  const closing = useRef<Partial<Record<MarketSymbol, boolean>>>({});
 
-  // Celebrate live profit-direction moves (PnL kept fresh by the account WS).
+  // Celebrate profit moves for the ACTIVE market (PnL kept fresh by the WS).
   useEffect(() => {
-    if (mode === "live" && position) tickProfit(position.unrealizedPnl);
-  }, [mode, position]);
+    if (mode !== "live") return;
+    const p = positions[activeSymbol];
+    if (p) tickProfit(p.unrealizedPnl);
+  }, [mode, positions, activeSymbol]);
 
   useEffect(() => {
-    if (
-      mode !== "live" ||
-      !position ||
-      !position.trailActive ||
-      position.trailStopPrice == null ||
-      price == null ||
-      !signer
-    ) {
-      return;
-    }
+    if (mode !== "live" || !signer) return;
 
-    if (trailHit(position.direction, position.trailStopPrice, price)) {
-      if (closing.current) return;
-      closing.current = true;
-      reduceMarket(signer, {
-        bulkSymbol: MARKETS[position.symbol].bulkSymbol,
-        positionIsLong: position.direction === "long",
-        size: position.size,
-        refPrice: price,
-      })
-        .catch(() => {
-          // Let it retry on the next tick if the order failed.
-          closing.current = false;
+    for (const sym of Object.keys(positions) as MarketSymbol[]) {
+      const position = positions[sym];
+      const price = prices[sym];
+      if (
+        !position ||
+        !position.trailActive ||
+        position.trailStopPrice == null ||
+        price == null
+      ) {
+        continue;
+      }
+
+      if (trailHit(position.direction, position.trailStopPrice, price)) {
+        if (closing.current[sym]) continue;
+        closing.current[sym] = true;
+        reduceMarket(signer, {
+          bulkSymbol: MARKETS[sym].bulkSymbol,
+          positionIsLong: position.direction === "long",
+          size: position.size,
+          refPrice: price,
+        }).catch(() => {
+          closing.current[sym] = false; // allow retry
         });
-      return;
-    }
+        continue;
+      }
 
-    // Ratchet the stop toward profit (clamped to entry).
-    const nextStop = ratchetTrail(
-      position.direction,
-      position.trailStopPrice,
-      position.entryPrice,
-      price,
-      trailPct
-    );
-    if (nextStop !== position.trailStopPrice) {
-      dispatch(patchPosition({ trailStopPrice: nextStop }));
+      // Ratchet the stop toward profit (clamped to entry).
+      const nextStop = ratchetTrail(
+        position.direction,
+        position.trailStopPrice,
+        position.entryPrice,
+        price,
+        trailPct
+      );
+      if (nextStop !== position.trailStopPrice) {
+        dispatch(patchPosition({ symbol: sym, patch: { trailStopPrice: nextStop } }));
+      }
     }
-  }, [mode, position, price, trailPct, signer, dispatch]);
+  }, [mode, positions, prices, trailPct, signer, dispatch]);
 
-  // Reset the lock when the position clears (WS confirmed flat).
+  // Clear the lock for any market that's no longer open (WS confirmed flat).
   useEffect(() => {
-    if (!position) closing.current = false;
-  }, [position]);
+    for (const sym of Object.keys(closing.current) as MarketSymbol[]) {
+      if (!positions[sym]) closing.current[sym] = false;
+    }
+  }, [positions]);
 }

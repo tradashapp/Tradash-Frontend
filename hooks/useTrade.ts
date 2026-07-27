@@ -37,18 +37,17 @@ export function useTrade(signer: AgentSigner | null) {
   const mode = useAppSelector((s) => s.tradingMode.mode);
   const activeSymbol = useAppSelector((s) => s.market.active);
   const settings = useAppSelector((s) => s.settings);
-  const livePosition = useAppSelector((s) => s.position.current);
-  const demoPosition = useAppSelector((s) => s.tradingMode.demo.position);
+  // Positions are keyed by market; read the ACTIVE market's position for each
+  // mode. One position per market, so switching markets shows the right one.
+  const livePosition = useAppSelector(
+    (s) => s.position.bySymbol[activeSymbol] ?? null
+  );
+  const demoPosition = useAppSelector(
+    (s) => s.tradingMode.demo.positions[activeSymbol] ?? null
+  );
   const price = useAppSelector((s) => s.price.prices[activeSymbol]);
 
-  const storedPosition = mode === "demo" ? demoPosition : livePosition;
-  // Only show a position on the market it belongs to. Prevents a BTC position
-  // from leaking onto the ETH/SOL chart when switching markets. (Full per-market
-  // tracking lands next; this scopes the single-slot store to the active market.)
-  const rawPosition =
-    storedPosition && storedPosition.symbol === activeSymbol
-      ? storedPosition
-      : null;
+  const rawPosition = mode === "demo" ? demoPosition : livePosition;
 
   // Display PnL model:
   //  - LIVE: anchored to Bulk's real PnL (truth), interpolated smoothly with the
@@ -78,7 +77,7 @@ export function useTrade(signer: AgentSigner | null) {
           leverage: settings.defaultLeverage,
           entryPrice: price,
         });
-        dispatch(setDemoPosition(pos));
+        dispatch(setDemoPosition({ symbol: activeSymbol, position: pos }));
         playSound("open");
         haptic("open");
         beginProfitTracking(profitStepFor(pos.marginUsed));
@@ -128,7 +127,7 @@ export function useTrade(signer: AgentSigner | null) {
     if (mode === "demo") {
       // Log the completed trade, then realize PnL into the demo balance.
       if (price != null) recordClose(dispatch, position, price, position.unrealizedPnl);
-      dispatch(settleDemo(position.unrealizedPnl));
+      dispatch(settleDemo({ symbol: position.symbol, pnl: position.unrealizedPnl }));
       playSound("close");
       haptic("close");
       stopProfitTracking();
@@ -174,9 +173,14 @@ export function useTrade(signer: AgentSigner | null) {
   // runs in useDemoPnl (demo) / the WS-driven path (live). Deactivating clears it.
   const toggleTrail = useCallback(() => {
     if (!position || price == null) return;
+    const sym = position.symbol;
     if (position.trailActive) {
       const patch = { trailActive: false, trailStopPrice: undefined };
-      dispatch(mode === "demo" ? patchDemoPosition(patch) : patchPosition(patch));
+      dispatch(
+        mode === "demo"
+          ? patchDemoPosition({ symbol: sym, patch })
+          : patchPosition({ symbol: sym, patch })
+      );
       return;
     }
     // Guard: only arm when eligible.
@@ -194,7 +198,11 @@ export function useTrade(signer: AgentSigner | null) {
         settings.defaultTrailPct
       ),
     };
-    dispatch(mode === "demo" ? patchDemoPosition(patch) : patchPosition(patch));
+    dispatch(
+      mode === "demo"
+        ? patchDemoPosition({ symbol: sym, patch })
+        : patchPosition({ symbol: sym, patch })
+    );
   }, [position, price, mode, settings.defaultTrailPct, dispatch]);
 
   return {

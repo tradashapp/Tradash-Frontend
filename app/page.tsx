@@ -84,11 +84,16 @@ export default function TradePage() {
           setAccountOpen(false);
           setTutorialOpen(true);
         }}
+        onOpenInstall={() => {
+          setAccountOpen(false);
+          setInstallOpen(true);
+        }}
       />
       <OnboardingTutorial
         open={tutorialOpen}
         onClose={() => setTutorialOpen(false)}
       />
+      <InstallSheet open={installOpen} onClose={() => setInstallOpen(false)} />
     </>
   );
 }

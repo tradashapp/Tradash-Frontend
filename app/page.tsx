@@ -5,6 +5,7 @@ import { useAppSelector } from "@/store/hooks";
 import { MarketSwitcher } from "@/components/sheets/MarketSwitcher";
 import { AccountSheet } from "@/components/sheets/AccountSheet";
 import { OnboardingTutorial } from "@/components/onboarding/OnboardingTutorial";
+import { InstallSheet } from "@/components/sheets/InstallSheet";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { DesktopLayout } from "@/components/layout/DesktopLayout";
 import { useAgentWallet } from "@/hooks/useAgentWallet";
@@ -50,6 +51,7 @@ export default function TradePage() {
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [tutorialOpen, setTutorialOpen] = useState(false);
+  const [installOpen, setInstallOpen] = useState(false);
 
   // Auto-show the "how it works" walkthrough on first visit (persisted flag).
   const tutorialSeen = useAppSelector((s) => s.settings.tutorialSeen);

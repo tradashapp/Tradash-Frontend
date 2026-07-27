@@ -14,6 +14,7 @@ import {
   ArrowRight01Icon,
   ArrowLeft01Icon,
   HelpCircleIcon,
+  Download04Icon,
 } from "@hugeicons/core-free-icons";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { resetDemo } from "@/store/slices/tradingModeSlice";
@@ -31,6 +32,7 @@ interface Props {
   onClose: () => void;
   agent: ReturnType<typeof useAgentWallet>;
   onOpenTutorial: () => void;
+  onOpenInstall: () => void;
 }
 
 const TITLES: Record<View, string> = {
@@ -41,7 +43,13 @@ const TITLES: Record<View, string> = {
 
 // Central account hub. A single sheet with sub-views (menu → settings/history)
 // navigated by a back icon in the top-left, rather than separate sheets.
-export function AccountSheet({ open, onClose, agent, onOpenTutorial }: Props) {
+export function AccountSheet({
+  open,
+  onClose,
+  agent,
+  onOpenTutorial,
+  onOpenInstall,
+}: Props) {
   const dispatch = useAppDispatch();
   const { login, logout, authenticated } = usePrivy();
   const [view, setView] = useState<View>("menu");
@@ -125,6 +133,7 @@ export function AccountSheet({ open, onClose, agent, onOpenTutorial }: Props) {
                       onSettings={() => go("settings")}
                       onHistory={() => go("history")}
                       onTutorial={onOpenTutorial}
+                      onInstall={onOpenInstall}
                     />
                   )}
                   {view === "settings" && <SettingsPanel />}
@@ -153,6 +162,7 @@ function Menu({
   onSettings,
   onHistory,
   onTutorial,
+  onInstall,
 }: {
   mode: "demo" | "live";
   demoBalance: number;
@@ -167,6 +177,7 @@ function Menu({
   onSettings: () => void;
   onHistory: () => void;
   onTutorial: () => void;
+  onInstall: () => void;
 }) {
   return (
     <div className="flex flex-col">
@@ -202,6 +213,7 @@ function Menu({
         <NavRow icon={Settings02Icon} label="Settings" onClick={onSettings} />
         <NavRow icon={Clock01Icon} label="Trade history" onClick={onHistory} />
         <NavRow icon={HelpCircleIcon} label="How it works" onClick={onTutorial} />
+        <NavRow icon={Download04Icon} label="Install app" onClick={onInstall} />
       </div>
 
       {/* Mode-specific actions */}

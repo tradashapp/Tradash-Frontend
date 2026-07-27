@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Space_Grotesk, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
+import { RegisterSW } from "@/components/pwa/RegisterSW";
 
 // Space Grotesk is the main UI typeface; JetBrains Mono backs tabular figures.
 const sans = Space_Grotesk({
@@ -19,6 +20,20 @@ const mono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "Tradash",
   description: "Tap to trade. Perpetuals, made instant.",
+  manifest: "/manifest.webmanifest",
+  applicationName: "Tradash",
+  appleWebApp: {
+    capable: true,
+    title: "Tradash",
+    statusBarStyle: "black-translucent",
+  },
+  icons: {
+    icon: [
+      { url: "/favicon.png", type: "image/png" },
+      { url: "/icon.svg", type: "image/svg+xml" },
+    ],
+    apple: "/apple-icon.png",
+  },
 };
 
 export const viewport: Viewport = {
@@ -39,6 +54,7 @@ export default function RootLayout({
     <html lang="en" className={`dark ${sans.variable} ${mono.variable}`}>
       <body>
         <Providers>{children}</Providers>
+        <RegisterSW />
       </body>
     </html>
   );

@@ -53,7 +53,7 @@ export function BalancePill({ onOpen }: Props) {
         haptic("tap");
         onOpen();
       }}
-      className="group flex items-center gap-2 rounded-2xl bg-bg-overlay/60 px-3 py-1.5 backdrop-blur-sm transition-colors hover:bg-bg-overlay"
+      className="group flex items-center gap-2 rounded-full bg-bg-overlay/60 px-3 py-1.5 backdrop-blur-sm transition-colors hover:bg-bg-overlay"
     >
       <HugeiconsIcon
         icon={Wallet01Icon}
@@ -73,7 +73,7 @@ export function BalancePill({ onOpen }: Props) {
             mode === "demo" ? "text-text-muted" : "text-up"
           }`}
         >
-          {mode === "demo" ? "DEMO" : "LIVE"}
+          {mode === "demo" ? "DEMO" : ""}
         </div>
       </div>
     </button>

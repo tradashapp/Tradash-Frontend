@@ -12,7 +12,14 @@ import { patchDemoPosition, settleDemo } from "@/store/slices/tradingModeSlice";
 import { recordClose } from "@/lib/history";
 import { playSound, tickProfit } from "@/lib/sound";
 import { haptic } from "@/lib/haptics";
+import { useToast } from "@/components/toast/ToastProvider";
 import type { MarketSymbol } from "@/types";
+
+const fmtUsd = (n: number) =>
+  `${n >= 0 ? "+" : "−"}$${Math.abs(n).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 
 // While in demo mode, this loop maintains EVERY open demo position (one per
 // market): recompute PnL from that market's oracle price, auto-liquidate, and
@@ -21,6 +28,7 @@ import type { MarketSymbol } from "@/types";
 export function useDemoPnl() {
   const dispatch = useAppDispatch();
   const store = useAppStore();
+  const { toast } = useToast();
   const mode = useAppSelector((s) => s.tradingMode.mode);
   const positions = useAppSelector((s) => s.tradingMode.demo.positions);
   const trailPct = useAppSelector((s) => s.settings.defaultTrailPct);
@@ -47,6 +55,10 @@ export function useDemoPnl() {
           playSound("close");
           haptic("close");
         }
+        toast(`${sym} liquidated`, {
+          type: "error",
+          description: `Lost ${fmtUsd(-position.marginUsed)} margin`,
+        });
         continue;
       }
 
@@ -68,6 +80,10 @@ export function useDemoPnl() {
             playSound("close");
             haptic("close");
           }
+          toast(`Trailing stop hit · ${sym}`, {
+            type: pnl >= 0 ? "success" : "info",
+            description: `Locked ${fmtUsd(pnl)}`,
+          });
           continue;
         }
         const nextStop = ratchetTrail(
@@ -89,5 +105,5 @@ export function useDemoPnl() {
         dispatch(patchDemoPosition({ symbol: sym, patch: { unrealizedPnl: pnl } }));
       }
     }
-  }, [mode, positions, tick, trailPct, activeSymbol, store, dispatch]);
+  }, [mode, positions, tick, trailPct, activeSymbol, store, dispatch, toast]);
 }

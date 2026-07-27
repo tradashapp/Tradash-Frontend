@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { useSignMessage } from "@privy-io/react-auth/solana";
 import bs58 from "bs58";
@@ -26,6 +26,7 @@ import {
   setOrderError,
 } from "@/store/slices/tradingSlice";
 import { setWallet } from "@/store/slices/userSlice";
+import { useToast } from "@/components/toast/ToastProvider";
 
 // Orchestrates the agent-wallet lifecycle:
 //  - resolves the connected master wallet (Privy)
@@ -36,6 +37,7 @@ export function useAgentWallet() {
   const dispatch = useAppDispatch();
   const { user, authenticated } = usePrivy();
   const { signMessage } = useSignMessage();
+  const { toast } = useToast();
 
   const [signer, setSigner] = useState<AgentSigner | null>(null);
   const [onboarding, setOnboarding] = useState(false);
@@ -70,6 +72,21 @@ export function useAgentWallet() {
     },
     [signMessage]
   );
+
+  // Toast on connect / disconnect transitions.
+  const wasAuthed = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (wasAuthed.current === null) {
+      wasAuthed.current = authenticated;
+      return;
+    }
+    if (authenticated && !wasAuthed.current) {
+      toast("Wallet connected", { type: "success" });
+    } else if (!authenticated && wasAuthed.current) {
+      toast("Wallet disconnected", { type: "info" });
+    }
+    wasAuthed.current = authenticated;
+  }, [authenticated, toast]);
 
   // Track the wallet in Redux + sync the backend user by Privy DID (carrying the
   // embedded wallet, auth method, and linked accounts so one person = one row).
@@ -128,6 +145,8 @@ export function useAgentWallet() {
   const onboard = useCallback(async () => {
     if (!masterAddress || onboarding) return;
     setOnboarding(true);
+    const TID = "onboard";
+    toast("Setting up one-tap trading…", { type: "loading", id: TID });
     try {
       // 0. Fund + create the Bulk account. A fresh Privy wallet has NO Bulk
       //    account until funded — this creates it. On testnet that's the faucet;
@@ -156,12 +175,14 @@ export function useAgentWallet() {
       }
 
       // 2. Authorize the agent on the master account (master-signed).
+      toast("Authorizing agent wallet…", { type: "loading", id: TID });
       await authorizeAgentWallet(masterAddress, stored.pubkey, masterSign);
       dispatch(setAgentAuthorized(true));
       if (privyId) api.recordOnboard(privyId, "agent").catch(() => {});
 
       // 3. Approve our builder code (master-signed) — required for revenue.
       if (config.builder.recipient && config.builder.feeBps) {
+        toast("Approving builder code…", { type: "loading", id: TID });
         await approveBuilderCode(
           masterAddress,
           config.builder.recipient,
@@ -174,12 +195,23 @@ export function useAgentWallet() {
 
       // 4. Ready signer.
       setSigner(await makeAgentSigner(stored.secretBase58, masterAddress));
+      toast("One-tap trading enabled", {
+        type: "success",
+        id: TID,
+        description: "Your account is funded and ready to trade.",
+      });
     } catch (e) {
-      dispatch(setOrderError(e instanceof Error ? e.message : "Onboarding failed"));
+      const msg = e instanceof Error ? e.message : "Onboarding failed";
+      dispatch(setOrderError(msg));
+      toast("Setup failed", {
+        type: "error",
+        id: TID,
+        description: msg.replace(/^(Bulk order error|Agent wallet authorization failed):\s*/, ""),
+      });
     } finally {
       setOnboarding(false);
     }
-  }, [privyId, masterAddress, onboarding, masterSign, dispatch]);
+  }, [privyId, masterAddress, onboarding, masterSign, dispatch, toast]);
 
   return {
     privyId,

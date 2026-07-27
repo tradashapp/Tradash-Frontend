@@ -15,7 +15,10 @@ const bulkToSymbol: Record<string, MarketSymbol> = Object.fromEntries(
 
 export interface AccountEvents {
   onBalance?: (b: Balance) => void;
-  onPosition?: (p: Position | null) => void;
+  /** Full set of open positions (from a snapshot) — reconcile all markets. */
+  onSnapshot?: (positions: Position[]) => void;
+  /** A single market's position changed (delta). null = that market closed. */
+  onPositionDelta?: (symbol: MarketSymbol, position: Position | null) => void;
 }
 
 // Real WS shapes (verified live 2026-07-26). Account messages arrive as
@@ -88,14 +91,16 @@ export function subscribeAccount(
     const kind = data.type as string | undefined;
 
     switch (kind) {
-      // Full snapshot: margin nested + positions array.
+      // Full snapshot: margin nested + positions array → reconcile ALL markets.
       case "accountSnapshot": {
         const margin = data.margin as RawMargin | undefined;
         if (margin) emitBalance(margin);
         const positions = data.positions as RawPosition[] | undefined;
-        if (positions && events.onPosition) {
-          const open = positions.map(toPosition).find((p) => p !== null);
-          events.onPosition(open ?? null);
+        if (positions && events.onSnapshot) {
+          const open = positions
+            .map(toPosition)
+            .filter((p): p is Position => p !== null);
+          events.onSnapshot(open);
         }
         break;
       }
@@ -106,11 +111,14 @@ export function subscribeAccount(
         break;
       }
 
-      // Delta: a SINGLE position directly on `data`. size 0 = closed → flat.
+      // Delta: a SINGLE market's position directly on `data`. size 0 = that
+      // market closed. We still need its symbol to clear the right one.
       case "positionUpdate": {
-        if (!events.onPosition) break;
+        if (!events.onPositionDelta) break;
         const raw = data as RawPosition;
-        events.onPosition(!raw.size ? null : toPosition(raw));
+        const sym = raw.symbol ? bulkToSymbol[raw.symbol] : undefined;
+        if (!sym) break;
+        events.onPositionDelta(sym, !raw.size ? null : toPosition(raw));
         break;
       }
 

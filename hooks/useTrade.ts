@@ -41,7 +41,14 @@ export function useTrade(signer: AgentSigner | null) {
   const demoPosition = useAppSelector((s) => s.tradingMode.demo.position);
   const price = useAppSelector((s) => s.price.prices[activeSymbol]);
 
-  const rawPosition = mode === "demo" ? demoPosition : livePosition;
+  const storedPosition = mode === "demo" ? demoPosition : livePosition;
+  // Only show a position on the market it belongs to. Prevents a BTC position
+  // from leaking onto the ETH/SOL chart when switching markets. (Full per-market
+  // tracking lands next; this scopes the single-slot store to the active market.)
+  const rawPosition =
+    storedPosition && storedPosition.symbol === activeSymbol
+      ? storedPosition
+      : null;
 
   // Display PnL model:
   //  - LIVE: anchored to Bulk's real PnL (truth), interpolated smoothly with the

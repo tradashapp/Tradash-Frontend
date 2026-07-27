@@ -24,6 +24,7 @@ interface RawMargin {
   totalBalance?: number;
   availableBalance?: number;
   marginUsed?: number;
+  unrealizedPnl?: number;
 }
 
 interface RawPosition {
@@ -69,6 +70,7 @@ export function subscribeAccount(
       equity: m.totalBalance ?? 0,
       available: m.availableBalance ?? 0,
       marginUsed: m.marginUsed ?? 0,
+      unrealizedPnl: m.unrealizedPnl ?? 0,
     });
   };
 

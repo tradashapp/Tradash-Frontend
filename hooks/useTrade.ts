@@ -37,38 +37,25 @@ export function useTrade(signer: AgentSigner | null) {
   const demoPosition = useAppSelector((s) => s.tradingMode.demo.position);
   const price = useAppSelector((s) => s.price.prices[activeSymbol]);
 
-  const rawPosition = mode === "demo" ? demoPosition : livePosition;
-
-  // On-chart display PnL is recomputed from the SAME MagicBlock price the chart
-  // shows, against a BASIS-ADJUSTED entry: Bulk's entry price shifted onto the
-  // MagicBlock axis by the feed offset captured at open (entryBasis). This keeps
-  // the line, the gradient color, and the PnL number coherent AND matching
-  // Bulk's profit/loss direction. Bulk stays authoritative for account equity +
-  // the realized PnL banked on close (which also includes funding fees).
+  // PnL model (matches how Bulk's own UI behaves):
+  //  - LIVE: PnL/color come straight from Bulk's real `unrealizedPnl` (the truth,
+  //    same number as Bulk's positions table). The chart line (MagicBlock) and
+  //    the entry line (real Bulk entry) run on their own feeds and may look
+  //    mismatched — that's fine and expected; the number stays truthful.
+  //  - DEMO: no Bulk truth exists, so PnL is derived from the MagicBlock price
+  //    against the (MagicBlock) entry — fully self-consistent.
   const position: Position | null =
-    rawPosition && price != null
-      ? (() => {
-          const basis = rawPosition.entryBasis ?? 0;
-          const chartEntry = rawPosition.entryPrice - basis;
-          return {
-            ...rawPosition,
-            // Shift entry + liq + trail onto the MagicBlock axis so all chart
-            // overlays line up with the (MagicBlock) price line.
-            entryPrice: chartEntry,
-            liquidationPrice: rawPosition.liquidationPrice
-              ? rawPosition.liquidationPrice - basis
-              : rawPosition.liquidationPrice,
-            // trailStopPrice is already stored in MagicBlock axis (it's a UI/
-            // trigger value seeded from MagicBlock price), so no basis shift.
-            unrealizedPnl: unrealizedPnl(
-              rawPosition.direction,
-              rawPosition.size,
-              chartEntry,
-              price
-            ),
-          };
-        })()
-      : rawPosition;
+    mode === "demo" && rawPosition && price != null
+      ? {
+          ...rawPosition,
+          unrealizedPnl: unrealizedPnl(
+            rawPosition.direction,
+            rawPosition.size,
+            rawPosition.entryPrice,
+            price
+          ),
+        }
+      : rawPosition; // live: use Bulk's real position + unrealizedPnl as-is
 
   const open = useCallback(
     async (direction: Direction) => {

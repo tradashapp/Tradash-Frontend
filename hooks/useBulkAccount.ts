@@ -65,6 +65,7 @@ export function useBulkAccount(
             equity: acct.margin.totalBalance,
             available: acct.margin.availableBalance,
             marginUsed: acct.margin.marginUsed,
+            unrealizedPnl: acct.margin.unrealizedPnl,
           })
         );
         const open = acct.positions.find((p) => p.size !== 0);
@@ -94,18 +95,10 @@ export function useBulkAccount(
           }
         }
 
-        let next = p;
-        if (next) {
-          // Capture the feed basis ONCE, when the position first opens: the gap
-          // between Bulk's entry price and the MagicBlock price at that moment.
-          // Preserve it across later updates (the entry never changes).
-          const mbPrice = store.getState().price.prices[next.symbol];
-          const existingBasis = prev?.entryBasis;
-          const basis =
-            existingBasis ??
-            (mbPrice != null ? next.entryPrice - mbPrice : 0);
-          next = { ...next, entryBasis: basis, openedAt: prev?.openedAt ?? next.openedAt };
-        }
+        // Preserve the original open time across WS updates for accurate hold
+        // duration on close. Entry price + PnL come straight from Bulk (truth).
+        const next =
+          p && prev ? { ...p, openedAt: prev.openedAt } : p;
 
         lastOpen.current = next;
         dispatch(setPosition(next));

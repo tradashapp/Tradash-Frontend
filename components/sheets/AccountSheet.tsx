@@ -189,6 +189,12 @@ function Menu({
               ? formatUsd(liveEquity)
               : "—"}
         </div>
+        {mode === "live" && (
+          <div className="mt-1 text-[10px] leading-tight text-text-muted">
+            Settled figure from Bulk (includes funding fees). On-chart PnL is a
+            live estimate.
+          </div>
+        )}
       </div>
 
       {/* Navigation */}

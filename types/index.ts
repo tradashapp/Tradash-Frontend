@@ -33,22 +33,21 @@ export interface Position {
   /** Trailing stop: active flag + the current stop price (ratchets toward profit). */
   trailActive?: boolean;
   trailStopPrice?: number;
-  /**
-   * Feed basis for live positions: (Bulk entry price − MagicBlock price at open).
-   * The chart runs on MagicBlock prices, so we subtract this from the Bulk entry
-   * to place the entry line where the MagicBlock line actually was at entry —
-   * keeping chart PnL/color consistent with Bulk's direction. 0 for demo.
-   */
-  entryBasis?: number;
 }
 
 export interface Balance {
-  /** Total account equity. */
+  /** Total account equity (Bulk: collateral + Bulk's own unrealized PnL). */
   equity: number;
   /** Free balance available for new margin. */
   available: number;
   /** Margin currently locked in open positions. */
   marginUsed: number;
+  /**
+   * Bulk's own unrealized PnL already baked into `equity`. We subtract it to get
+   * the realized base, then re-add our MagicBlock-derived display PnL so the
+   * floating balance tracks the chart without double-counting.
+   */
+  unrealizedPnl?: number;
 }
 
 export type OrderStatus =

@@ -4,6 +4,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { Wallet01Icon } from "@hugeicons/core-free-icons";
 import { useAppSelector } from "@/store/hooks";
 import { formatUsd } from "@/lib/format";
+import { displayPnl } from "@/lib/perp";
 import { playSound } from "@/lib/sound";
 import { haptic } from "@/lib/haptics";
 
@@ -12,19 +13,33 @@ interface Props {
 }
 
 // Top-right account chip: live-or-demo balance + a mode badge. Opens the
-// Account sheet on tap (where mode toggle + connect + settings live).
+// Account sheet on tap. The balance FLOATS with the open position's PnL in both
+// modes (recomputed from the live MagicBlock price), so it tracks the chart.
 export function BalancePill({ onOpen }: Props) {
   const mode = useAppSelector((s) => s.tradingMode.mode);
 
   const demoBalance = useAppSelector((s) => s.tradingMode.demo.balance);
   const demoPos = useAppSelector((s) => s.tradingMode.demo.position);
-  const liveEquity = useAppSelector((s) => s.user.balance?.equity);
+  const liveBalance = useAppSelector((s) => s.user.balance);
+  const livePos = useAppSelector((s) => s.position.current);
+  const pos = mode === "demo" ? demoPos : livePos;
+  const price = useAppSelector((s) =>
+    pos ? s.price.prices[pos.symbol] : undefined
+  );
 
-  // Balance shown includes unrealized PnL of an open demo position (float).
-  const balance =
-    mode === "demo"
-      ? demoBalance + (demoPos?.unrealizedPnl ?? 0)
-      : liveEquity ?? null;
+  // Float with the position's MagicBlock-derived PnL. For live, strip Bulk's own
+  // unrealized PnL out of equity first (it's already baked in) to avoid double-
+  // counting, then add our display PnL so the number tracks the chart.
+  const floatPnl = pos ? displayPnl(pos, price) : 0;
+  let balance: number | null;
+  if (mode === "demo") {
+    balance = demoBalance + floatPnl;
+  } else if (liveBalance != null) {
+    const realizedBase = liveBalance.equity - (liveBalance.unrealizedPnl ?? 0);
+    balance = realizedBase + floatPnl;
+  } else {
+    balance = null;
+  }
 
   return (
     <button

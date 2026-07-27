@@ -25,14 +25,14 @@ export function MarketHeader({ symbol, onOpen }: Props) {
     <button
       type="button"
       onClick={onOpen}
-      className="group flex items-center gap-3 rounded-2xl px-2 py-1.5 text-left transition-colors bg-bg-overlay/50 hover:bg-bg-overlay"
+      className="group flex items-center gap-3 rounded-full px-2 py-1.5 text-left transition-colors bg-bg-overlay/50 hover:bg-bg-overlay"
     >
       <Image
         src={market.logo}
         alt={market.label}
         width={40}
         height={40}
-        className="h-10 w-10 rounded-full"
+        className="h-8 w-8 rounded-full"
         priority
       />
       <div className="leading-tight">
@@ -40,10 +40,10 @@ export function MarketHeader({ symbol, onOpen }: Props) {
           {price != null ? (
             <Odometer
               value={formatUsd(price)}
-              className="text-xl font-semibold"
+              className="text-lg font-semibold"
             />
           ) : (
-            <span className="tabular text-xl font-semibold">—</span>
+            <span className="tabular text-lg font-semibold">—</span>
           )}
           <HugeiconsIcon
             icon={ArrowDown01Icon}

@@ -52,7 +52,7 @@ export function TradeControls({
           <button
             type="button"
             onClick={onLong}
-            className="flex items-center justify-center gap-2 rounded-2xl bg-up-soft py-5 text-lg font-semibold text-up backdrop-blur-sm transition-transform duration-150 ease-snap active:scale-95"
+            className="flex items-center justify-center gap-2 rounded-full bg-up-soft py-5 text-lg font-semibold text-up backdrop-blur-sm transition-transform duration-150 ease-snap active:scale-95"
           >
             <HugeiconsIcon icon={ArrowUp01Icon} size={22} />
             UP
@@ -60,7 +60,7 @@ export function TradeControls({
           <button
             type="button"
             onClick={onShort}
-            className="flex items-center justify-center gap-2 rounded-2xl bg-down-soft py-5 text-lg font-semibold text-down backdrop-blur-sm transition-transform duration-150 ease-snap active:scale-95"
+            className="flex items-center justify-center gap-2 rounded-full bg-down-soft py-5 text-lg font-semibold text-down backdrop-blur-sm transition-transform duration-150 ease-snap active:scale-95"
           >
             <HugeiconsIcon icon={ArrowDown01Icon} size={22} />
             DOWN
@@ -109,7 +109,7 @@ function ActivePosition({
   return (
     <div className="flex flex-col gap-2">
       {/* Slim glass detail strip — never covers the buttons */}
-      <div className="glass flex items-center justify-between rounded-2xl px-4 py-2.5 text-xs">
+      <div className="glass flex items-center justify-between rounded-full px-4 py-2.5 text-xs">
         <span
           className={`rounded-md px-1.5 py-0.5 font-bold ${
             position.direction === "long"
@@ -145,7 +145,7 @@ function ActivePosition({
               onToggleTrail();
             }}
             disabled={!trailActive && !trailEligible}
-            className={`flex items-center justify-center gap-2 rounded-2xl py-4 text-base font-semibold backdrop-blur-sm transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 ${
+            className={`flex items-center justify-center gap-2 rounded-full py-4 text-base font-semibold backdrop-blur-sm transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 ${
               trailActive ? "bg-up text-black" : "bg-up-soft text-up"
             }`}
           >
@@ -161,7 +161,7 @@ function ActivePosition({
         <button
           type="button"
           onClick={onClose}
-          className="flex items-center justify-center gap-2 self-start rounded-2xl bg-white/10 py-4 text-base font-semibold text-text backdrop-blur-sm transition-transform active:scale-95"
+          className="flex items-center justify-center gap-2 self-start rounded-full bg-white/10 py-4 text-base font-semibold text-text backdrop-blur-sm transition-transform active:scale-95"
           style={{ width: "100%" }}
         >
           <HugeiconsIcon icon={Cancel01Icon} size={20} />

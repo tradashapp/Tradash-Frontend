@@ -5,10 +5,15 @@ import {
   type SettingsState,
 } from "./slices/settingsSlice";
 import { hydrateHistory } from "./slices/historySlice";
+import {
+  hydrateTradingMode,
+  type TradingMode,
+} from "./slices/tradingModeSlice";
 import type { CompletedTrade } from "@/types";
 
 const SETTINGS_KEY = "tradash.settings.v1";
 const HISTORY_KEY = "tradash.history.v1";
+const MODE_KEY = "tradash.mode.v1";
 
 // Load persisted settings + trade history on the client and subscribe to
 // persist future changes. Called once from Providers after the store is created.
@@ -36,7 +41,32 @@ export function wireSettingsPersistence(store: AppStore) {
     /* corrupt storage — keep empty */
   }
 
+  // Hydrate trading mode (demo/live) + demo balance. Open positions are NOT
+  // persisted — they come from Bulk (live) or start flat (demo).
+  try {
+    const raw = window.localStorage.getItem(MODE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as {
+        mode?: TradingMode;
+        demoBalance?: number;
+      };
+      store.dispatch(
+        hydrateTradingMode({
+          mode: parsed.mode === "live" ? "live" : "demo",
+          demoBalance:
+            typeof parsed.demoBalance === "number"
+              ? parsed.demoBalance
+              : store.getState().tradingMode.demo.balance,
+        })
+      );
+    }
+  } catch {
+    /* corrupt storage — keep defaults */
+  }
+
   let lastSettings = store.getState().settings;
+  let lastMode = store.getState().tradingMode.mode;
+  let lastDemoBalance = store.getState().tradingMode.demo.balance;
   let lastHistory = store.getState().history.trades;
   store.subscribe(() => {
     const state = store.getState();
@@ -57,6 +87,21 @@ export function wireSettingsPersistence(store: AppStore) {
         window.localStorage.setItem(
           HISTORY_KEY,
           JSON.stringify(state.history.trades)
+        );
+      } catch {
+        /* non-fatal */
+      }
+    }
+    // Persist mode + demo balance when either changes.
+    const mode = state.tradingMode.mode;
+    const demoBalance = state.tradingMode.demo.balance;
+    if (mode !== lastMode || demoBalance !== lastDemoBalance) {
+      lastMode = mode;
+      lastDemoBalance = demoBalance;
+      try {
+        window.localStorage.setItem(
+          MODE_KEY,
+          JSON.stringify({ mode, demoBalance })
         );
       } catch {
         /* non-fatal */

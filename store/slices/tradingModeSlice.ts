@@ -51,6 +51,14 @@ const tradingModeSlice = createSlice({
       state.demo.balance = DEMO_STARTING_BALANCE;
       state.demo.position = null;
     },
+    /** Restore persisted mode + demo balance on load (positions are not persisted). */
+    hydrateTradingMode(
+      state,
+      action: PayloadAction<{ mode: TradingMode; demoBalance: number }>
+    ) {
+      state.mode = action.payload.mode;
+      state.demo.balance = action.payload.demoBalance;
+    },
   },
 });
 
@@ -60,6 +68,7 @@ export const {
   patchDemoPosition,
   settleDemo,
   resetDemo,
+  hydrateTradingMode,
 } = tradingModeSlice.actions;
 export { DEMO_STARTING_BALANCE };
 export default tradingModeSlice.reducer;

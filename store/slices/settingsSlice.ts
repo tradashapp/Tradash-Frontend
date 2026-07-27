@@ -14,6 +14,8 @@ export interface SettingsState {
   theme: "dark" | "light";
   soundEnabled: boolean;
   hapticsEnabled: boolean;
+  /** Whether the first-run "how it works" tutorial has been shown. */
+  tutorialSeen: boolean;
 }
 
 const initialState: SettingsState = {
@@ -26,6 +28,7 @@ const initialState: SettingsState = {
   theme: "dark",
   soundEnabled: true,
   hapticsEnabled: true,
+  tutorialSeen: false,
 };
 
 const settingsSlice = createSlice({

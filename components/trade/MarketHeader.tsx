@@ -6,6 +6,7 @@ import { ArrowDown01Icon } from "@hugeicons/core-free-icons";
 import { MARKETS } from "@/lib/markets";
 import { formatUsd } from "@/lib/format";
 import { useAppSelector } from "@/store/hooks";
+import { Odometer } from "@/components/ui/Odometer";
 import type { MarketSymbol } from "@/types";
 
 interface Props {
@@ -36,9 +37,14 @@ export function MarketHeader({ symbol, onOpen }: Props) {
       />
       <div className="leading-tight">
         <div className="flex items-center gap-1">
-          <span className="tabular text-xl font-semibold">
-            {price != null ? formatUsd(price) : "—"}
-          </span>
+          {price != null ? (
+            <Odometer
+              value={formatUsd(price)}
+              className="text-xl font-semibold"
+            />
+          ) : (
+            <span className="tabular text-xl font-semibold">—</span>
+          )}
           <HugeiconsIcon
             icon={ArrowDown01Icon}
             size={16}

@@ -5,6 +5,7 @@ import { Wallet01Icon } from "@hugeicons/core-free-icons";
 import { useAppSelector } from "@/store/hooks";
 import { formatUsd } from "@/lib/format";
 import { demoPnlAt, livePnlAt } from "@/lib/perp";
+import { Odometer } from "@/components/ui/Odometer";
 import { playSound } from "@/lib/sound";
 import { haptic } from "@/lib/haptics";
 

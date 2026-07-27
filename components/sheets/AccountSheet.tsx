@@ -16,9 +16,8 @@ import {
   HelpCircleIcon,
 } from "@hugeicons/core-free-icons";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
-import { setMode, resetDemo } from "@/store/slices/tradingModeSlice";
+import { resetDemo } from "@/store/slices/tradingModeSlice";
 import { formatUsd } from "@/lib/format";
-import { ToggleSwitch } from "@/components/ui/ToggleSwitch";
 import { SettingsPanel } from "./panels/SettingsPanel";
 import { HistoryPanel } from "./panels/HistoryPanel";
 import { playSound } from "@/lib/sound";

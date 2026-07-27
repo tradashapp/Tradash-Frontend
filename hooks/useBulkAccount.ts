@@ -95,10 +95,19 @@ export function useBulkAccount(
           }
         }
 
-        // Preserve the original open time across WS updates for accurate hold
-        // duration on close. Entry price + PnL come straight from Bulk (truth).
-        const next =
-          p && prev ? { ...p, openedAt: prev.openedAt } : p;
+        // Anchor Bulk's real PnL to the current MagicBlock price so the display
+        // can interpolate smoothly between Bulk's (event-only) updates. Preserve
+        // the original open time for accurate hold duration.
+        let next = p;
+        if (next) {
+          const mbNow = store.getState().price.prices[next.symbol];
+          next = {
+            ...next,
+            openedAt: prev?.openedAt ?? next.openedAt,
+            pnlAnchor: next.unrealizedPnl,
+            priceAnchorMb: mbNow,
+          };
+        }
 
         lastOpen.current = next;
         dispatch(setPosition(next));

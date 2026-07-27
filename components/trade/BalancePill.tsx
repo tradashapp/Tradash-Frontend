@@ -4,7 +4,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { Wallet01Icon } from "@hugeicons/core-free-icons";
 import { useAppSelector } from "@/store/hooks";
 import { formatUsd } from "@/lib/format";
-import { demoPnlAt } from "@/lib/perp";
+import { demoPnlAt, livePnlAt } from "@/lib/perp";
 import { playSound } from "@/lib/sound";
 import { haptic } from "@/lib/haptics";
 
@@ -27,15 +27,21 @@ export function BalancePill({ onOpen }: Props) {
     pos ? s.price.prices[pos.symbol] : undefined
   );
 
-  // Balance floats with the open position's PnL.
+  // Balance floats smoothly with the open position's PnL.
   //  - DEMO: demo balance + MagicBlock-derived PnL.
-  //  - LIVE: Bulk's equity already includes Bulk's real unrealizedPnl, so it IS
-  //    the floating balance — just use it (it updates via the account WS).
+  //  - LIVE: Bulk equity already bakes in the ANCHORED Bulk PnL, so strip that
+  //    (equity − pnlAnchor) to get the realized base, then add the interpolated
+  //    live PnL so it moves per-frame and re-syncs to Bulk on each WS update.
   let balance: number | null;
   if (mode === "demo") {
     balance = demoBalance + (pos ? demoPnlAt(pos, price) : 0);
+  } else if (liveBalance != null) {
+    const realizedBase = pos
+      ? liveBalance.equity - (pos.pnlAnchor ?? pos.unrealizedPnl)
+      : liveBalance.equity;
+    balance = realizedBase + (pos ? livePnlAt(pos, price) : 0);
   } else {
-    balance = liveBalance?.equity ?? null;
+    balance = null;
   }
 
   return (

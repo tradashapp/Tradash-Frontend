@@ -30,10 +30,13 @@ export default function TradePage() {
   useLiveTrail(agent.signer);
   const trade = useTrade(agent.signer);
 
-  // Position overlay for the chart (entry/liq/trail lines + PnL fill).
+  // Position overlay for the chart. The entry LINE is drawn at chartEntryPrice
+  // (the MagicBlock price at tap) so it lands where the user clicked on the
+  // chart; PnL/color come from trade.position.unrealizedPnl (Bulk-anchored).
   const chartPosition: PositionOverlay | null = trade.position
     ? {
-        entryPrice: trade.position.entryPrice,
+        entryPrice:
+          trade.position.chartEntryPrice ?? trade.position.entryPrice,
         liquidationPrice: trade.position.liquidationPrice,
         pnl: trade.position.unrealizedPnl,
         trailStopPrice: trade.position.trailActive

@@ -7,6 +7,7 @@ import { ratchetTrail, trailHit } from "@/lib/perp";
 import { tickProfit } from "@/lib/sound";
 import { patchPosition } from "@/store/slices/positionSlice";
 import { reduceMarket } from "@/lib/bulk/orders";
+import { useToast } from "@/components/toast/ToastProvider";
 import type { AgentSigner } from "@/lib/bulk/signing";
 import type { MarketSymbol } from "@/types";
 
@@ -19,6 +20,7 @@ import type { MarketSymbol } from "@/types";
 export function useLiveTrail(signer: AgentSigner | null) {
   const dispatch = useAppDispatch();
   const store = useAppStore();
+  const { toast } = useToast();
   const mode = useAppSelector((s) => s.tradingMode.mode);
   const positions = useAppSelector((s) => s.position.bySymbol);
   const trailPct = useAppSelector((s) => s.settings.defaultTrailPct);
@@ -56,6 +58,11 @@ export function useLiveTrail(signer: AgentSigner | null) {
       if (trailHit(position.direction, position.trailStopPrice, price)) {
         if (closing.current[sym]) continue;
         closing.current[sym] = true;
+        toast(`Trailing stop triggered · ${sym}`, {
+          type: "loading",
+          id: `close-${sym}`,
+          description: "Closing to lock your profit…",
+        });
         reduceMarket(signer, {
           bulkSymbol: MARKETS[sym].bulkSymbol,
           positionIsLong: position.direction === "long",
@@ -79,7 +86,7 @@ export function useLiveTrail(signer: AgentSigner | null) {
         dispatch(patchPosition({ symbol: sym, patch: { trailStopPrice: nextStop } }));
       }
     }
-  }, [mode, positions, tick, trailPct, signer, store, dispatch]);
+  }, [mode, positions, tick, trailPct, signer, store, dispatch, toast]);
 
   // Clear the lock for any market that's no longer open (WS confirmed flat).
   useEffect(() => {

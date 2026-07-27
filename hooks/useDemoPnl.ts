@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { useAppDispatch, useAppSelector, useAppStore } from "@/store/hooks";
 import {
   unrealizedPnl,
   isLiquidated,
@@ -20,14 +20,20 @@ import type { MarketSymbol } from "@/types";
 // background markets don't create noise. Live positions get this from Bulk's WS.
 export function useDemoPnl() {
   const dispatch = useAppDispatch();
+  const store = useAppStore();
   const mode = useAppSelector((s) => s.tradingMode.mode);
   const positions = useAppSelector((s) => s.tradingMode.demo.positions);
-  const prices = useAppSelector((s) => s.price.prices);
   const trailPct = useAppSelector((s) => s.settings.defaultTrailPct);
   const activeSymbol = useAppSelector((s) => s.market.active);
+  // Trigger the loop on the ACTIVE market's committed price (a stable primitive),
+  // then read all prices from the store — avoids re-running on every price
+  // object-identity change (which caused a re-render storm).
+  const tick = useAppSelector((s) => s.price.prices[activeSymbol]);
 
   useEffect(() => {
     if (mode !== "demo") return;
+    void tick;
+    const prices = store.getState().price.prices;
 
     for (const sym of Object.keys(positions) as MarketSymbol[]) {
       const position = positions[sym];
@@ -83,5 +89,5 @@ export function useDemoPnl() {
         dispatch(patchDemoPosition({ symbol: sym, patch: { unrealizedPnl: pnl } }));
       }
     }
-  }, [mode, positions, prices, trailPct, activeSymbol, dispatch]);
+  }, [mode, positions, tick, trailPct, activeSymbol, store, dispatch]);
 }

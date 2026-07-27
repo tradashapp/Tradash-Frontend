@@ -12,6 +12,7 @@ import { useBulkAccount } from "@/hooks/useBulkAccount";
 import { useDemoPnl } from "@/hooks/useDemoPnl";
 import { useLiveTrail } from "@/hooks/useLiveTrail";
 import { useFeedback } from "@/hooks/useFeedback";
+import { useAllPrices } from "@/hooks/useAllPrices";
 import { useTrade } from "@/hooks/useTrade";
 import { useIsDesktop } from "@/hooks/useIsDesktop";
 import type { PositionOverlay } from "@/lib/chart/engine";
@@ -25,6 +26,7 @@ export default function TradePage() {
   // Lifecycle hooks.
   const agent = useAgentWallet();
   useFeedback();
+  useAllPrices(); // live price for ALL markets (switcher + multi-market PnL)
   useBulkAccount(agent.masterAddress, agent.privyId);
   useDemoPnl();
   useLiveTrail(agent.signer);

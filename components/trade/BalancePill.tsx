@@ -57,15 +57,15 @@ export function BalancePill({ onOpen }: Props) {
         haptic("tap");
         onOpen();
       }}
-      className="group flex items-center gap-2 rounded-full bg-bg-overlay/60 px-3 py-1.5 backdrop-blur-sm transition-colors hover:bg-bg-overlay"
+      className="group flex items-center gap-2 rounded-full bg-bg-overlay/60 px-4 py-2 backdrop-blur-sm transition-colors hover:bg-bg-overlay"
     >
       <HugeiconsIcon
         icon={Wallet01Icon}
-        size={16}
+        size={20}
         className="text-text-muted"
       />
       <div className="text-right leading-tight">
-        <div className="text-sm font-semibold">
+        <div className="text-base font-semibold">
           {balance != null ? (
             <Odometer value={formatUsd(balance)} />
           ) : (

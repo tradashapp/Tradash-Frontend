@@ -8,9 +8,9 @@ import {
   ArrowMoveUpRightIcon,
   Cancel01Icon,
 } from "@hugeicons/core-free-icons";
-import { useAppSelector } from "@/store/hooks";
 import { formatPrice, formatUsd } from "@/lib/format";
 import { roi } from "@/lib/perp";
+import { Odometer } from "@/components/ui/Odometer";
 import { playSound } from "@/lib/sound";
 import { haptic } from "@/lib/haptics";
 import type { Position } from "@/types";
@@ -185,7 +185,7 @@ function Stat({
     <div className="text-right leading-tight">
       <div className="text-[10px] text-text-muted">{label}</div>
       <div
-        className={`tabular font-semibold ${
+        className={`font-semibold ${
           color === "up"
             ? "text-up"
             : color === "down"
@@ -193,7 +193,7 @@ function Stat({
               : "text-text"
         }`}
       >
-        {value}
+        <Odometer value={value} />
       </div>
     </div>
   );

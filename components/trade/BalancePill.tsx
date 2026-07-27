@@ -61,8 +61,12 @@ export function BalancePill({ onOpen }: Props) {
         className="text-text-muted"
       />
       <div className="text-right leading-tight">
-        <div className="tabular text-sm font-semibold">
-          {balance != null ? formatUsd(balance) : "Connect"}
+        <div className="text-sm font-semibold">
+          {balance != null ? (
+            <Odometer value={formatUsd(balance)} />
+          ) : (
+            "Connect"
+          )}
         </div>
         <div
           className={`text-[10px] font-medium tracking-wide ${

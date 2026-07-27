@@ -13,6 +13,7 @@ import {
   Clock01Icon,
   ArrowRight01Icon,
   ArrowLeft01Icon,
+  HelpCircleIcon,
 } from "@hugeicons/core-free-icons";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { setMode, resetDemo } from "@/store/slices/tradingModeSlice";
@@ -30,6 +31,7 @@ interface Props {
   open: boolean;
   onClose: () => void;
   agent: ReturnType<typeof useAgentWallet>;
+  onOpenTutorial: () => void;
 }
 
 const TITLES: Record<View, string> = {
@@ -40,7 +42,7 @@ const TITLES: Record<View, string> = {
 
 // Central account hub. A single sheet with sub-views (menu → settings/history)
 // navigated by a back icon in the top-left, rather than separate sheets.
-export function AccountSheet({ open, onClose, agent }: Props) {
+export function AccountSheet({ open, onClose, agent, onOpenTutorial }: Props) {
   const dispatch = useAppDispatch();
   const { login, logout, authenticated } = usePrivy();
   const [view, setView] = useState<View>("menu");
@@ -126,6 +128,7 @@ export function AccountSheet({ open, onClose, agent }: Props) {
                       onLogout={logout}
                       onSettings={() => go("settings")}
                       onHistory={() => go("history")}
+                      onTutorial={onOpenTutorial}
                     />
                   )}
                   {view === "settings" && <SettingsPanel />}
@@ -154,6 +157,7 @@ function Menu({
   onLogout,
   onSettings,
   onHistory,
+  onTutorial,
 }: {
   mode: "demo" | "live";
   demoBalance: number;
@@ -168,6 +172,7 @@ function Menu({
   onLogout: () => void;
   onSettings: () => void;
   onHistory: () => void;
+  onTutorial: () => void;
 }) {
   return (
     <div className="flex flex-col">
@@ -200,6 +205,7 @@ function Menu({
       <div className="mb-4 flex flex-col gap-2">
         <NavRow icon={Settings02Icon} label="Settings" onClick={onSettings} />
         <NavRow icon={Clock01Icon} label="Trade history" onClick={onHistory} />
+        <NavRow icon={HelpCircleIcon} label="How it works" onClick={onTutorial} />
       </div>
 
       {/* Mode-specific actions */}

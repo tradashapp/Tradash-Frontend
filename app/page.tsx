@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAppSelector } from "@/store/hooks";
 import { MarketSwitcher } from "@/components/sheets/MarketSwitcher";
 import { AccountSheet } from "@/components/sheets/AccountSheet";
+import { OnboardingTutorial } from "@/components/onboarding/OnboardingTutorial";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { DesktopLayout } from "@/components/layout/DesktopLayout";
 import { useAgentWallet } from "@/hooks/useAgentWallet";
@@ -43,6 +44,13 @@ export default function TradePage() {
 
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [tutorialOpen, setTutorialOpen] = useState(false);
+
+  // Auto-show the "how it works" walkthrough on first visit (persisted flag).
+  const tutorialSeen = useAppSelector((s) => s.settings.tutorialSeen);
+  useEffect(() => {
+    if (!tutorialSeen) setTutorialOpen(true);
+  }, [tutorialSeen]);
 
   const layoutProps = {
     symbol: activeSymbol,
@@ -65,6 +73,14 @@ export default function TradePage() {
         open={accountOpen}
         onClose={() => setAccountOpen(false)}
         agent={agent}
+        onOpenTutorial={() => {
+          setAccountOpen(false);
+          setTutorialOpen(true);
+        }}
+      />
+      <OnboardingTutorial
+        open={tutorialOpen}
+        onClose={() => setTutorialOpen(false)}
       />
     </>
   );

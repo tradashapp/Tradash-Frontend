@@ -58,10 +58,8 @@ export function useTrade(signer: AgentSigner | null) {
             liquidationPrice: rawPosition.liquidationPrice
               ? rawPosition.liquidationPrice - basis
               : rawPosition.liquidationPrice,
-            trailStopPrice:
-              rawPosition.trailStopPrice != null
-                ? rawPosition.trailStopPrice - basis
-                : rawPosition.trailStopPrice,
+            // trailStopPrice is already stored in MagicBlock axis (it's a UI/
+            // trigger value seeded from MagicBlock price), so no basis shift.
             unrealizedPnl: unrealizedPnl(
               rawPosition.direction,
               rawPosition.size,

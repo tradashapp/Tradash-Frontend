@@ -31,6 +31,18 @@ export function roi(pnl: number, marginUsd: number): number {
 }
 
 /**
+ * Display PnL for a position at the current MagicBlock price, using the
+ * basis-adjusted entry (Bulk entry − entryBasis) so the chart's price feed and
+ * the PnL agree. Used by the chart overlay, the PnL readout, and the floating
+ * balance. Returns 0 if price is unknown.
+ */
+export function displayPnl(pos: Position, currentPrice: number | undefined): number {
+  if (currentPrice == null) return pos.unrealizedPnl;
+  const chartEntry = pos.entryPrice - (pos.entryBasis ?? 0);
+  return unrealizedPnl(pos.direction, pos.size, chartEntry, currentPrice);
+}
+
+/**
  * Liquidation price — where losses consume the margin. Simplified isolated-margin
  * model (no fees/funding): long liquidates below entry, short above.
  */

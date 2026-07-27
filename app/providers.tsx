@@ -5,10 +5,11 @@ import { Provider as ReduxProvider } from "react-redux";
 import { PrivyProvider } from "@privy-io/react-auth";
 import { makeStore, type AppStore } from "@/store";
 import { wireSettingsPersistence } from "@/store/persist";
+import { ToastProvider } from "@/components/toast/ToastProvider";
 import { config } from "@/lib/config";
 
 // Single client-side provider tree: Redux (with settings persistence wired
-// once) wrapped by Privy for wallet connect / master-account auth.
+// once) + Toasts, wrapped by Privy for wallet connect / master-account auth.
 export function Providers({ children }: { children: ReactNode }) {
   const storeRef = useRef<AppStore | null>(null);
   if (!storeRef.current) {
@@ -17,7 +18,9 @@ export function Providers({ children }: { children: ReactNode }) {
   }
 
   const tree = (
-    <ReduxProvider store={storeRef.current}>{children}</ReduxProvider>
+    <ReduxProvider store={storeRef.current}>
+      <ToastProvider>{children}</ToastProvider>
+    </ReduxProvider>
   );
 
   // Privy throws if constructed without an appId. Until NEXT_PUBLIC_PRIVY_APP_ID

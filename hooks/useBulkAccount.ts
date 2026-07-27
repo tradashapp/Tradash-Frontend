@@ -9,6 +9,7 @@ import { api } from "@/lib/api";
 import { useAppDispatch, useAppStore } from "@/store/hooks";
 import { setBalance } from "@/store/slices/userSlice";
 import { setPosition } from "@/store/slices/positionSlice";
+import { clearPendingChartEntry } from "@/store/slices/tradingSlice";
 import { hydrateHistory } from "@/store/slices/historySlice";
 import { recordClose } from "@/lib/history";
 import type { Direction, MarketSymbol, Position } from "@/types";
@@ -105,8 +106,7 @@ export function useBulkAccount(
           // On the FIRST open (flat→open), use the MagicBlock price captured at
           // the tap for the entry-line visual; otherwise keep the existing one.
           const tapEntry = !prev
-            ? state.trading.pendingChartEntry[MARKETS[next.symbol].bulkSymbol] ??
-              state.trading.pendingChartEntry[next.symbol]
+            ? state.trading.pendingChartEntry[next.symbol]
             : prev.chartEntryPrice;
           next = {
             ...next,

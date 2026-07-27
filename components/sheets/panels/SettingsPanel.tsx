@@ -4,6 +4,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { MinusSignIcon, PlusSignIcon } from "@hugeicons/core-free-icons";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { updateSettings } from "@/store/slices/settingsSlice";
+import { setMode } from "@/store/slices/tradingModeSlice";
 import { ToggleSwitch } from "@/components/ui/ToggleSwitch";
 import { MARKETS, MARKET_ORDER } from "@/lib/markets";
 import type { MarketSymbol } from "@/types";
@@ -13,9 +14,27 @@ import type { MarketSymbol } from "@/types";
 export function SettingsPanel() {
   const dispatch = useAppDispatch();
   const s = useAppSelector((st) => st.settings);
+  const mode = useAppSelector((st) => st.tradingMode.mode);
 
   return (
     <div className="flex flex-col gap-2">
+      {/* Demo mode toggle. Live is the default; turning this ON switches to
+          demo (simulated funds). The choice is remembered across reloads. */}
+      <div className="glass-inset flex items-center justify-between rounded-2xl px-4 py-3.5">
+        <div className="leading-tight">
+          <div className="text-sm font-medium">Demo mode</div>
+          <div className="text-xs text-text-muted">
+            {mode === "demo"
+              ? "Practicing with simulated funds"
+              : "Trading live with real funds"}
+          </div>
+        </div>
+        <ToggleSwitch
+          on={mode === "demo"}
+          onChange={(on) => dispatch(setMode(on ? "demo" : "live"))}
+        />
+      </div>
+
       <Stepper
         label="Default position size"
         value={s.defaultPositionSize}

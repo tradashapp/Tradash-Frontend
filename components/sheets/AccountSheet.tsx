@@ -120,9 +120,6 @@ export function AccountSheet({ open, onClose, agent, onOpenTutorial }: Props) {
                       agent={agent}
                       agentAuthorized={agentAuthorized}
                       builderApproved={builderApproved}
-                      onToggleMode={(on) =>
-                        dispatch(setMode(on ? "live" : "demo"))
-                      }
                       onResetDemo={() => dispatch(resetDemo())}
                       onLogin={login}
                       onLogout={logout}
@@ -151,7 +148,6 @@ function Menu({
   agent,
   agentAuthorized,
   builderApproved,
-  onToggleMode,
   onResetDemo,
   onLogin,
   onLogout,
@@ -166,7 +162,6 @@ function Menu({
   agent: ReturnType<typeof useAgentWallet>;
   agentAuthorized: boolean;
   builderApproved: boolean;
-  onToggleMode: (on: boolean) => void;
   onResetDemo: () => void;
   onLogin: () => void;
   onLogout: () => void;
@@ -176,21 +171,17 @@ function Menu({
 }) {
   return (
     <div className="flex flex-col">
-      {/* Live trading on/off switch */}
-      <div className="glass-inset mb-3 flex items-center justify-between rounded-2xl px-4 py-3.5">
-        <div className="leading-tight">
-          <div className="text-sm font-medium">Live trading</div>
-          <div className="text-xs text-text-muted">
-            {mode === "live" ? "Trading real funds" : "Demo — simulated funds"}
-          </div>
-        </div>
-        <ToggleSwitch on={mode === "live"} onChange={onToggleMode} />
-      </div>
-
-      {/* Balance */}
+      {/* Balance — with a small mode badge (toggle lives in Settings now). */}
       <div className="glass-inset mb-4 rounded-2xl p-4">
-        <div className="text-xs text-text-muted">
-          {mode === "demo" ? "Demo balance" : "Account equity"}
+        <div className="flex items-center justify-between text-xs text-text-muted">
+          <span>{mode === "demo" ? "Demo balance" : "Account equity"}</span>
+          <span
+            className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold ${
+              mode === "demo" ? "bg-white/10 text-text-muted" : "bg-up-soft text-up"
+            }`}
+          >
+            {mode === "demo" ? "DEMO" : "LIVE"}
+          </span>
         </div>
         <div className="tabular text-2xl font-semibold">
           {mode === "demo"

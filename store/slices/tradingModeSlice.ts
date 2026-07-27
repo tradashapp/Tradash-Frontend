@@ -20,7 +20,9 @@ interface TradingModeState {
 }
 
 const initialState: TradingModeState = {
-  mode: "demo",
+  // Live is the default. New users can pick Demo from the "how it works" popup;
+  // returning users get their last-used mode restored from localStorage.
+  mode: "live",
   demo: {
     balance: DEMO_STARTING_BALANCE,
     position: null,

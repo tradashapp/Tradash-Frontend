@@ -3,7 +3,7 @@
 import { useCallback } from "react";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { MARKETS } from "@/lib/markets";
-import { openPosition, trailStopFor, canTrail, unrealizedPnl } from "@/lib/perp";
+import { openPosition, trailStopFor, canTrail, displayPnlFor } from "@/lib/perp";
 import {
   setDemoPosition,
   patchDemoPosition,
@@ -37,25 +37,19 @@ export function useTrade(signer: AgentSigner | null) {
   const demoPosition = useAppSelector((s) => s.tradingMode.demo.position);
   const price = useAppSelector((s) => s.price.prices[activeSymbol]);
 
-  // PnL model (matches how Bulk's own UI behaves):
-  //  - LIVE: PnL/color come straight from Bulk's real `unrealizedPnl` (the truth,
-  //    same number as Bulk's positions table). The chart line (MagicBlock) and
-  //    the entry line (real Bulk entry) run on their own feeds and may look
-  //    mismatched — that's fine and expected; the number stays truthful.
-  //  - DEMO: no Bulk truth exists, so PnL is derived from the MagicBlock price
-  //    against the (MagicBlock) entry — fully self-consistent.
+  // Display PnL model:
+  //  - LIVE: anchored to Bulk's real PnL (truth), interpolated smoothly with the
+  //    MagicBlock price between Bulk's event-only updates (livePnlAt). The chart
+  //    line (MagicBlock) and entry line (real Bulk entry) run on their own feeds
+  //    and may look mismatched — like Bulk's own UI — but the PnL stays truthful.
+  //  - DEMO: derived from the MagicBlock price vs entry (fully self-consistent).
   const position: Position | null =
-    mode === "demo" && rawPosition && price != null
+    rawPosition && price != null
       ? {
           ...rawPosition,
-          unrealizedPnl: unrealizedPnl(
-            rawPosition.direction,
-            rawPosition.size,
-            rawPosition.entryPrice,
-            price
-          ),
+          unrealizedPnl: displayPnlFor(mode, rawPosition, price),
         }
-      : rawPosition; // live: use Bulk's real position + unrealizedPnl as-is
+      : rawPosition;
 
   const open = useCallback(
     async (direction: Direction) => {

@@ -31,12 +31,33 @@ export function roi(pnl: number, marginUsd: number): number {
 }
 
 /**
- * DEMO display PnL at the current MagicBlock price. (Live PnL comes straight
- * from Bulk's real unrealizedPnl — do not use this for live.)
+ * DEMO display PnL at the current MagicBlock price. (Live uses livePnlAt.)
  */
 export function demoPnlAt(pos: Position, currentPrice: number | undefined): number {
   if (currentPrice == null) return pos.unrealizedPnl;
   return unrealizedPnl(pos.direction, pos.size, pos.entryPrice, currentPrice);
+}
+
+/**
+ * LIVE display PnL: anchored to Bulk's real PnL (truth), interpolated smoothly
+ * with MagicBlock price movement since the anchor. Every Bulk WS update resets
+ * the anchor, so this re-syncs to the exact real number and never drifts far.
+ *   pnl = pnlAnchor + (mbNow − priceAnchorMb) × size × dir
+ */
+export function livePnlAt(pos: Position, mbNow: number | undefined): number {
+  const anchor = pos.pnlAnchor ?? pos.unrealizedPnl;
+  if (mbNow == null || pos.priceAnchorMb == null) return anchor;
+  const dir = pos.direction === "long" ? 1 : -1;
+  return anchor + (mbNow - pos.priceAnchorMb) * pos.size * dir;
+}
+
+/** Display PnL for either mode. */
+export function displayPnlFor(
+  mode: "demo" | "live",
+  pos: Position,
+  mbNow: number | undefined
+): number {
+  return mode === "demo" ? demoPnlAt(pos, mbNow) : livePnlAt(pos, mbNow);
 }
 
 /**

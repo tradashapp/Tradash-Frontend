@@ -99,10 +99,11 @@ function Logo() {
       }}
     >
       <svg width={56} height={56} viewBox="0 0 512 512">
-        <g fill={BG}>
-          <rect x="120" y="128" width="272" height="54" rx="12" />
-          <path d="M292 178 L206 300 L258 300 L222 402 L336 262 L280 262 L322 178 Z" />
-        </g>
+        <rect x="120" y="128" width="272" height="54" rx="12" fill={BG} />
+        <path
+          d="M292 178 L206 300 L258 300 L222 402 L336 262 L280 262 L322 178 Z"
+          fill={BG}
+        />
       </svg>
     </div>
   );

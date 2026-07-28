@@ -1,11 +1,22 @@
 "use client";
 
+import { HugeiconsIcon } from "@hugeicons/react";
+import {
+  ArrowUpRight01Icon,
+  ArrowDownRight01Icon,
+  Share08Icon,
+} from "@hugeicons/core-free-icons";
 import { useAppSelector } from "@/store/hooks";
 import { formatUsd } from "@/lib/format";
 import type { CompletedTrade } from "@/types";
 
+interface Props {
+  /** Open the shareable PnL card for a completed trade. */
+  onShare: (trade: CompletedTrade) => void;
+}
+
 // Trade history + derived stats, rendered inside the AccountSheet as a sub-view.
-export function HistoryPanel() {
+export function HistoryPanel({ onShare }: Props) {
   const trades = useAppSelector((s) => s.history.trades);
   const stats = computeStats(trades);
 
@@ -33,7 +44,7 @@ export function HistoryPanel() {
       ) : (
         <div className="flex flex-col gap-1.5">
           {trades.map((t) => (
-            <TradeRow key={t.id} trade={t} />
+            <TradeRow key={t.id} trade={t} onShare={() => onShare(t)} />
           ))}
         </div>
       )}
@@ -41,16 +52,28 @@ export function HistoryPanel() {
   );
 }
 
-function TradeRow({ trade }: { trade: CompletedTrade }) {
+function TradeRow({
+  trade,
+  onShare,
+}: {
+  trade: CompletedTrade;
+  onShare: () => void;
+}) {
   const win = trade.pnl >= 0;
+  const up = trade.direction === "long";
   return (
     <div className="glass-inset flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm">
+      {/* Direction as an up/down arrow chip (green/red), not long/short. */}
       <span
-        className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold ${
-          trade.direction === "long" ? "bg-up-soft text-up" : "bg-down-soft text-down"
+        className={`flex h-7 w-7 items-center justify-center rounded-md ${
+          up ? "bg-up-soft text-up" : "bg-down-soft text-down"
         }`}
+        aria-label={up ? "Up" : "Down"}
       >
-        {trade.direction === "long" ? "LONG" : "SHORT"}
+        <HugeiconsIcon
+          icon={up ? ArrowUpRight01Icon : ArrowDownRight01Icon}
+          size={16}
+        />
       </span>
       <div className="flex-1 leading-tight">
         <div className="font-medium">{trade.symbol}</div>
@@ -68,6 +91,14 @@ function TradeRow({ trade }: { trade: CompletedTrade }) {
           {Math.abs(trade.roi * 100).toFixed(1)}%
         </div>
       </div>
+      <button
+        type="button"
+        onClick={onShare}
+        className="rounded-full p-1.5 text-text-muted transition-colors hover:bg-white/10 hover:text-text"
+        aria-label={`Share ${trade.symbol} trade`}
+      >
+        <HugeiconsIcon icon={Share08Icon} size={16} />
+      </button>
     </div>
   );
 }

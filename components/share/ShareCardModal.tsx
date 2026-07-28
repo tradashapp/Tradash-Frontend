@@ -4,7 +4,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import QRCode from "qrcode";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Cancel01Icon, Download04Icon } from "@hugeicons/core-free-icons";
+import {
+  Cancel01Icon,
+  Download04Icon,
+  NewTwitterIcon,
+} from "@hugeicons/core-free-icons";
 import { useAppSelector } from "@/store/hooks";
 import { MARKETS } from "@/lib/markets";
 import { referralLink } from "@/lib/config";
@@ -157,6 +161,19 @@ function ShareCardInner({
     a.click();
   };
 
+  // Share on X: X's web intent only carries text + a link (it can't attach a
+  // local image), so we download the card first for the user to attach, then
+  // open the composer pre-filled with a short, human caption + the ref link.
+  const shareOnX = () => {
+    if (!ready) return;
+    download();
+    const text = tweetText(data);
+    const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(
+      text
+    )}&url=${encodeURIComponent(data.referralUrl)}`;
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
   return (
     <motion.div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -228,16 +245,49 @@ function ShareCardInner({
           ))}
         </div>
 
-        <button
-          type="button"
-          onClick={download}
-          disabled={!ready}
-          className="flex items-center justify-center gap-2 rounded-xl bg-up py-3 text-sm font-bold text-bg transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          <HugeiconsIcon icon={Download04Icon} size={18} />
-          {ready ? "Download image" : "Preparing…"}
-        </button>
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={download}
+            disabled={!ready}
+            className="flex items-center justify-center gap-2 rounded-xl bg-white/10 py-3 text-sm font-bold text-text transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <HugeiconsIcon icon={Download04Icon} size={18} />
+            {ready ? "Download" : "Preparing…"}
+          </button>
+          <button
+            type="button"
+            onClick={shareOnX}
+            disabled={!ready}
+            className="flex items-center justify-center gap-2 rounded-xl bg-up py-3 text-sm font-bold text-bg transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <HugeiconsIcon icon={NewTwitterIcon} size={18} />
+            Share on X
+          </button>
+        </div>
       </motion.div>
     </motion.div>
   );
+}
+
+// A short, human caption for the X composer — the way a trader actually posts a
+// win or a loss. No hashtags, no filler, no "check out my trade on…". The card
+// image (downloaded first) carries the details; this is just the one-liner.
+function tweetText(data: PnlCardData): string {
+  const dir = data.direction === "long" ? "long" : "short";
+  const roiAbs = Math.abs(data.roiPct);
+  const roiStr = `${data.roiPct >= 0 ? "+" : "-"}${roiAbs.toFixed(0)}%`;
+  const pnlStr = `${data.pnl >= 0 ? "+" : "-"}$${Math.abs(data.pnl).toLocaleString(
+    undefined,
+    { maximumFractionDigits: 0 }
+  )}`;
+
+  if (data.pnl >= 0) {
+    if (roiAbs >= 100) return `${roiStr} ${dir} on ${data.symbol}. let it ride 🚀`;
+    if (roiAbs >= 25) return `${roiStr} on ${data.symbol} (${pnlStr}). green day`;
+    return `${pnlStr} on ${data.symbol}. up only`;
+  }
+  // Loss — owning it, briefly.
+  if (roiAbs >= 50) return `${roiStr} on ${data.symbol}. rough one, on to the next`;
+  return `${pnlStr} on ${data.symbol}. taking the L, moving on`;
 }

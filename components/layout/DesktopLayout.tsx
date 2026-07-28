@@ -13,13 +13,11 @@ import { DotGrid, type DotGridHandle } from "@/components/background/DotGrid";
 import { MarketHeader } from "@/components/trade/MarketHeader";
 import { BalancePill } from "@/components/trade/BalancePill";
 import { TradeControls } from "@/components/trade/TradeControls";
-import { useAppSelector } from "@/store/hooks";
-import { formatPrice, formatUsd } from "@/lib/format";
-import { Odometer } from "@/components/ui/Odometer";
-import { roi } from "@/lib/perp";
+import { PositionsPanel } from "@/components/trade/PositionsPanel";
 import type { ChartFrame, PositionOverlay } from "@/lib/chart/engine";
 import type { MarketSymbol } from "@/types";
 import type { useTrade } from "@/hooks/useTrade";
+import type { ShareSubject } from "@/components/share/ShareCardModal";
 
 interface Props {
   symbol: MarketSymbol;
@@ -27,6 +25,7 @@ interface Props {
   trade: ReturnType<typeof useTrade>;
   onOpenMarket: () => void;
   onOpenAccount: () => void;
+  onShare: (subject: ShareSubject) => void;
 }
 
 // Desktop: sidebar (nav) · chart ~70% · right panel (balance + position + controls).
@@ -36,6 +35,7 @@ export function DesktopLayout({
   trade,
   onOpenMarket,
   onOpenAccount,
+  onShare,
 }: Props) {
   const gridRef = useRef<DotGridHandle | null>(null);
   const handleFrame = useCallback((f: ChartFrame) => {
@@ -79,7 +79,7 @@ export function DesktopLayout({
           <BalancePill onOpen={onOpenAccount} />
         </div>
 
-        <PositionMetrics trade={trade} />
+        <PositionsPanel onShare={onShare} />
 
         <div className="mt-auto">
           <TradeControls

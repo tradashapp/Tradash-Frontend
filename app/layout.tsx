@@ -3,6 +3,7 @@ import { Space_Grotesk, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { SplashScreen } from "@/components/splash/SplashScreen";
+import { config } from "@/lib/config";
 
 // Space Grotesk is the main UI typeface; JetBrains Mono backs tabular figures.
 const sans = Space_Grotesk({
@@ -18,10 +19,28 @@ const mono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Tradash",
+  // Resolves relative OG/Twitter image URLs to absolute for crawlers. Set
+  // NEXT_PUBLIC_APP_URL to the production origin.
+  metadataBase: new URL(config.appUrl),
+  title: {
+    default: "Tradash — Tap to trade perpetuals",
+    // Per-market pages pass a full title, so no template suffix is needed.
+    template: "%s",
+  },
   description: "Tap to trade. Perpetuals, made instant.",
   manifest: "/manifest.webmanifest",
   applicationName: "Tradash",
+  openGraph: {
+    title: "Tradash — Tap to trade perpetuals",
+    description: "Tap to trade. Perpetuals, made instant.",
+    siteName: "Tradash",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Tradash — Tap to trade perpetuals",
+    description: "Tap to trade. Perpetuals, made instant.",
+  },
   appleWebApp: {
     capable: true,
     title: "Tradash",

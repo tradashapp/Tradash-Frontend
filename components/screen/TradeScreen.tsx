@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { startSwitch, finishSwitch } from "@/store/slices/marketSlice";
 import { MarketSwitcher } from "@/components/sheets/MarketSwitcher";
@@ -42,13 +42,18 @@ export function TradeScreen({ initialMarket }: Props) {
   const isDesktop = useIsDesktop();
 
   // Seed the active market from the route once, before first paint, so the chart
-  // boots straight into the shared market (no BTC flash then swap).
+  // boots straight into the shared market (no BTC flash then swap). Layout effect
+  // runs pre-paint; a ref makes it one-shot so later in-app switches aren't undone.
   const seeded = useRef(false);
-  if (!seeded.current && activeSymbol !== initialMarket) {
-    dispatch(startSwitch(initialMarket));
-    dispatch(finishSwitch());
-  }
-  seeded.current = true;
+  useLayoutEffect(() => {
+    if (seeded.current) return;
+    seeded.current = true;
+    if (initialMarket !== activeSymbol) {
+      dispatch(startSwitch(initialMarket));
+      dispatch(finishSwitch());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Keep the address bar + tab title in sync as the market changes in-app (no
   // navigation, so the chart keeps running). A copied link then always matches

@@ -67,8 +67,15 @@ export function MobileLayout({
           onShort={trade.openShort}
           onToggleTrail={trade.toggleTrail}
           onClose={trade.close}
+          onViewPositions={() => setPositionsOpen(true)}
         />
       </footer>
+
+      <PositionsSheet
+        open={positionsOpen}
+        onClose={() => setPositionsOpen(false)}
+        onShare={onShare}
+      />
     </main>
   );
 }

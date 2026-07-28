@@ -9,7 +9,7 @@ import { formatPrice } from "@/lib/format";
 
 // Fixed card geometry — LANDSCAPE 16:9. Draw at high res; the DOM scales it down.
 export const CARD_W = 1600;
-export const CARD_H = 900;
+export const CARD_H = 1000;
 
 const UP = "#72E912";
 const DOWN = "#E6432D";
@@ -238,8 +238,8 @@ export function drawPnlCard(
   drawProgressCurve(ctx, profit);
   drawCandle(ctx, profit);
 
-  const PAD = 90;
-  let y = PAD + 20;
+  const PAD = 80;
+  let y = PAD;
 
   // --- Market identity (top): icon + name + symbol. ---
   const iconSize = 84;
@@ -284,7 +284,7 @@ export function drawPnlCard(
   // In single modes: just the one metric, large.
   if (metric === "pnl" || metric === "both") {
     ctx.fillStyle = accent;
-    ctx.font = "800 148px system-ui, sans-serif";
+    ctx.font = "800 140px system-ui, sans-serif";
     ctx.textBaseline = "alphabetic";
     const pnlText = fmtUsd(data.pnl);
     ctx.fillText(pnlText, PAD, y);
@@ -381,7 +381,7 @@ function drawFooter(
 
   // Referral block (left column), vertically anchored to the QR band.
   const leftX = PAD;
-  let ly = qrY + 8;
+  let ly = qrY + 60;
   ctx.fillStyle = MUTED;
   ctx.font = "500 32px system-ui, sans-serif";
   ctx.textBaseline = "alphabetic";
@@ -389,7 +389,7 @@ function drawFooter(
 
   ly += 52;
   ctx.fillStyle = TEXT;
-  ctx.font = "700 44px system-ui, sans-serif";
+  ctx.font = "700 38px system-ui, sans-serif";
   ctx.fillText(prettyUrl(data.referralUrl), leftX, ly);
 
   // Tradash logo UNDER the link (logo mark + wordmark).

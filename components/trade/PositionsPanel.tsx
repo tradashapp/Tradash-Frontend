@@ -14,20 +14,33 @@ import { MARKETS } from "@/lib/markets";
 import { formatPrice, formatUsd } from "@/lib/format";
 import { Odometer } from "@/components/ui/Odometer";
 import { useAllPositions, type LivePosition } from "@/hooks/useAllPositions";
+import { useAppDispatch } from "@/store/hooks";
+import { startSwitch, finishSwitch } from "@/store/slices/marketSlice";
 import type { ShareSubject } from "@/components/share/ShareCardModal";
+import type { MarketSymbol } from "@/types";
 
 interface Props {
   /** Open the share card for a given position. */
   onShare: (subject: ShareSubject) => void;
+  /** Called after navigating to a market's chart (e.g. to close the sheet). */
+  onNavigate?: () => void;
 }
 
 // The right-panel positions view: an AGGREGATED Unrealized PnL across all markets,
 // then one expandable row per open position. Direction shows as an up/down arrow
 // (green/red), not "long/short". Each row can expand to full details and shares a
 // PnL card.
-export function PositionsPanel({ onShare }: Props) {
+export function PositionsPanel({ onShare, onNavigate }: Props) {
   const { items, totalPnl, totalRoiPct } = useAllPositions();
+  const dispatch = useAppDispatch();
   const profit = totalPnl >= 0;
+
+  // Jump straight to a market's chart (same dispatch the switcher uses).
+  const goToMarket = (symbol: MarketSymbol) => {
+    dispatch(startSwitch(symbol));
+    requestAnimationFrame(() => dispatch(finishSwitch()));
+    onNavigate?.();
+  };
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
@@ -67,6 +80,7 @@ export function PositionsPanel({ onShare }: Props) {
                 onShare={() =>
                   onShare({ kind: "position", position: item.position })
                 }
+                onGoToMarket={() => goToMarket(item.position.symbol)}
               />
             ))}
           </div>

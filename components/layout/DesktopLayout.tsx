@@ -98,63 +98,6 @@ export function DesktopLayout({
   );
 }
 
-function PositionMetrics({ trade }: { trade: ReturnType<typeof useTrade> }) {
-  const pos = trade.position;
-  const price = useAppSelector((s) =>
-    pos ? s.price.prices[pos.symbol] : undefined
-  );
-  if (!pos) {
-    return (
-      <div className="glass-inset flex flex-1 items-center justify-center rounded-2xl p-4 text-sm text-text-muted">
-        No open position
-      </div>
-    );
-  }
-  const profit = pos.unrealizedPnl >= 0;
-  const roiPct = roi(pos.unrealizedPnl, pos.marginUsed) * 100;
-  return (
-    <div className="glass-inset flex flex-col gap-2 rounded-2xl p-4">
-      <div>
-        <div className="text-xs text-text-muted">Unrealized PnL</div>
-        <div
-          className={`text-2xl font-bold ${profit ? "text-up" : "text-down"}`}
-        >
-          <Odometer value={`${profit ? "+" : "−"}${formatUsd(Math.abs(pos.unrealizedPnl))}`} />
-        </div>
-      </div>
-      <Row label="Direction" value={`${pos.direction.toUpperCase()} ${pos.leverage}×`} />
-      <Row label="ROI" value={`${profit ? "+" : "−"}${Math.abs(roiPct).toFixed(1)}%`} color={profit ? "up" : "down"} />
-      <Row label="Entry" value={`$${formatPrice(pos.entryPrice)}`} />
-      <Row label="Current" value={price != null ? `$${formatPrice(price)}` : "—"} />
-      <Row label="Liquidation" value={`$${formatPrice(pos.liquidationPrice)}`} color="down" />
-      <Row label="Margin" value={formatUsd(pos.marginUsed)} />
-    </div>
-  );
-}
-
-function Row({
-  label,
-  value,
-  color,
-}: {
-  label: string;
-  value: string;
-  color?: "up" | "down";
-}) {
-  return (
-    <div className="flex items-center justify-between text-sm">
-      <span className="text-text-muted">{label}</span>
-      <span
-        className={`font-semibold ${
-          color === "up" ? "text-up" : color === "down" ? "text-down" : "text-text"
-        }`}
-      >
-        <Odometer value={value} />
-      </span>
-    </div>
-  );
-}
-
 function SidebarItem({
   icon,
   label,

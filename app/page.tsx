@@ -9,6 +9,7 @@ import { InstallSheet } from "@/components/sheets/InstallSheet";
 import { RegisterSW } from "@/components/pwa/RegisterSW";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { DesktopLayout } from "@/components/layout/DesktopLayout";
+import { ShareCardModal, type ShareSubject } from "@/components/share/ShareCardModal";
 import { useAgentWallet } from "@/hooks/useAgentWallet";
 import { useBulkAccount } from "@/hooks/useBulkAccount";
 import { useDemoPnl } from "@/hooks/useDemoPnl";
@@ -53,6 +54,7 @@ export default function TradePage() {
   const [accountOpen, setAccountOpen] = useState(false);
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [installOpen, setInstallOpen] = useState(false);
+  const [shareSubject, setShareSubject] = useState<ShareSubject | null>(null);
 
   // Auto-show the "how it works" walkthrough on first visit (persisted flag).
   const tutorialSeen = useAppSelector((s) => s.settings.tutorialSeen);
@@ -66,6 +68,7 @@ export default function TradePage() {
     trade,
     onOpenMarket: () => setSwitcherOpen(true),
     onOpenAccount: () => setAccountOpen(true),
+    onShare: (subject: ShareSubject) => setShareSubject(subject),
   };
 
   return (
@@ -81,6 +84,7 @@ export default function TradePage() {
         open={accountOpen}
         onClose={() => setAccountOpen(false)}
         agent={agent}
+        onShare={(subject) => setShareSubject(subject)}
         onOpenTutorial={() => {
           setAccountOpen(false);
           setTutorialOpen(true);
@@ -95,6 +99,10 @@ export default function TradePage() {
         onClose={() => setTutorialOpen(false)}
       />
       <InstallSheet open={installOpen} onClose={() => setInstallOpen(false)} />
+      <ShareCardModal
+        subject={shareSubject}
+        onClose={() => setShareSubject(null)}
+      />
       <RegisterSW />
     </>
   );

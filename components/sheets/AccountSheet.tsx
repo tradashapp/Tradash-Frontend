@@ -21,6 +21,7 @@ import { resetDemo } from "@/store/slices/tradingModeSlice";
 import { formatUsd } from "@/lib/format";
 import { SettingsPanel } from "./panels/SettingsPanel";
 import { HistoryPanel } from "./panels/HistoryPanel";
+import type { ShareSubject } from "@/components/share/ShareCardModal";
 import { playSound } from "@/lib/sound";
 import { haptic } from "@/lib/haptics";
 import type { useAgentWallet } from "@/hooks/useAgentWallet";
@@ -33,6 +34,7 @@ interface Props {
   agent: ReturnType<typeof useAgentWallet>;
   onOpenTutorial: () => void;
   onOpenInstall: () => void;
+  onShare: (subject: ShareSubject) => void;
 }
 
 const TITLES: Record<View, string> = {
@@ -49,6 +51,7 @@ export function AccountSheet({
   agent,
   onOpenTutorial,
   onOpenInstall,
+  onShare,
 }: Props) {
   const dispatch = useAppDispatch();
   const { login, logout, authenticated } = usePrivy();
@@ -137,7 +140,11 @@ export function AccountSheet({
                     />
                   )}
                   {view === "settings" && <SettingsPanel />}
-                  {view === "history" && <HistoryPanel />}
+                  {view === "history" && (
+                    <HistoryPanel
+                      onShare={(trade) => onShare({ kind: "trade", trade })}
+                    />
+                  )}
                 </motion.div>
               </AnimatePresence>
             </div>

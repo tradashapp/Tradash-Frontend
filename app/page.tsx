@@ -10,6 +10,7 @@ import { RegisterSW } from "@/components/pwa/RegisterSW";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { DesktopLayout } from "@/components/layout/DesktopLayout";
 import { ShareCardModal, type ShareSubject } from "@/components/share/ShareCardModal";
+import { breakEvenPrice } from "@/lib/perp";
 import { useAgentWallet } from "@/hooks/useAgentWallet";
 import { useBulkAccount } from "@/hooks/useBulkAccount";
 import { useDemoPnl } from "@/hooks/useDemoPnl";
@@ -35,13 +36,14 @@ export default function TradePage() {
   useLiveTrail(agent.signer);
   const trade = useTrade(agent.signer);
 
-  // Position overlay for the chart. The entry LINE is drawn at chartEntryPrice
-  // (the MagicBlock price at tap) so it lands where the user clicked on the
-  // chart; PnL/color come from trade.position.unrealizedPnl (Bulk-anchored).
+  // Position overlay for the chart. The entry LINE is drawn at the BREAK-EVEN
+  // MagicBlock price — the exact level where the displayed PnL reads 0.00 and the
+  // mark line flips profit↔loss. This keeps the entry line, the moving line and
+  // the gradient in one coordinate space and lands correctly after a reload
+  // (which drops the tap-time chartEntryPrice but re-anchors PnL from Bulk).
   const chartPosition: PositionOverlay | null = trade.position
     ? {
-        entryPrice:
-          trade.position.chartEntryPrice ?? trade.position.entryPrice,
+        entryPrice: breakEvenPrice(trade.mode, trade.position),
         liquidationPrice: trade.position.liquidationPrice,
         pnl: trade.position.unrealizedPnl,
         trailStopPrice: trade.position.trailActive

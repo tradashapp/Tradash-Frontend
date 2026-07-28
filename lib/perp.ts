@@ -61,6 +61,28 @@ export function displayPnlFor(
 }
 
 /**
+ * The MagicBlock price at which the displayed PnL reads exactly 0 — i.e. the
+ * break-even level where the mark line's profit↔loss color flips. Drawing the
+ * chart's "entry" line here keeps it consistent with the moving line + gradient
+ * in the SAME (MagicBlock) price space, and survives reloads (which lose the
+ * tap-time chartEntryPrice but re-anchor pnlAnchor/priceAnchorMb from Bulk).
+ *
+ * DEMO: PnL = (mb − entry)·size·dir, so break-even is just entryPrice.
+ * LIVE: solve pnlAnchor + (p − priceAnchorMb)·size·dir = 0
+ *          → p = priceAnchorMb − pnlAnchor / (size·dir)
+ */
+export function breakEvenPrice(
+  mode: "demo" | "live",
+  pos: Position
+): number {
+  if (mode === "demo") return pos.entryPrice;
+  const dir = pos.direction === "long" ? 1 : -1;
+  const anchor = pos.pnlAnchor ?? pos.unrealizedPnl;
+  if (pos.priceAnchorMb == null || pos.size === 0) return pos.entryPrice;
+  return pos.priceAnchorMb - anchor / (pos.size * dir);
+}
+
+/**
  * Liquidation price — where losses consume the margin. Simplified isolated-margin
  * model (no fees/funding): long liquidates below entry, short above.
  */

@@ -30,7 +30,10 @@ export async function generateMetadata({
   const symbol = marketFromSlug(market);
   if (!symbol) return {};
   const meta = marketMeta(symbol);
-  const url = `/${MARKET_SLUGS[symbol]}`;
+  const slug = MARKET_SLUGS[symbol];
+  const url = `/${slug}`;
+  // Pre-generated per-market OG image (scripts/gen-og.mjs → public/og/<slug>.png).
+  const image = `/og/${slug}.png`;
   return {
     title: meta.title,
     description: meta.description,
@@ -41,12 +44,13 @@ export async function generateMetadata({
       url,
       siteName: "Tradash",
       type: "website",
-      // Image comes from the co-located opengraph-image route (Next appends it).
+      images: [{ url: image, width: 1200, height: 630, alt: meta.title }],
     },
     twitter: {
       card: "summary_large_image",
       title: meta.title,
       description: meta.description,
+      images: [image],
     },
   };
 }

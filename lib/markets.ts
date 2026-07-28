@@ -34,16 +34,22 @@ export const MARKET_ORDER: MarketSymbol[] = ["BTC", "ETH", "SOL"];
 
 export const DEFAULT_MARKET: MarketSymbol = "BTC";
 
-// URL slug per market: /btc, /eth, /sol. Lowercased symbol.
+// Market routes live under /trade/<MARKET> with the UPPERCASE symbol as the slug,
+// e.g. /trade/BTC, /trade/ETH, /trade/SOL.
 export const MARKET_SLUGS: Record<MarketSymbol, string> = {
-  BTC: "btc",
-  ETH: "eth",
-  SOL: "sol",
+  BTC: "BTC",
+  ETH: "ETH",
+  SOL: "SOL",
 };
+
+/** Full path to a market's trade route, e.g. "/trade/BTC". */
+export function marketPath(symbol: MarketSymbol): string {
+  return `/trade/${MARKET_SLUGS[symbol]}`;
+}
 
 /** Resolve a URL slug (case-insensitive) to a market symbol, or null if unknown. */
 export function marketFromSlug(slug: string): MarketSymbol | null {
-  const s = slug.toLowerCase();
+  const s = slug.toUpperCase();
   for (const sym of MARKET_ORDER) {
     if (MARKET_SLUGS[sym] === s) return sym;
   }

@@ -35,11 +35,13 @@ export const metadata: Metadata = {
     description: "Tap to trade. Perpetuals, made instant.",
     siteName: "Tradash",
     type: "website",
+    images: [{ url: "/og/default.png", width: 1200, height: 630, alt: "Tradash" }],
   },
   twitter: {
     card: "summary_large_image",
     title: "Tradash — Tap to trade perpetuals",
     description: "Tap to trade. Perpetuals, made instant.",
+    images: ["/og/default.png"],
   },
   appleWebApp: {
     capable: true,

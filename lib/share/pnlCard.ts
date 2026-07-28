@@ -155,7 +155,7 @@ function drawCandle(ctx: CanvasRenderingContext2D, profit: boolean) {
   ctx.fill();
   ctx.restore();
 
-  // Directional arrow riding the candle.
+  // Directional arrow riding the candle — points UP for profit, DOWN for loss.
   ctx.save();
   ctx.globalAlpha = 0.85;
   ctx.strokeStyle = color;
@@ -163,14 +163,16 @@ function drawCandle(ctx: CanvasRenderingContext2D, profit: boolean) {
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
   const ax = cx;
-  const ay = profit ? bodyTop - 30 : bodyTop + bodyH + 30;
-  const d = profit ? -1 : 1;
+  const ac = profit ? bodyTop - 30 : bodyTop + bodyH + 30; // arrow centre
+  const head = profit ? ac - 50 : ac + 50; // tip on the pointing side
+  const tail = profit ? ac + 50 : ac - 50; // opposite end of the shaft
+  const barb = profit ? head + 34 : head - 34; // barbs sit below/above the tip
   ctx.beginPath();
-  ctx.moveTo(ax, ay + d * -50);
-  ctx.lineTo(ax, ay + d * 50);
-  ctx.moveTo(ax - 30, ay + d * -50 + d * 34);
-  ctx.lineTo(ax, ay + d * -50);
-  ctx.lineTo(ax + 30, ay + d * -50 + d * 34);
+  ctx.moveTo(ax, tail);
+  ctx.lineTo(ax, head);
+  ctx.moveTo(ax - 30, barb);
+  ctx.lineTo(ax, head);
+  ctx.lineTo(ax + 30, barb);
   ctx.stroke();
   ctx.restore();
 }
@@ -193,7 +195,8 @@ function roundRect(
   ctx.closePath();
 }
 
-// A filled triangle arrow (up / down) — used inside the ROI chip.
+// A filled triangle arrow (up / down) — used inside the ROI chip & direction pill.
+// up=true → apex points UP (toward smaller y); down → apex points DOWN.
 function drawFilledArrow(
   ctx: CanvasRenderingContext2D,
   cx: number,
@@ -202,13 +205,15 @@ function drawFilledArrow(
   up: boolean,
   color: string
 ) {
-  const d = up ? -1 : 1;
+  // Apex on the pointing side, base on the opposite side.
+  const apexY = up ? cy - size : cy + size;
+  const baseY = up ? cy + size * 0.7 : cy - size * 0.7;
   ctx.save();
   ctx.fillStyle = color;
   ctx.beginPath();
-  ctx.moveTo(cx, cy + d * -size);
-  ctx.lineTo(cx - size * 0.9, cy + d * size * 0.7);
-  ctx.lineTo(cx + size * 0.9, cy + d * size * 0.7);
+  ctx.moveTo(cx, apexY);
+  ctx.lineTo(cx - size * 0.9, baseY);
+  ctx.lineTo(cx + size * 0.9, baseY);
   ctx.closePath();
   ctx.fill();
   ctx.restore();
@@ -271,7 +276,8 @@ export function drawPnlCard(
   ctx.fillText(pillLabel, pillX + 64, pillY + pillH / 2 + 2);
   ctx.textBaseline = "alphabetic";
 
-  y += iconSize + 96;
+  // Extra breathing room so the big PnL never crowds the market name/symbol.
+  y += iconSize + 190;
 
   // --- Big PnL / ROI. ---
   // In "both" mode: big PnL with the ROI as a small glass chip to its right.
@@ -295,13 +301,7 @@ export function drawPnlCard(
     ctx.fillText(fmtPct(data.roiPct), PAD, y);
   }
 
-  // Leverage sub-label.
-  y += 62;
-  ctx.fillStyle = MUTED;
-  ctx.font = "600 38px system-ui, sans-serif";
-  ctx.fillText(`${data.leverage}× ${up ? "Long" : "Short"}`, PAD, y);
-
-  y += 92;
+  y += 110;
 
   // --- Entry / Mark(or Exit) price rows. ---
   drawPriceRow(ctx, PAD, y, "Entry Price", `$${formatPrice(data.entryPrice)}`);

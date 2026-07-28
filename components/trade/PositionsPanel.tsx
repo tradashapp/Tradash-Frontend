@@ -93,9 +93,11 @@ export function PositionsPanel({ onShare, onNavigate }: Props) {
 function PositionRow({
   item,
   onShare,
+  onGoToMarket,
 }: {
   item: LivePosition;
   onShare: () => void;
+  onGoToMarket: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const { position: pos, pnl, roiPct, markPrice } = item;
@@ -105,58 +107,79 @@ function PositionRow({
 
   return (
     <div className="glass-inset overflow-hidden rounded-2xl">
-      {/* Collapsed header: icon · name · direction arrow · ROI · share. */}
-      <div className="flex items-center gap-2.5 p-2.5">
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          className="flex flex-1 items-center gap-2.5 text-left"
-        >
-          <Image
-            src={market.logo}
-            alt={market.label}
-            width={36}
-            height={36}
-            className="h-8 w-8 rounded-full"
-          />
-          <div className="leading-tight">
-            <div className="flex items-center gap-1.5 font-semibold">
-              {pos.symbol}
-              <HugeiconsIcon
-                icon={up ? ArrowUpRight01Icon : ArrowDownRight01Icon}
-                size={16}
-                className={up ? "text-up" : "text-down"}
-              />
-            </div>
-            <div className="text-[11px] text-text-muted">
-              {market.label} · {pos.leverage}×
-            </div>
-          </div>
-          <div className="ml-auto text-right leading-tight">
-            <div
-              className={`text-sm font-bold ${profit ? "text-up" : "text-down"}`}
+      {/* Collapsed header. Tapping the row toggles expand; ONLY the symbol
+          navigates to that market's chart. Symbol/share stop propagation so they
+          don't also toggle. Row is a div (not a button) so it can nest buttons. */}
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => setOpen((v) => !v)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setOpen((v) => !v);
+          }
+        }}
+        className="flex cursor-pointer items-center gap-2.5 p-2.5 text-left"
+      >
+        <Image
+          src={market.logo}
+          alt={market.label}
+          width={36}
+          height={36}
+          className="h-8 w-8 rounded-full"
+        />
+        <div className="leading-tight">
+          <div className="flex items-center gap-1.5 font-semibold">
+            {/* Tappable symbol → opens that chart (cursor pointer, hover cue). */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onGoToMarket();
+              }}
+              className="cursor-pointer rounded transition-colors hover:text-up hover:underline"
+              aria-label={`Open ${pos.symbol} chart`}
             >
-              <Odometer
-                value={`${profit ? "+" : "−"}${Math.abs(roiPct).toFixed(1)}%`}
-              />
-            </div>
-            <div className={`text-[11px] ${profit ? "text-up" : "text-down"}`}>
-              <Odometer
-                value={`${profit ? "+" : "−"}${formatUsd(Math.abs(pnl))}`}
-              />
-            </div>
+              {pos.symbol}
+            </button>
+            <HugeiconsIcon
+              icon={up ? ArrowUpRight01Icon : ArrowDownRight01Icon}
+              size={16}
+              className={up ? "text-up" : "text-down"}
+            />
           </div>
-          <HugeiconsIcon
-            icon={ArrowDown01Icon}
-            size={16}
-            className={`text-text-muted transition-transform ${
-              open ? "rotate-180" : ""
-            }`}
-          />
-        </button>
+          <div className="text-[11px] text-text-muted">
+            {market.label} · {pos.leverage}×
+          </div>
+        </div>
+        <div className="ml-auto text-right leading-tight">
+          <div
+            className={`text-sm font-bold ${profit ? "text-up" : "text-down"}`}
+          >
+            <Odometer
+              value={`${profit ? "+" : "−"}${Math.abs(roiPct).toFixed(1)}%`}
+            />
+          </div>
+          <div className={`text-[11px] ${profit ? "text-up" : "text-down"}`}>
+            <Odometer
+              value={`${profit ? "+" : "−"}${formatUsd(Math.abs(pnl))}`}
+            />
+          </div>
+        </div>
+        <HugeiconsIcon
+          icon={ArrowDown01Icon}
+          size={16}
+          className={`text-text-muted transition-transform ${
+            open ? "rotate-180" : ""
+          }`}
+        />
         <button
           type="button"
-          onClick={onShare}
+          onClick={(e) => {
+            e.stopPropagation();
+            onShare();
+          }}
           className="rounded-full p-1.5 text-text-muted transition-colors hover:bg-white/10 hover:text-text"
           aria-label={`Share ${pos.symbol} position`}
         >

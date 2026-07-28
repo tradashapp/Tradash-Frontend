@@ -43,6 +43,7 @@ export function PositionsSheet({ open, onClose, onShare }: Props) {
                   onShare(subject);
                   onClose();
                 }}
+                onNavigate={onClose}
               />
             </div>
           </motion.div>

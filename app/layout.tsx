@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Space_Grotesk, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
+import { SplashScreen } from "@/components/splash/SplashScreen";
 
 // Space Grotesk is the main UI typeface; JetBrains Mono backs tabular figures.
 const sans = Space_Grotesk({
@@ -52,6 +53,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`dark ${sans.variable} ${mono.variable}`}>
       <body>
+        <SplashScreen />
         <Providers>{children}</Providers>
       </body>
     </html>

@@ -82,8 +82,7 @@ function drawCandle(ctx: CanvasRenderingContext2D, profit: boolean) {
   const cx = CARD_W - 250;
   const bodyW = 120;
   const bodyH = 360;
-  const top = profit ? 470 : 470;
-  const bodyTop = top;
+  const bodyTop = 470;
   const wickTop = bodyTop - 110;
   const wickBottom = bodyTop + bodyH + 110;
 

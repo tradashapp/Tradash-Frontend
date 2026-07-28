@@ -59,6 +59,9 @@ function ShareCardInner({
     marketIcon: null,
     qr: null,
   });
+  // Only reveal the card / enable download once EVERY asset has resolved, so a
+  // partial (missing logo/icon/QR) card can never be shown or exported.
+  const [ready, setReady] = useState(false);
 
   const symbol: MarketSymbol =
     subject.kind === "position" ? subject.position.symbol : subject.trade.symbol;
@@ -70,20 +73,27 @@ function ShareCardInner({
   const livePrice = useAppSelector((s) => s.price.prices[symbol]);
 
   // Load the (static) assets once: brand logo, market icon, QR of the ref link.
+  // Mark ready ONLY after all three settle, so we never draw/export a partial card.
   useEffect(() => {
     let alive = true;
+    setReady(false);
     (async () => {
       const [logo, marketIcon, qrUrl] = await Promise.all([
         loadImage("/icon.svg"),
         loadImage(MARKETS[symbol].logo),
         QRCode.toDataURL(referralUrl, {
           margin: 0,
-          width: 190,
+          width: 220,
           color: { dark: "#08090c", light: "#ffffff" },
         }).catch(() => null),
       ]);
       const qr = qrUrl ? await loadImage(qrUrl) : null;
-      if (alive) setAssets({ logo, marketIcon, qr });
+      if (!alive) return;
+      setAssets({ logo, marketIcon, qr });
+      // Wait one frame so fonts are settled before the first paint, then reveal.
+      requestAnimationFrame(() => {
+        if (alive) setReady(true);
+      });
     })();
     return () => {
       alive = false;
@@ -124,16 +134,18 @@ function ShareCardInner({
     };
   }, [subject, symbol, livePrice, referralUrl]);
 
-  // Redraw whenever data / metric / assets change.
+  // Redraw whenever data / metric / assets change — but only once assets are in.
   useEffect(() => {
+    if (!ready) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     drawPnlCard(ctx, data, assets, metric);
-  }, [data, assets, metric]);
+  }, [ready, data, assets, metric]);
 
   const download = () => {
+    if (!ready) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const url = canvas.toDataURL("image/png");
@@ -155,7 +167,7 @@ function ShareCardInner({
     >
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
       <motion.div
-        className="glass relative z-10 flex max-h-[92dvh] w-full max-w-sm flex-col gap-4 rounded-3xl p-5"
+        className="glass relative z-10 flex max-h-[92dvh] w-full max-w-2xl flex-col gap-4 rounded-3xl p-5"
         initial={{ scale: 0.94, y: 12 }}
         animate={{ scale: 1, y: 0 }}
         exit={{ scale: 0.96, y: 8, opacity: 0 }}
@@ -176,16 +188,26 @@ function ShareCardInner({
           </button>
         </div>
 
-        {/* Fixed-ratio card preview. The canvas renders at CARD_W×CARD_H and is
-            scaled to fit — the shared image is always the same rectangle. */}
-        <div className="overflow-hidden rounded-2xl border border-white/10">
+        {/* Fixed-ratio (landscape) card preview. The canvas renders at
+            CARD_W×CARD_H and is scaled to fit — the shared image is always the
+            same rectangle. Hidden until every asset has loaded. */}
+        <div
+          className="relative overflow-hidden rounded-2xl border border-white/10"
+          style={{ aspectRatio: `${CARD_W} / ${CARD_H}` }}
+        >
           <canvas
             ref={canvasRef}
             width={CARD_W}
             height={CARD_H}
-            className="block h-auto w-full"
-            style={{ aspectRatio: `${CARD_W} / ${CARD_H}` }}
+            className={`block h-full w-full transition-opacity duration-200 ${
+              ready ? "opacity-100" : "opacity-0"
+            }`}
           />
+          {!ready && (
+            <div className="absolute inset-0 flex items-center justify-center bg-bg-elevated/40">
+              <span className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-up" />
+            </div>
+          )}
         </div>
 
         {/* Metric toggle: PnL / ROI / Both. */}
@@ -209,10 +231,11 @@ function ShareCardInner({
         <button
           type="button"
           onClick={download}
-          className="flex items-center justify-center gap-2 rounded-xl bg-up py-3 text-sm font-bold text-bg transition-opacity hover:opacity-90"
+          disabled={!ready}
+          className="flex items-center justify-center gap-2 rounded-xl bg-up py-3 text-sm font-bold text-bg transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
         >
           <HugeiconsIcon icon={Download04Icon} size={18} />
-          Download image
+          {ready ? "Download image" : "Preparing…"}
         </button>
       </motion.div>
     </motion.div>

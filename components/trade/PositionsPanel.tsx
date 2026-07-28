@@ -54,19 +54,22 @@ export function PositionsPanel({ onShare }: Props) {
           No open positions
         </div>
       ) : (
-        <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
-          <div className="px-1 text-[11px] font-medium uppercase tracking-wide text-text-muted">
+        <div className="flex min-h-0 flex-1 flex-col">
+          {/* Fixed label — stays put; only the rows below scroll. */}
+          <div className="mb-2 shrink-0 px-1 text-[11px] font-medium uppercase tracking-wide text-text-muted">
             Positions
           </div>
-          {items.map((item) => (
-            <PositionRow
-              key={item.position.symbol}
-              item={item}
-              onShare={() =>
-                onShare({ kind: "position", position: item.position })
-              }
-            />
-          ))}
+          <div className="scroll-glass flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pb-1 pr-1">
+            {items.map((item) => (
+              <PositionRow
+                key={item.position.symbol}
+                item={item}
+                onShare={() =>
+                  onShare({ kind: "position", position: item.position })
+                }
+              />
+            ))}
+          </div>
         </div>
       )}
     </div>

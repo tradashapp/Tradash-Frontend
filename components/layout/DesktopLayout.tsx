@@ -74,14 +74,14 @@ export function DesktopLayout({
       </section>
 
       {/* Right panel */}
-      <aside className="glass flex flex-col gap-3 border-l border-white/5 p-4">
-        <div className="flex justify-end">
+      <aside className="glass flex min-h-0 flex-col gap-3 overflow-hidden border-l border-white/5 p-4">
+        <div className="flex shrink-0 justify-end">
           <BalancePill onOpen={onOpenAccount} />
         </div>
 
         <PositionsPanel onShare={onShare} />
 
-        <div className="mt-auto">
+        <div className="shrink-0">
           <TradeControls
             position={trade.position}
             trailActive={trade.trailActive}

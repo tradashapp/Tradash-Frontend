@@ -39,3 +39,24 @@ body {
   background: rgba(255, 255, 255, 0.03);
   /* border: 1px solid rgba(255, 255, 255, 0); */
 }
+
+/* Thin, near-invisible glass scrollbar for internal scroll regions. ~1px wide,
+   transparent track, faint translucent thumb that only hints at scroll. */
+.scroll-glass {
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+}
+.scroll-glass::-webkit-scrollbar {
+  width: 1px;
+  height: 1px;
+}
+.scroll-glass::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scroll-glass::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+}
+.scroll-glass::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.22);
+}

@@ -33,7 +33,7 @@ export function PositionsPanel({ onShare }: Props) {
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       {/* Aggregated Unrealized PnL (all markets). */}
       <div className="glass-inset rounded-2xl p-4">
-        <div className="text-xs text-text-muted">Unrealized PnL · All markets</div>
+        <div className="text-xs text-text-muted mb-1">Unrealized PnL</div>
         <div className={`text-2xl font-bold ${profit ? "text-up" : "text-down"}`}>
           <Odometer
             value={`${profit ? "+" : "−"}${formatUsd(Math.abs(totalPnl))}`}
@@ -42,7 +42,7 @@ export function PositionsPanel({ onShare }: Props) {
         {items.length > 0 && (
           <div className={`text-xs font-semibold ${profit ? "text-up" : "text-down"}`}>
             <Odometer
-              value={`${totalRoiPct >= 0 ? "+" : "−"}${Math.abs(totalRoiPct).toFixed(2)}% ROI`}
+              value={`${totalRoiPct >= 0 ? "+" : "−"}${Math.abs(totalRoiPct).toFixed(2)}%`}
             />
           </div>
         )}

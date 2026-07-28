@@ -37,9 +37,6 @@ export default async function OgImage({
           flexDirection: "column",
           justifyContent: "space-between",
           background: BG,
-          // Subtle dot-grid backdrop via a radial pattern.
-          backgroundImage: `radial-gradient(${"#1a1d26"} 2px, transparent 2px)`,
-          backgroundSize: "40px 40px",
           padding: "72px",
           fontFamily: "sans-serif",
         }}
@@ -99,9 +96,10 @@ function Logo() {
       }}
     >
       <svg width={56} height={56} viewBox="0 0 512 512">
-        <rect x="120" y="128" width="272" height="54" rx="12" fill={BG} />
+        {/* Single path: top bar (as a rect subpath) + lightning-bolt stem, so
+            the <svg> has exactly one child (Satori's multi-child flex rule). */}
         <path
-          d="M292 178 L206 300 L258 300 L222 402 L336 262 L280 262 L322 178 Z"
+          d="M132 128 H380 A12 12 0 0 1 392 140 V170 A12 12 0 0 1 380 182 H132 A12 12 0 0 1 120 170 V140 A12 12 0 0 1 132 128 Z M292 178 L206 300 L258 300 L222 402 L336 262 L280 262 L322 178 Z"
           fill={BG}
         />
       </svg>

@@ -1,10 +1,10 @@
 import { ImageResponse } from "next/og";
 import { MARKET_ORDER, MARKET_SLUGS, MARKETS, marketFromSlug } from "@/lib/markets";
 
-// Per-market OG/Twitter image, generated from the same brand system (dark bg,
-// brand-green lightning-T logo, market name, chart motif). Drawn with primitives
-// only — no local image loading — so it renders reliably. Statically generated
-// per market at build time (Node runtime; edge can't pair with static params).
+// Per-market OG/Twitter image, generated from the brand system (dark bg,
+// brand-green lightning-T mark, market name). Drawn with plain flex boxes only —
+// no local images, no SVG, no unsupported CSS — so Satori renders it reliably.
+// Statically generated per market at build (Node runtime).
 export const alt = "Tradash — tap to trade perpetuals";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
@@ -37,72 +37,60 @@ export default async function OgImage({
           flexDirection: "column",
           justifyContent: "space-between",
           background: BG,
-          padding: "72px",
+          padding: "80px",
           fontFamily: "sans-serif",
         }}
       >
         {/* Top: brand lock-up. */}
-        <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
-          <Logo />
-          <div style={{ fontSize: 44, fontWeight: 700, color: TEXT }}>
+        <div style={{ display: "flex", alignItems: "center" }}>
+          <div
+            style={{
+              display: "flex",
+              width: "88px",
+              height: "88px",
+              borderRadius: "22px",
+              background: UP,
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "56px",
+              fontWeight: 800,
+              color: BG,
+            }}
+          >
+            T
+          </div>
+          <div
+            style={{ fontSize: "44px", fontWeight: 700, color: TEXT, marginLeft: "22px" }}
+          >
             Tradash
           </div>
         </div>
 
         {/* Middle: market identity. */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-          <div style={{ fontSize: 38, fontWeight: 600, color: MUTED }}>
+        <div style={{ display: "flex", flexDirection: "column" }}>
+          <div style={{ fontSize: "38px", fontWeight: 600, color: MUTED }}>
             {m.symbol}-USD
           </div>
-          <div style={{ fontSize: 108, fontWeight: 800, color: TEXT, lineHeight: 1 }}>
+          <div style={{ fontSize: "116px", fontWeight: 800, color: TEXT, lineHeight: 1 }}>
             {m.label}
           </div>
-          <div style={{ fontSize: 40, fontWeight: 500, color: UP, marginTop: 12 }}>
+          <div style={{ fontSize: "40px", fontWeight: 500, color: UP, marginTop: "18px" }}>
             Tap UP or DOWN. Trade instantly.
           </div>
         </div>
 
-        {/* Bottom: a simple upward chart motif in brand green. */}
-        <div style={{ display: "flex" }}>
-          <svg width={1056} height={120} viewBox="0 0 1056 120" fill="none">
-            <path
-              d="M0 96 L176 72 L352 84 L528 40 L704 60 L880 20 L1056 32"
-              stroke={UP}
-              strokeWidth={6}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </div>
+        {/* Bottom: brand-green underline accent (no SVG). */}
+        <div
+          style={{
+            display: "flex",
+            width: "260px",
+            height: "10px",
+            borderRadius: "999px",
+            background: UP,
+          }}
+        />
       </div>
     ),
     { ...size }
-  );
-}
-
-// The lightning-T brand mark on a brand-green rounded square (inline so Satori
-// needs no external asset).
-function Logo() {
-  return (
-    <div
-      style={{
-        width: 88,
-        height: 88,
-        borderRadius: 22,
-        background: UP,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      <svg width={56} height={56} viewBox="0 0 512 512">
-        {/* Single path: top bar (as a rect subpath) + lightning-bolt stem, so
-            the <svg> has exactly one child (Satori's multi-child flex rule). */}
-        <path
-          d="M132 128 H380 A12 12 0 0 1 392 140 V170 A12 12 0 0 1 380 182 H132 A12 12 0 0 1 120 170 V140 A12 12 0 0 1 132 128 Z M292 178 L206 300 L258 300 L222 402 L336 262 L280 262 L322 178 Z"
-          fill={BG}
-        />
-      </svg>
-    </div>
   );
 }

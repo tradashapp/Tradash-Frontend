@@ -160,7 +160,7 @@ function PositionRow({
             <div className="flex flex-col gap-1.5 border-t border-white/5 px-3 py-3 text-sm">
               <Detail
                 label="Direction"
-                value={`${up ? "Up" : "Down"} ${pos.leverage}×`}
+                value={`${up ? "Up" : "Down"} ${" "} / ${" "} ${pos.leverage}×`}
                 color={up ? "up" : "down"}
               />
               <Detail

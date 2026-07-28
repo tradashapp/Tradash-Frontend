@@ -1,10 +1,10 @@
 import { ImageResponse } from "next/og";
 import { MARKET_ORDER, MARKET_SLUGS, MARKETS, marketFromSlug } from "@/lib/markets";
 
-// Per-market OG/Twitter image, generated on the edge from the same brand system
-// (dark bg, brand-green lightning-T logo, market name, chart motif). Drawn with
-// primitives only — no local image loading — so it renders reliably at build.
-export const runtime = "edge";
+// Per-market OG/Twitter image, generated from the same brand system (dark bg,
+// brand-green lightning-T logo, market name, chart motif). Drawn with primitives
+// only — no local image loading — so it renders reliably. Statically generated
+// per market at build time (Node runtime; edge can't pair with static params).
 export const alt = "Tradash — tap to trade perpetuals";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";

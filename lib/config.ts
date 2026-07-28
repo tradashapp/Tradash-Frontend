@@ -55,6 +55,25 @@ export const config = {
   },
 
   apiUrl: process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000",
+
+  // Public site origin — used to build shareable PnL-card referral links
+  // (domain/?ref=<username>). Usernames don't exist yet, so the link is the bare
+  // domain for now. Prefers the live origin at runtime, falling back to the env.
+  appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "https://tradash.app",
 } as const;
+
+/** The public origin for share links — the real origin in the browser, else config. */
+export function siteOrigin(): string {
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return window.location.origin;
+  }
+  return config.appUrl;
+}
+
+/** Referral link for a PnL share card. No usernames yet → bare domain. */
+export function referralLink(username?: string | null): string {
+  const origin = siteOrigin().replace(/\/$/, "");
+  return username ? `${origin}/?ref=${encodeURIComponent(username)}` : origin;
+}
 
 export { required };

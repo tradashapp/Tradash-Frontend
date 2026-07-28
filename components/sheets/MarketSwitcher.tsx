@@ -63,7 +63,7 @@ export function MarketSwitcher({ open, onClose }: Props) {
                     key={symbol}
                     type="button"
                     onClick={() => select(symbol)}
-                    className="glass-inset flex items-center gap-3 rounded-2xl px-3 py-3 transition-colors hover:bg-white/10"
+                    className={`glass-inset flex items-center gap-3 rounded-2xl px-3 py-3 transition-colors hover:bg-white/10 ${selected ? "border border-up" : ""}`}
                   >
                     <Image
                       src={m.logo}
@@ -79,13 +79,13 @@ export function MarketSwitcher({ open, onClose }: Props) {
                     <div className="tabular text-sm text-text">
                       {price != null ? formatUsd(price) : "—"}
                     </div>
-                    {selected && (
+                    {/* {selected && (
                       <HugeiconsIcon
                         icon={Tick02Icon}
                         size={18}
                         className="text-up"
                       />
-                    )}
+                    )} */}
                   </button>
                 );
               })}

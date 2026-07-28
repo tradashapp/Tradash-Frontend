@@ -297,7 +297,7 @@ export function drawPnlCard(
   } else {
     // ROI only, large.
     ctx.fillStyle = accent;
-    ctx.font = "800 148px system-ui, sans-serif";
+    ctx.font = "800 140px system-ui, sans-serif";
     ctx.fillText(fmtPct(data.roiPct), PAD, y);
   }
 

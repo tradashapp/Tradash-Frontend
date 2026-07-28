@@ -1,26 +1,15 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { TradeScreen } from "@/components/screen/TradeScreen";
-import {
-  MARKET_ORDER,
-  MARKET_SLUGS,
-  marketFromSlug,
-  marketMeta,
-} from "@/lib/markets";
-
-// Pre-render one static shell per market: /btc, /eth, /sol. Each is a tiny HTML
-// page whose only real difference is its <title>/description/OG — the client
-// TradeScreen renders identically once hydrated.
-export function generateStaticParams() {
-  return MARKET_ORDER.map((sym) => ({ market: MARKET_SLUGS[sym] }));
-}
+import { marketFromSlug, marketMeta, marketPath } from "@/lib/markets";
 
 type Params = { market: string };
 
-// Per-market metadata so a shared link (e.g. /eth) shows Ethereum's title +
+// Per-market metadata so a shared link (e.g. /trade/ETH) shows Ethereum's title +
 // OG/Twitter image when pasted into X, Discord, Telegram, etc. Crawlers read this
 // server-rendered <meta>; they never run the client JS, which is exactly why the
-// market has to live in the URL.
+// market has to live in the URL. The OG image comes from the co-located
+// opengraph-image route (Next appends it to the tags automatically).
 export async function generateMetadata({
   params,
 }: {
@@ -30,10 +19,7 @@ export async function generateMetadata({
   const symbol = marketFromSlug(market);
   if (!symbol) return {};
   const meta = marketMeta(symbol);
-  const slug = MARKET_SLUGS[symbol];
-  const url = `/${slug}`;
-  // Pre-generated per-market OG image (scripts/gen-og.mjs → public/og/<slug>.png).
-  const image = `/og/${slug}.png`;
+  const url = marketPath(symbol);
   return {
     title: meta.title,
     description: meta.description,
@@ -44,13 +30,11 @@ export async function generateMetadata({
       url,
       siteName: "Tradash",
       type: "website",
-      images: [{ url: image, width: 1200, height: 630, alt: meta.title }],
     },
     twitter: {
       card: "summary_large_image",
       title: meta.title,
       description: meta.description,
-      images: [image],
     },
   };
 }

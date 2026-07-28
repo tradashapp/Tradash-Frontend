@@ -12,7 +12,7 @@ import { MobileLayout } from "@/components/layout/MobileLayout";
 import { DesktopLayout } from "@/components/layout/DesktopLayout";
 import { ShareCardModal, type ShareSubject } from "@/components/share/ShareCardModal";
 import { breakEvenPrice } from "@/lib/perp";
-import { MARKET_SLUGS, marketMeta } from "@/lib/markets";
+import { marketPath, marketMeta } from "@/lib/markets";
 import { useAgentWallet } from "@/hooks/useAgentWallet";
 import { useBulkAccount } from "@/hooks/useBulkAccount";
 import { useDemoPnl } from "@/hooks/useDemoPnl";
@@ -59,8 +59,7 @@ export function TradeScreen({ initialMarket }: Props) {
   // navigation, so the chart keeps running). A copied link then always matches
   // the visible chart. (Server metadata still owns the crawler-visible OG tags.)
   useEffect(() => {
-    const slug = MARKET_SLUGS[activeSymbol];
-    const target = `/${slug}`;
+    const target = marketPath(activeSymbol);
     if (window.location.pathname !== target) {
       window.history.replaceState(null, "", target);
     }

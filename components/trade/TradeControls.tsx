@@ -5,10 +5,12 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import {
   ArrowUp01Icon,
   ArrowDown01Icon,
+  ArrowUpRight01Icon,
+  ArrowDownRight01Icon,
+  ArrowRight01Icon,
   ArrowMoveUpRightIcon,
   Cancel01Icon,
 } from "@hugeicons/core-free-icons";
-import { formatPrice, formatUsd } from "@/lib/format";
 import { roi } from "@/lib/perp";
 import { Odometer } from "@/components/ui/Odometer";
 import { playSound } from "@/lib/sound";
@@ -24,6 +26,12 @@ interface Props {
   onShort: () => void;
   onToggleTrail: () => void;
   onClose: () => void;
+  /**
+   * Mobile only: open the positions sheet. When provided, a "View positions"
+   * pill replaces the old inline detail strip. Desktop omits it (the right panel
+   * already shows the full positions view), so the pill isn't rendered there.
+   */
+  onViewPositions?: () => void;
 }
 
 // Bottom control cluster. Flat → UP/DOWN. In a position → slim glass detail
@@ -37,6 +45,7 @@ export function TradeControls({
   onShort,
   onToggleTrail,
   onClose,
+  onViewPositions,
 }: Props) {
   return (
     <AnimatePresence mode="wait" initial={false}>
@@ -81,6 +90,7 @@ export function TradeControls({
             trailPct={trailPct}
             onToggleTrail={onToggleTrail}
             onClose={onClose}
+            onViewPositions={onViewPositions}
           />
         </motion.div>
       )}
@@ -95,6 +105,7 @@ function ActivePosition({
   trailPct,
   onToggleTrail,
   onClose,
+  onViewPositions,
 }: {
   position: Position;
   trailActive: boolean;
@@ -102,35 +113,49 @@ function ActivePosition({
   trailPct: number;
   onToggleTrail: () => void;
   onClose: () => void;
+  onViewPositions?: () => void;
 }) {
   const isProfit = position.unrealizedPnl >= 0;
   const roiPct = roi(position.unrealizedPnl, position.marginUsed) * 100;
+  const up = position.direction === "long";
 
   return (
     <div className="flex flex-col gap-2">
-      {/* Slim glass detail strip — never covers the buttons */}
-      <div className="glass flex items-center justify-between rounded-full px-4 py-2.5 text-xs">
-        <span
-          className={`rounded-md px-1.5 py-0.5 font-bold ${
-            position.direction === "long"
-              ? "bg-up-soft text-up"
-              : "bg-down-soft text-down"
-          }`}
+      {/* "View positions" pill (mobile only) — opens the positions sheet with the
+          full details. Desktop omits onViewPositions, so nothing renders here. */}
+      {onViewPositions && (
+        <button
+          type="button"
+          onClick={onViewPositions}
+          className="glass flex items-center gap-3 rounded-full px-4 py-3 text-left transition-colors active:scale-[0.99]"
         >
-          {position.direction === "long" ? "LONG" : "SHORT"} {position.leverage}×
-        </span>
-        <Stat
-          label="ROI"
-          value={`${isProfit ? "+" : "−"}${Math.abs(roiPct).toFixed(1)}%`}
-          color={isProfit ? "up" : "down"}
-        />
-        <Stat
-          label="Liq"
-          value={`$${formatPrice(position.liquidationPrice)}`}
-          color="down"
-        />
-        <Stat label="Margin" value={formatUsd(position.marginUsed)} />
-      </div>
+          <span
+            className={`flex h-7 w-7 items-center justify-center rounded-full ${
+              up ? "bg-up-soft text-up" : "bg-down-soft text-down"
+            }`}
+          >
+            <HugeiconsIcon
+              icon={up ? ArrowUpRight01Icon : ArrowDownRight01Icon}
+              size={16}
+            />
+          </span>
+          <span className="text-sm font-semibold">View positions</span>
+          <span
+            className={`ml-1 text-sm font-bold ${
+              isProfit ? "text-up" : "text-down"
+            }`}
+          >
+            <Odometer
+              value={`${isProfit ? "+" : "−"}${Math.abs(roiPct).toFixed(1)}%`}
+            />
+          </span>
+          <HugeiconsIcon
+            icon={ArrowRight01Icon}
+            size={18}
+            className="ml-auto text-text-muted"
+          />
+        </button>
+      )}
 
       {/* Trail (lock profits) / Close (100%) */}
       {/* Trail can only be armed once in enough profit that the stop lands above
@@ -172,29 +197,3 @@ function ActivePosition({
   );
 }
 
-function Stat({
-  label,
-  value,
-  color,
-}: {
-  label: string;
-  value: string;
-  color?: "up" | "down";
-}) {
-  return (
-    <div className="text-right leading-tight">
-      <div className="text-[10px] text-text-muted">{label}</div>
-      <div
-        className={`font-semibold ${
-          color === "up"
-            ? "text-up"
-            : color === "down"
-              ? "text-down"
-              : "text-text"
-        }`}
-      >
-        <Odometer value={value} />
-      </div>
-    </div>
-  );
-}

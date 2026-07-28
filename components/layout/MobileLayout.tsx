@@ -1,14 +1,16 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, useState } from "react";
 import { CanvasChart } from "@/components/chart/CanvasChart";
 import { DotGrid, type DotGridHandle } from "@/components/background/DotGrid";
 import { MarketHeader } from "@/components/trade/MarketHeader";
 import { BalancePill } from "@/components/trade/BalancePill";
 import { TradeControls } from "@/components/trade/TradeControls";
+import { PositionsSheet } from "@/components/sheets/PositionsSheet";
 import type { ChartFrame, PositionOverlay } from "@/lib/chart/engine";
 import type { MarketSymbol } from "@/types";
 import type { useTrade } from "@/hooks/useTrade";
+import type { ShareSubject } from "@/components/share/ShareCardModal";
 
 interface Props {
   symbol: MarketSymbol;
@@ -16,6 +18,7 @@ interface Props {
   trade: ReturnType<typeof useTrade>;
   onOpenMarket: () => void;
   onOpenAccount: () => void;
+  onShare: (subject: ShareSubject) => void;
 }
 
 // Mobile: full-screen chart with the market header + balance pill floating on
@@ -26,8 +29,10 @@ export function MobileLayout({
   trade,
   onOpenMarket,
   onOpenAccount,
+  onShare,
 }: Props) {
   const gridRef = useRef<DotGridHandle | null>(null);
+  const [positionsOpen, setPositionsOpen] = useState(false);
   const handleFrame = useCallback((f: ChartFrame) => {
     gridRef.current?.react(f);
   }, []);

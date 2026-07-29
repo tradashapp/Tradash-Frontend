@@ -32,7 +32,7 @@ export function PositionsSheet({ open, onClose, onShare }: Props) {
             exit={{ y: "100%" }}
             transition={{ type: "spring", damping: 30, stiffness: 300 }}
           >
-            <div className="mx-auto mb-4 h-1 w-10 shrink-0 rounded-full bg-white/15" />
+            <div className="mx-auto mb-4 h-1 w-10 shrink-0 rounded-full bg-up" />
             <h2 className="mb-3 shrink-0 px-2 text-sm font-medium text-text-muted">
               Open positions
             </h2>

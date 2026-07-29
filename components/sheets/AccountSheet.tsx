@@ -104,7 +104,7 @@ export function AccountSheet({
             exit={{ y: "100%" }}
             transition={{ type: "spring", damping: 30, stiffness: 300 }}
           >
-            <div className="mx-auto mb-3 h-1 w-10 shrink-0 rounded-full bg-white/15" />
+            <div className="mx-auto mb-3 h-1 w-10 shrink-0 rounded-full bg-up" />
 
             {/* Header: back button (sub-views) + title */}
             <div className="relative mb-3 flex h-6 shrink-0 items-center justify-center">

@@ -49,7 +49,7 @@ export function InstallSheet({ open, onClose }: Props) {
             exit={{ y: "100%" }}
             transition={{ type: "spring", damping: 30, stiffness: 300 }}
           >
-            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-white/15" />
+            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-up" />
 
             <div className="mb-4 flex flex-col items-center text-center">
               <div className="mb-3 flex h-16 w-16 items-center justify-center rounded-2xl bg-up">

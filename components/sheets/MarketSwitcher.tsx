@@ -49,7 +49,7 @@ export function MarketSwitcher({ open, onClose }: Props) {
             exit={{ y: "100%" }}
             transition={{ type: "spring", damping: 30, stiffness: 300 }}
           >
-            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-white/15" />
+            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-up" />
             <h2 className="mb-3 px-2 text-sm font-medium text-text-muted">
               Select market
             </h2>

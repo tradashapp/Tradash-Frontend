@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { usePrivy } from "@privy-io/react-auth";
+import { useFundWallet } from "@privy-io/react-auth/solana";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Wallet01Icon,
@@ -13,6 +14,8 @@ import {
   Clock01Icon,
   ArrowRight01Icon,
   ArrowLeft01Icon,
+  ArrowDataTransferVerticalIcon,
+  ArrowDown01Icon,
   HelpCircleIcon,
   Download04Icon,
 } from "@hugeicons/core-free-icons";
@@ -27,7 +30,7 @@ import { haptic } from "@/lib/haptics";
 import { useAgentWallet } from "@/hooks/useAgentWallet";
 import { useCollateral } from "@/hooks/useCollateral";
 
-type View = "menu" | "settings" | "history";
+type View = "menu" | "settings" | "history" | "transfer";
 
 interface Props {
   open: boolean;
@@ -42,6 +45,7 @@ const TITLES: Record<View, string> = {
   menu: "Account",
   settings: "Settings",
   history: "Trade history",
+  transfer: "Transfer margin",
 };
 
 // Central account hub. A single sheet with sub-views (menu → settings/history)
@@ -145,6 +149,7 @@ export function AccountSheet({
                       onLogout={logout}
                       onSettings={() => go("settings")}
                       onHistory={() => go("history")}
+                      onTransfer={() => go("transfer")}
                       onTutorial={onOpenTutorial}
                       onInstall={onOpenInstall}
                     />
@@ -153,6 +158,12 @@ export function AccountSheet({
                   {view === "history" && (
                     <HistoryPanel
                       onShare={(trade) => onShare({ kind: "trade", trade })}
+                    />
+                  )}
+                  {view === "transfer" && (
+                    <TransferPanel
+                      collateral={collateral}
+                      masterAddress={agent.masterAddress}
                     />
                   )}
                 </motion.div>
@@ -179,6 +190,7 @@ function Menu({
   onLogout,
   onSettings,
   onHistory,
+  onTransfer,
   onTutorial,
   onInstall,
 }: {
@@ -195,6 +207,7 @@ function Menu({
   onLogout: () => void;
   onSettings: () => void;
   onHistory: () => void;
+  onTransfer: () => void;
   onTutorial: () => void;
   onInstall: () => void;
 }) {
@@ -221,28 +234,28 @@ function Menu({
           <div className="glass-inset rounded-2xl p-4">
             <div className="flex items-center justify-between text-xs text-text-muted">
               <span>Wallet balance</span>
-              <span className="rounded-md bg-white/10 px-1.5 py-0.5 text-[10px] font-bold text-text-muted">
+              {/* <span className="rounded-md bg-white/10 px-1.5 py-0.5 text-[10px] font-bold text-text-muted">
                 USDC
-              </span>
+              </span> */}
             </div>
             <div className="tabular text-xl font-semibold">
               {collateral.walletUsdc != null
                 ? formatUsd(collateral.walletUsdc)
                 : "—"}
             </div>
-            <div className="mt-1 text-[10px] leading-tight text-text-muted">
+            {/* <div className="mt-1 text-[10px] leading-tight text-text-muted">
               Your own funds. Deposit into trading, or withdraw to any Solana
               address.
-            </div>
+            </div> */}
           </div>
 
           {/* Trading collateral (Bulk) — equity + free / in-use split */}
           <div className="glass-inset rounded-2xl p-4">
             <div className="flex items-center justify-between text-xs text-text-muted">
               <span>Trading collateral</span>
-              <span className="rounded-md bg-up-soft px-1.5 py-0.5 text-[10px] font-bold text-up">
+              {/* <span className="rounded-md bg-up-soft px-1.5 py-0.5 text-[10px] font-bold text-up">
                 LIVE
-              </span>
+              </span> */}
             </div>
             <div className="tabular text-xl font-semibold">
               {liveEquity != null ? formatUsd(liveEquity) : "—"}
@@ -261,10 +274,10 @@ function Menu({
                 </div>
               </div>
             </div>
-            <div className="mt-1 text-[10px] leading-tight text-text-muted">
+            {/* <div className="mt-1 text-[10px] leading-tight text-text-muted">
               Settled figure from Bulk (includes funding fees). Only free
               collateral is withdrawable.
-            </div>
+            </div> */}
           </div>
         </div>
       )}

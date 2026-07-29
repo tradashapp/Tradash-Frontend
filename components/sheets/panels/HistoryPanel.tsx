@@ -68,8 +68,11 @@ function TradeRow({
   trade: CompletedTrade;
   onShare: () => void;
 }) {
+  const kind = trade.kind ?? "close";
+  const isAdd = kind === "add"; // informational — no realized PnL
   const win = trade.pnl >= 0;
   const up = trade.direction === "long";
+  const kindLabel = { close: "Close", add: "Add", reduce: "Reduce" }[kind];
   return (
     <div className="glass-inset flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm">
       {/* Direction as an up/down arrow chip (green/red), not long/short. */}
@@ -85,20 +88,39 @@ function TradeRow({
         />
       </span>
       <div className="flex-1 leading-tight">
-        <div className="font-medium">{trade.symbol}</div>
+        <div className="flex items-center gap-1.5">
+          <span className="font-medium">{trade.symbol}</span>
+          {/* Event tag so add/reduce/close are distinguishable in the list. */}
+          {kind !== "close" && (
+            <span className="rounded bg-white/10 px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-text-muted">
+              {kindLabel}
+            </span>
+          )}
+        </div>
         <div className="text-[11px] text-text-muted">
           {trade.leverage}× · {fmtDuration(trade.durationMs)}
         </div>
       </div>
       <div className="text-right leading-tight">
-        <div className={`tabular font-semibold ${win ? "text-up" : "text-down"}`}>
-          {win ? "+" : "−"}
-          {formatUsd(Math.abs(trade.pnl))}
-        </div>
-        <div className={`text-[11px] ${win ? "text-up" : "text-down"}`}>
-          {win ? "+" : "−"}
-          {Math.abs(trade.roi * 100).toFixed(1)}%
-        </div>
+        {isAdd ? (
+          // An add has no realized PnL — show the margin moved, muted.
+          <div className="tabular font-semibold text-text-muted">
+            +{formatUsd(Math.abs(trade.size * trade.entryPrice / trade.leverage))}
+          </div>
+        ) : (
+          <>
+            <div
+              className={`tabular font-semibold ${win ? "text-up" : "text-down"}`}
+            >
+              {win ? "+" : "−"}
+              {formatUsd(Math.abs(trade.pnl))}
+            </div>
+            <div className={`text-[11px] ${win ? "text-up" : "text-down"}`}>
+              {win ? "+" : "−"}
+              {Math.abs(trade.roi * 100).toFixed(1)}%
+            </div>
+          </>
+        )}
       </div>
       <button
         type="button"
@@ -152,7 +174,10 @@ interface Stats {
   lifetimePnl: number;
 }
 
-function computeStats(trades: CompletedTrade[]): Stats {
+function computeStats(allTrades: CompletedTrade[]): Stats {
+  // Stats only count events that realize PnL — full closes and partial reduces.
+  // `add` rows have no realized PnL and would drag win-rate / inflate counts.
+  const trades = allTrades.filter((t) => (t.kind ?? "close") !== "add");
   if (trades.length === 0)
     return {
       total: 0,

@@ -17,6 +17,7 @@ import {
   CARD_W,
   CARD_H,
   drawPnlCard,
+  ensureCardFonts,
   loadImage,
   type CardAssets,
   type PnlCardData,
@@ -90,11 +91,14 @@ function ShareCardInner({
           width: 220,
           color: { dark: "#08090c", light: "#ffffff" },
         }).catch(() => null),
+        // Prime the card's web fonts so canvas text renders in Space Grotesk /
+        // JetBrains Mono rather than a system fallback.
+        ensureCardFonts(),
       ]);
       const qr = qrUrl ? await loadImage(qrUrl) : null;
       if (!alive) return;
       setAssets({ logo, marketIcon, qr });
-      // Wait one frame so fonts are settled before the first paint, then reveal.
+      // One more frame so the freshly-loaded fonts are ready to paint, then reveal.
       requestAnimationFrame(() => {
         if (alive) setReady(true);
       });

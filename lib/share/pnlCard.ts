@@ -18,6 +18,13 @@ const GRID = "#1a1d26";
 const TEXT = "#e8eaed";
 const MUTED = "#8b90a0";
 
+// Match the app's typography on the canvas. Canvas text does NOT inherit CSS,
+// so we name the same families next/font loads (Space Grotesk = UI sans,
+// JetBrains Mono = tabular figures), falling back to the same stack as the app.
+// SANS backs labels/names; MONO backs numeric values (PnL, ROI, prices).
+const SANS = '"Space Grotesk", system-ui, sans-serif';
+const MONO = '"JetBrains Mono", ui-monospace, monospace';
+
 export type ShareMetric = "pnl" | "roi" | "both";
 
 export interface PnlCardData {
@@ -48,6 +55,30 @@ const fmtUsd = (n: number) =>
   })}`;
 
 const fmtPct = (n: number) => `${n >= 0 ? "+" : "−"}${Math.abs(n).toFixed(2)}%`;
+
+// The exact (weight, family) pairs the card draws with. Canvas only renders a
+// web font if it's already loaded, so we prime these before the first paint —
+// otherwise the card silently falls back to the system font.
+const CARD_FONTS = [
+  `500 16px ${SANS}`,
+  `700 16px ${SANS}`,
+  `800 16px ${SANS}`,
+  `500 16px ${MONO}`,
+  `700 16px ${MONO}`,
+  `800 16px ${MONO}`,
+];
+
+/** Ensure the card's fonts are loaded so canvas text renders in them, not a
+ *  system fallback. Resolves even if the Font Loading API is unavailable. */
+export async function ensureCardFonts(): Promise<void> {
+  if (typeof document === "undefined" || !("fonts" in document)) return;
+  try {
+    await Promise.all(CARD_FONTS.map((f) => document.fonts.load(f)));
+    await document.fonts.ready;
+  } catch {
+    /* fall back to whatever's available */
+  }
+}
 
 /** Load an image (crypto logo / rendered QR) as a promise, tolerating failure. */
 export function loadImage(src: string): Promise<HTMLImageElement | null> {
@@ -252,16 +283,16 @@ export function drawPnlCard(
   }
   ctx.textBaseline = "alphabetic";
   ctx.fillStyle = TEXT;
-  ctx.font = "700 56px system-ui, sans-serif";
+  ctx.font = `700 56px ${SANS}`;
   ctx.fillText(data.marketLabel, PAD + iconSize + 28, y + 38);
   ctx.fillStyle = MUTED;
-  ctx.font = "500 36px system-ui, sans-serif";
+  ctx.font = `500 36px ${MONO}`;
   ctx.fillText(`${data.symbol}-USD`, PAD + iconSize + 28, y + 80);
 
   // Direction pill (UP / DOWN, arrow + colour — never long/short), top-right.
   const pillLabel = up ? "UP" : "DOWN";
   const dirColor = up ? UP : DOWN;
-  ctx.font = "700 34px system-ui, sans-serif";
+  ctx.font = `700 34px ${SANS}`;
   const pillTextW = ctx.measureText(pillLabel).width;
   const pillW = pillTextW + 104;
   const pillH = 60;
@@ -284,7 +315,7 @@ export function drawPnlCard(
   // In single modes: just the one metric, large.
   if (metric === "pnl" || metric === "both") {
     ctx.fillStyle = accent;
-    ctx.font = "800 140px system-ui, sans-serif";
+    ctx.font = `800 140px ${MONO}`;
     ctx.textBaseline = "alphabetic";
     const pnlText = fmtUsd(data.pnl);
     ctx.fillText(pnlText, PAD, y);
@@ -297,7 +328,7 @@ export function drawPnlCard(
   } else {
     // ROI only, large.
     ctx.fillStyle = accent;
-    ctx.font = "800 140px system-ui, sans-serif";
+    ctx.font = `800 140px ${MONO}`;
     ctx.fillText(fmtPct(data.roiPct), PAD, y);
   }
 
@@ -328,7 +359,7 @@ function drawRoiChip(
 ) {
   const color = profit ? UP : DOWN;
   const label = `${Math.abs(roiPct).toFixed(2)}%`;
-  ctx.font = "700 40px system-ui, sans-serif";
+  ctx.font = `700 40px ${MONO}`;
   const textW = ctx.measureText(label).width;
   const chipH = 68;
   const arrowGap = 44;
@@ -351,11 +382,11 @@ function drawPriceRow(
   value: string
 ) {
   ctx.fillStyle = MUTED;
-  ctx.font = "500 40px system-ui, sans-serif";
+  ctx.font = `500 40px ${SANS}`;
   ctx.textBaseline = "alphabetic";
   ctx.fillText(label, x, y);
   ctx.fillStyle = TEXT;
-  ctx.font = "700 44px system-ui, sans-serif";
+  ctx.font = `700 44px ${MONO}`;
   ctx.fillText(value, x + 320, y);
 }
 
@@ -383,13 +414,13 @@ function drawFooter(
   const leftX = PAD;
   let ly = qrY + 60;
   ctx.fillStyle = MUTED;
-  ctx.font = "500 32px system-ui, sans-serif";
+  ctx.font = `500 32px ${SANS}`;
   ctx.textBaseline = "alphabetic";
   ctx.fillText("Trade & share your own", leftX, ly);
 
   ly += 52;
   ctx.fillStyle = TEXT;
-  ctx.font = "700 38px system-ui, sans-serif";
+  ctx.font = `700 38px ${SANS}`;
   ctx.fillText(prettyUrl(data.referralUrl), leftX, ly);
 
   // Tradash logo UNDER the link (logo mark + wordmark).
@@ -407,7 +438,7 @@ function drawFooter(
     ctx.fill();
   }
   ctx.fillStyle = TEXT;
-  ctx.font = "700 40px system-ui, sans-serif";
+  ctx.font = `700 40px ${SANS}`;
   ctx.textBaseline = "middle";
   ctx.fillText("Tradash", leftX + logoSize + 20, ly + logoSize / 2 + 2);
   ctx.textBaseline = "alphabetic";

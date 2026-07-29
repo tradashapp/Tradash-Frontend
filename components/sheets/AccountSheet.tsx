@@ -254,10 +254,11 @@ function Menu({
               <button
                 type="button"
                 onClick={onFundWallet}
-                className="rounded-xl bg-up-soft py-2 text-xs font-semibold text-up transition-transform active:scale-95"
+                className="rounded-xl bg-up py-2 text-xs font-semibold text-black transition-transform active:scale-95"
               >
                 Deposit
               </button>
+              {/* External off-ramp (wallet → any Solana address) — disabled. */}
               <button
                 type="button"
                 disabled
@@ -407,13 +408,15 @@ function TransferPanel({
   const isDeposit = dir === "in";
   const overBalance = from.bal != null && amt > from.bal;
   const canSubmit =
-    isDeposit && amt > 0 && !overBalance && !collateral.busy && !!masterAddress;
+    amt > 0 && !overBalance && !collateral.busy && !!masterAddress;
 
   const submit = () => {
-    if (!isDeposit) return; // withdraw disabled
+    if (!canSubmit) return;
     playSound("tap");
     haptic("tap");
-    collateral.deposit(amt);
+    // Wallet→Trading = deposit into Bulk; Trading→Wallet = withdraw from Bulk.
+    if (isDeposit) collateral.deposit(amt);
+    else collateral.withdraw(amt);
   };
 
   const swap = () => {
@@ -469,25 +472,19 @@ function TransferPanel({
         )}
       </div>
 
-      {/* Primary action — follows direction. Deposit works; Withdraw disabled. */}
+      {/* Primary action — follows direction. Both move funds between the Privy
+          wallet and Bulk trading collateral (deposit / withdraw). */}
       <button
         type="button"
         onClick={submit}
         disabled={!canSubmit}
-        className={`flex w-full items-center justify-center gap-2 rounded-2xl py-3.5 font-semibold transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-45 ${
-          isDeposit ? "bg-up text-black" : "bg-white/10 text-text"
-        }`}
+        className="flex w-full items-center justify-center gap-2 rounded-2xl bg-up py-3.5 font-semibold text-black transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-45"
       >
         {collateral.busy && (
           <HugeiconsIcon icon={Loading03Icon} size={18} className="animate-spin" />
         )}
         {isDeposit ? "Deposit" : "Withdraw"}
       </button>
-      {!isDeposit && (
-        <div className="-mt-1 text-center text-[10px] text-text-muted">
-          Withdrawals are coming soon
-        </div>
-      )}
 
       {/* Secondary — Privy on-ramp to top up the Privy wallet itself. */}
       <button

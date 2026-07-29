@@ -3,15 +3,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAppSelector } from "@/store/hooks";
 import { marginHealth } from "@/lib/perp";
-import { depositCollateral } from "@/lib/bulk/onboarding";
+import { depositCollateral, withdrawCollateral } from "@/lib/bulk/onboarding";
 import { readUsdcBalance } from "@/lib/solana/usdc";
 import { useToast } from "@/components/toast/ToastProvider";
 import type { MasterSignBytes } from "@/lib/bulk/onboarding";
 
-// Phase B gate: Bulk collateral WITHDRAWAL (trading account → Privy wallet) is
-// not yet verified against live Bulk, so it's disabled behind this flag. Flip to
-// true once the reverse-transfer payload is confirmed working. Deposit is live.
-export const WITHDRAW_ENABLED = false;
+// Bulk collateral withdrawal (trading account → Privy wallet) is enabled. (The
+// separate WALLET → external-address off-ramp remains disabled — that's a
+// different, later action.)
+export const WITHDRAW_ENABLED = true;
 
 const fmtUsd = (n: number) =>
   `$${n.toLocaleString(undefined, {
@@ -24,9 +24,9 @@ const fmtUsd = (n: number) =>
  * user's own Privy wallet USDC and their Bulk trading collateral (available /
  * in-use / health) — and the deposit/withdraw transfers between them.
  *
- * Deposit is live (reuses the verified `depositCollateral`). Withdraw is gated
- * behind WITHDRAW_ENABLED until the Bulk reverse-transfer is verified. In demo
- * mode there is no external wallet, so deposit/withdraw are informational.
+ * Both deposit (wallet → Bulk) and withdraw (Bulk → wallet) are live external
+ * transfers (master-signed). In demo mode there is no external wallet, so
+ * deposit/withdraw are informational.
  */
 export function useCollateral(
   masterAddress: string | null,
@@ -114,11 +114,8 @@ export function useCollateral(
         toast("Withdrawals are live-mode only", { type: "info" });
         return;
       }
-      if (!WITHDRAW_ENABLED) {
-        toast("Withdraw coming soon", {
-          type: "info",
-          description: "Collateral withdrawal is being finalized.",
-        });
+      if (!masterAddress || !masterSign) {
+        toast("Connect wallet to withdraw", { type: "error" });
         return;
       }
       if (amount > health.maxWithdrawable) {
@@ -128,9 +125,29 @@ export function useCollateral(
         });
         return;
       }
-      // Phase B: wire withdrawCollateral(masterAddress, amount, masterSign) here.
+      setBusy(true);
+      toast(`Withdrawing ${fmtUsd(amount)}…`, { type: "loading", id: "collateral" });
+      try {
+        await withdrawCollateral(masterAddress, amount, masterSign);
+        toast(`Withdrew ${fmtUsd(amount)}`, {
+          type: "success",
+          id: "collateral",
+          description: "Moved to your wallet.",
+        });
+        // Wallet balance grew; refresh it. Bulk equity updates via the WS.
+        void refreshWallet();
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Withdraw failed";
+        toast("Withdraw failed", {
+          type: "error",
+          id: "collateral",
+          description: msg.replace(/^Bulk order error:\s*/, ""),
+        });
+      } finally {
+        setBusy(false);
+      }
     },
-    [mode, health.maxWithdrawable, toast]
+    [mode, masterAddress, masterSign, health.maxWithdrawable, toast, refreshWallet]
   );
 
   return {

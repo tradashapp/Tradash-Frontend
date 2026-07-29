@@ -67,6 +67,34 @@ export async function depositCollateral(
 }
 
 /**
+ * Withdraw USDC collateral from the user's Bulk trading account back to their
+ * Solana wallet (external transfer, master-signed) — the reverse of
+ * depositCollateral. Bulk bounds the withdrawable amount by
+ * `min(equity − 1.05 × maintenanceMargin, marginPnl)` and rejects a transfer
+ * that would push the account toward liquidation, so only free collateral can
+ * leave. `amount` is a plain number (USDC).
+ *
+ * NOTE: mirrors depositCollateral's verified external-transfer shape
+ * (from == to == master, kind "external"); the keychain resolves the wallet↔
+ * account direction. If a live test shows withdraw needs distinct from/to
+ * pubkeys, adjust here.
+ */
+export async function withdrawCollateral(
+  masterAccount: string,
+  amount: number,
+  signBytes: MasterSignBytes
+): Promise<OrderResponse> {
+  const kc = await ensureKeychain();
+  const prepared = kc.prepareTransfer(
+    masterAccount, // from: their Bulk trading account
+    masterAccount, // to: user's Solana wallet
+    amount,
+    { account: masterAccount, kind: "external", marginSymbol: "USDC", nonce: nonce() }
+  );
+  return prepareSignSubmit(prepared, signBytes);
+}
+
+/**
  * Fund + create the Bulk account for a fresh wallet, using the right method for
  * the current network. On mainnet a `depositAmount` (USDC) is required.
  */

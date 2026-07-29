@@ -143,7 +143,7 @@ export function PositionDock({ trade }: Props) {
             <button
               type="button"
               onClick={toggle}
-              className="glass absolute -right-6 top-1/2 flex h-9 w-6 -translate-y-1/2 items-center justify-center rounded-r-lg !border !border-dashed !border-l-0 !border-white/40 text-text-muted shadow-lg transition-colors hover:text-text active:scale-95"
+              className="glass absolute -right-10 top-1/2 flex h-9 w-10 -translate-y-1/2 items-center justify-center rounded-r-lg !border !border-dashed !border-l-0 !border-white/40 text-text-muted shadow-lg transition-colors hover:text-text active:scale-95"
               aria-label="Collapse"
             >
               <HugeiconsIcon icon={Cancel01Icon} size={14} />

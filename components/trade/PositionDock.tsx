@@ -46,7 +46,7 @@ export function PositionDock({ trade }: Props) {
   };
 
   return (
-    <div className="pointer-events-auto absolute left-0 top-1/2 z-20 -translate-y-1/2">
+    <div className="pointer-events-auto absolute left-0 top-1/2 z-30 -translate-y-1/2">
       <AnimatePresence mode="wait" initial={false}>
         {!open ? (
           <motion.button

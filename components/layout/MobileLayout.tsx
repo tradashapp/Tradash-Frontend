@@ -60,7 +60,7 @@ export function MobileLayout({
         <BalancePill onOpen={onOpenAccount} />
       </header>
 
-      <div className="relative z-20 flex-1" />
+      <div className="pointer-events-none relative z-20 flex-1" />
 
       <footer className="relative z-20 px-4 pb-6">
         <TradeControls

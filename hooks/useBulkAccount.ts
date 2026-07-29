@@ -139,8 +139,10 @@ export function useBulkAccount(
           } else if (Math.abs(next.size - prev.size) > prev.size * 1e-6) {
             // open → open with a SIZE change = an add / reduce filled. Resolve
             // the pending adjust toast (keyed adjust-<sym>) that increase()/
-            // decrease() opened, so it never spins forever.
+            // decrease() opened, so it never spins forever, and log the event to
+            // history (WS is the source of truth for the real filled size/PnL).
             toastAdjust(toast, prev, next);
+            recordAdjustFor(store, dispatch, privyId, prev, next);
           }
           lastOpen.current[symbol] = next;
           dispatch(setPosition({ symbol, position: next }));
@@ -190,6 +192,42 @@ function recordCloseFor(
     type: prev.unrealizedPnl >= 0 ? "success" : "info",
     id: `close-${prev.symbol}`,
     description: `Realized ${fmtUsd(prev.unrealizedPnl)}`,
+  });
+}
+
+// Log a live add / reduce to trade history. An `add` has no realized PnL; a
+// `reduce` realizes the portion that left the position (prev PnL scaled by the
+// fraction reduced). Size logged is the delta actually filled.
+function recordAdjustFor(
+  store: AppStore,
+  dispatch: AppDispatch,
+  privyId: string | null,
+  prev: Position,
+  next: Position
+) {
+  const delta = Math.abs(next.size - prev.size);
+  if (next.size > prev.size) {
+    // Added size — informational row, no realized PnL.
+    const t = recordClose(dispatch, "live", next, next.entryPrice, 0, "add", delta);
+    if (privyId) api.recordTrade(privyId, t).catch(() => {});
+  } else {
+    // Reduced size — realize the reduced fraction of the prior PnL.
+    const exit = store.getState().price.prices[prev.symbol] ?? prev.entryPrice;
+    const realized =
+      prev.size > 0 ? prev.unrealizedPnl * (delta / prev.size) : 0;
+    const t = recordClose(dispatch, "live", prev, exit, realized, "reduce", delta);
+    if (privyId) api.recordTrade(privyId, t).catch(() => {});
+  }
+}
+
+// Confirm a live add / reduce (upgrades the pending adjust-<sym> loading toast
+// that increase()/decrease() opened). Fires only on an open→open SIZE change.
+function toastAdjust(toast: ToastFn, prev: Position, next: Position) {
+  const added = next.size > prev.size;
+  toast(`${added ? "Added to" : "Reduced"} ${next.symbol}`, {
+    type: added ? "success" : "info",
+    id: `adjust-${next.symbol}`,
+    description: `${next.leverage}× · ${fmtUsd(next.marginUsed).replace("+", "")} margin`,
   });
 }
 

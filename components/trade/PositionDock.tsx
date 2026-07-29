@@ -32,6 +32,12 @@ export function PositionDock({ trade }: Props) {
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState<number>(QUICK[1]); // $25 default
 
+  // The position's posted margin caps how much can be reduced — you can't reduce
+  // more than you hold (it just closes). We clamp the reduce amount to this so
+  // the button never implies otherwise; Add is uncapped.
+  const marginUsed = trade.position?.marginUsed ?? 0;
+  const reduceOver = amount > marginUsed && marginUsed > 0;
+
   // One-time "peek" nudge so the tab is noticed, then it rests flush.
   const [peeked, setPeeked] = useState(false);
   useEffect(() => {
@@ -86,12 +92,19 @@ export function PositionDock({ trade }: Props) {
             {/* Middle: MT5-style amount — ⌄ [tap-to-type] ⌃ + quick chips */}
             <AmountControl amount={amount} onChange={setAmount} />
 
-            {/* Reduce (red) — partial close */}
-            <ActionButton
-              tone="down"
-              label="Reduce"
-              onClick={() => trade.decrease(amount)}
-            />
+            {/* Reduce (red) — partial close, clamped to the posted margin */}
+            <div className="flex flex-col">
+              <ActionButton
+                tone="down"
+                label="Reduce"
+                onClick={() => trade.decrease(Math.min(amount, marginUsed))}
+              />
+              {reduceOver && (
+                <span className="mt-0.5 text-center text-[10px] text-text-muted">
+                  Max ${marginUsed.toFixed(marginUsed < 10 ? 2 : 0)} to reduce
+                </span>
+              )}
+            </div>
 
             {/* Collapse */}
             <button

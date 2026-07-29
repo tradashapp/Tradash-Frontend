@@ -36,6 +36,17 @@ import type { Direction, Position } from "@/types";
 // A "significant" profit move ~= 5% of the margin at risk.
 const profitStepFor = (marginUsd: number) => Math.max(marginUsd * 0.05, 1);
 
+// Bulk's /order gateway can 504 (or the request abort) even though the order
+// STILL FILLS — so a timeout is not a real failure. When we see one, we leave
+// the pending loading toast in place and let the account WS resolve it (to the
+// add/reduce/open/close confirmation), rather than flashing a false error.
+function isGatewayTimeout(msg: string): boolean {
+  return (
+    /\b50[24]\b/.test(msg) ||
+    /timeout|timed out|aborted|gateway|network/i.test(msg)
+  );
+}
+
 const fmtUsd = (n: number) =>
   `${n >= 0 ? "+" : "−"}$${Math.abs(n).toLocaleString(undefined, {
     minimumFractionDigits: 2,
@@ -235,6 +246,16 @@ export function useTrade(signer: AgentSigner | null) {
             },
           })
         );
+        // Log the add (informational, no realized PnL) with the blended entry.
+        recordClose(
+          dispatch,
+          "demo",
+          { ...position, size: newSize, entryPrice: newEntry, marginUsed: newMargin },
+          newEntry,
+          0,
+          "add",
+          addSize
+        );
         playSound("open");
         haptic("open");
         toast(`Added to ${position.symbol}`, {
@@ -266,11 +287,15 @@ export function useTrade(signer: AgentSigner | null) {
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Order failed";
         dispatch(setOrderError(msg));
-        toast("Add failed", {
-          type: "error",
-          id: `adjust-${position.symbol}`,
-          description: msg.replace(/^Bulk order error:\s*/, ""),
-        });
+        // A 504/abort may have still filled — keep the loading toast and let the
+        // WS confirm. Only show a hard failure for a genuine rejection.
+        if (!isGatewayTimeout(msg)) {
+          toast("Add failed", {
+            type: "error",
+            id: `adjust-${position.symbol}`,
+            description: msg.replace(/^Bulk order error:\s*/, ""),
+          });
+        }
       }
     },
     [mode, position, price, signer, dispatch, toast]
@@ -302,6 +327,8 @@ export function useTrade(signer: AgentSigner | null) {
             settleDemo({ symbol: position.symbol, pnl: position.unrealizedPnl })
           );
         } else {
+          // Partial reduce: realize the reduced fraction + log a reduce row.
+          recordClose(dispatch, "demo", position, price, realized, "reduce", cutSize);
           dispatch(settleDemo({ symbol: position.symbol, pnl: realized }));
           dispatch(
             patchDemoPosition({

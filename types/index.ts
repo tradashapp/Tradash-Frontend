@@ -77,10 +77,17 @@ export type OrderStatus =
   | "rejected"
   | "error";
 
+/** What produced a history row. `close` = full exit (round-trip). `add` =
+ *  increased size (no realized PnL). `reduce` = partial close (realizes part).
+ *  Absent on older rows → treat as `close`. */
+export type TradeEventKind = "close" | "add" | "reduce";
+
 export interface CompletedTrade {
   id: string;
   /** Which account produced it: demo (localStorage) or live (backend). */
   mode: TradingMode;
+  /** The event this row records. Defaults to `close` when absent. */
+  kind?: TradeEventKind;
   symbol: MarketSymbol;
   direction: Direction;
   entryPrice: number;

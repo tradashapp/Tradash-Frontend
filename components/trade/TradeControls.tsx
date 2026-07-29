@@ -182,6 +182,14 @@ function ActivePosition({
               Need +{(trailPct * 100).toFixed(trailPct < 0.01 ? 1 : 0)}% to trail
             </span>
           )}
+          {/* Trailing runs client-side, so it only watches price while the app
+              is open. Small honest note so users aren't misled (server-side
+              always-on keeper is a separate, planned project). */}
+          {trailActive && (
+            <span className="mt-1 text-center text-[10px] text-text-muted">
+              Active only while app is open
+            </span>
+          )}
         </div>
         <button
           type="button"

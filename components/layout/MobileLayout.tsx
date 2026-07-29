@@ -6,19 +6,17 @@ import { DotGrid, type DotGridHandle } from "@/components/background/DotGrid";
 import { MarketHeader } from "@/components/trade/MarketHeader";
 import { BalancePill } from "@/components/trade/BalancePill";
 import { TradeControls } from "@/components/trade/TradeControls";
-import { CollateralDock } from "@/components/trade/CollateralDock";
+import { PositionDock } from "@/components/trade/PositionDock";
 import { PositionsSheet } from "@/components/sheets/PositionsSheet";
 import type { ChartFrame, PositionOverlay } from "@/lib/chart/engine";
 import type { MarketSymbol } from "@/types";
 import type { useTrade } from "@/hooks/useTrade";
-import type { useCollateral } from "@/hooks/useCollateral";
 import type { ShareSubject } from "@/components/share/ShareCardModal";
 
 interface Props {
   symbol: MarketSymbol;
   chartPosition: PositionOverlay | null;
   trade: ReturnType<typeof useTrade>;
-  collateral: ReturnType<typeof useCollateral>;
   onOpenMarket: () => void;
   onOpenAccount: () => void;
   onShare: (subject: ShareSubject) => void;
@@ -30,7 +28,6 @@ export function MobileLayout({
   symbol,
   chartPosition,
   trade,
-  collateral,
   onOpenMarket,
   onOpenAccount,
   onShare,
@@ -54,11 +51,9 @@ export function MobileLayout({
         />
       </div>
 
-      {/* Collateral dock — docked to the chart's left-center. Shown once the
-          account is funded (deposit/withdraw the shared cross-margin pool). */}
-      {collateral.equity != null && collateral.equity > 0 && (
-        <CollateralDock collateral={collateral} />
-      )}
+      {/* Position dock — docked to the chart's left-center. Shown while a
+          position is open (add more size / reduce it). */}
+      {trade.position && <PositionDock trade={trade} />}
 
       <header className="relative z-20 flex items-start justify-between px-3 pt-4">
         <MarketHeader symbol={symbol} onOpen={onOpenMarket} />

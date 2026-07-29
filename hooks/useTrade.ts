@@ -3,7 +3,13 @@
 import { useCallback } from "react";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { MARKETS } from "@/lib/markets";
-import { openPosition, trailStopFor, canTrail, displayPnlFor } from "@/lib/perp";
+import {
+  openPosition,
+  trailStopFor,
+  canTrail,
+  displayPnlFor,
+  liquidationPrice,
+} from "@/lib/perp";
 import {
   setDemoPosition,
   patchDemoPosition,
@@ -198,6 +204,156 @@ export function useTrade(signer: AgentSigner | null) {
     }
   }, [mode, position, price, signer, dispatch, toast]);
 
+  // Add SIZE to the open position (same direction) — a market order for the
+  // extra notional. `deltaUsd` is the margin to add; at the position's current
+  // leverage that's `deltaUsd × leverage` of notional. Entry blends on fill.
+  const increase = useCallback(
+    async (deltaUsd: number) => {
+      if (!position || price == null || deltaUsd <= 0) return;
+      const market = MARKETS[position.symbol];
+      const addSize = baseSizeFromUsd(deltaUsd, position.leverage, price);
+      if (addSize <= 0) return;
+
+      if (mode === "demo") {
+        // Blend the new size in at the current price and re-average the entry.
+        const newSize = position.size + addSize;
+        const newEntry =
+          (position.entryPrice * position.size + price * addSize) / newSize;
+        const newMargin = position.marginUsed + deltaUsd;
+        dispatch(
+          patchDemoPosition({
+            symbol: position.symbol,
+            patch: {
+              size: newSize,
+              entryPrice: newEntry,
+              marginUsed: newMargin,
+              liquidationPrice: liquidationPrice(
+                position.direction,
+                newEntry,
+                position.leverage
+              ),
+            },
+          })
+        );
+        playSound("open");
+        haptic("open");
+        toast(`Added to ${position.symbol}`, {
+          type: "success",
+          description: `+${fmtUsd(deltaUsd).replace("+", "")} margin`,
+        });
+        return;
+      }
+
+      if (!signer) {
+        toast("Connect wallet to trade live", { type: "error" });
+        return;
+      }
+      dispatch(setOrderStatus("submitting"));
+      toast(`Adding to ${position.symbol}…`, {
+        type: "loading",
+        id: `adjust-${position.symbol}`,
+      });
+      try {
+        await openMarket(signer, {
+          bulkSymbol: market.bulkSymbol,
+          isLong: position.direction === "long",
+          size: addSize,
+          refPrice: price,
+        });
+        dispatch(setOrderStatus("filled"));
+        playSound("open");
+        haptic("open");
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Order failed";
+        dispatch(setOrderError(msg));
+        toast("Add failed", {
+          type: "error",
+          id: `adjust-${position.symbol}`,
+          description: msg.replace(/^Bulk order error:\s*/, ""),
+        });
+      }
+    },
+    [mode, position, price, signer, dispatch, toast]
+  );
+
+  // Reduce SIZE of the open position — a reduce-only market order for part of the
+  // position. `deltaUsd` of margin at the current leverage, clamped to the
+  // remaining size (so it never over-reduces; use Close for a full exit).
+  const decrease = useCallback(
+    async (deltaUsd: number) => {
+      if (!position || price == null || deltaUsd <= 0) return;
+      const market = MARKETS[position.symbol];
+      const rawSize = baseSizeFromUsd(deltaUsd, position.leverage, price);
+      const cutSize = Math.min(rawSize, position.size);
+      if (cutSize <= 0) return;
+
+      if (mode === "demo") {
+        const newSize = position.size - cutSize;
+        // Realize the reduced portion's PnL into the demo balance.
+        const realized =
+          position.size > 0
+            ? position.unrealizedPnl * (cutSize / position.size)
+            : 0;
+        if (newSize <= position.size * 0.001) {
+          // Effectively a full close.
+          if (price != null)
+            recordClose(dispatch, "demo", position, price, position.unrealizedPnl);
+          dispatch(
+            settleDemo({ symbol: position.symbol, pnl: position.unrealizedPnl })
+          );
+        } else {
+          dispatch(settleDemo({ symbol: position.symbol, pnl: realized }));
+          dispatch(
+            patchDemoPosition({
+              symbol: position.symbol,
+              patch: {
+                size: newSize,
+                marginUsed: position.marginUsed * (newSize / position.size),
+              },
+            })
+          );
+        }
+        playSound("close");
+        haptic("close");
+        toast(`Reduced ${position.symbol}`, {
+          type: "info",
+          description: `−${fmtUsd(deltaUsd).replace("+", "").replace("−", "")} margin`,
+        });
+        return;
+      }
+
+      if (!signer) {
+        toast("Connect wallet to trade live", { type: "error" });
+        return;
+      }
+      dispatch(setOrderStatus("submitting"));
+      toast(`Reducing ${position.symbol}…`, {
+        type: "loading",
+        id: `adjust-${position.symbol}`,
+      });
+      try {
+        await reduceMarket(signer, {
+          bulkSymbol: market.bulkSymbol,
+          positionIsLong: position.direction === "long",
+          size: cutSize,
+          refPrice: price,
+        });
+        dispatch(setOrderStatus("filled"));
+        playSound("close");
+        haptic("close");
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Reduce failed";
+        dispatch(setOrderError(msg));
+        toast("Reduce failed", {
+          type: "error",
+          id: `adjust-${position.symbol}`,
+          description: msg.replace(/^Bulk order error:\s*/, ""),
+        });
+      }
+    },
+    [mode, position, price, signer, dispatch, toast]
+  );
+
   // Can a trail be armed right now? Only when in enough profit that the clamped
   // stop lands strictly in the profit zone (never at/below entry).
   const trailEligible =
@@ -264,6 +420,9 @@ export function useTrade(signer: AgentSigner | null) {
     trailEligible,
     trailPct: settings.defaultTrailPct,
     close,
+    // Add / reduce SIZE of the open position (deltaUsd = margin at current lev).
+    increase,
+    decrease,
     hasPosition: position != null,
   };
 }

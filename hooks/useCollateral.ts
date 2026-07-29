@@ -77,13 +77,11 @@ export function useCollateral(
         toast("Connect wallet to deposit", { type: "error" });
         return;
       }
-      if (walletUsdc != null && amount > walletUsdc) {
-        toast("Not enough wallet USDC", {
-          type: "error",
-          description: `Wallet holds ${fmtUsd(walletUsdc)}.`,
-        });
-        return;
-      }
+      // NOTE: no wallet-USDC guard. On testnet the account is faucet-funded and
+      // there is no real Privy-wallet USDC to move, so blocking on walletUsdc
+      // gave a false "not enough" even with collateral available. When mainnet
+      // deposits go live (real wallet→Bulk transfer), re-add a guard against the
+      // wallet balance there.
       setBusy(true);
       toast(`Depositing ${fmtUsd(amount)}…`, { type: "loading", id: "collateral" });
       try {
@@ -106,7 +104,7 @@ export function useCollateral(
         setBusy(false);
       }
     },
-    [mode, masterAddress, masterSign, walletUsdc, toast, refreshWallet]
+    [mode, masterAddress, masterSign, toast, refreshWallet]
   );
 
   const withdraw = useCallback(

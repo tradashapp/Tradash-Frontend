@@ -134,7 +134,14 @@ export function useBulkAccount(
         }
         if (p) {
           const next = enrich(store, dispatch, p, prev ?? undefined);
-          if (!prev) toastOpen(toast, next); // flat → open: confirm the fill
+          if (!prev) {
+            toastOpen(toast, next); // flat → open: confirm the fill
+          } else if (Math.abs(next.size - prev.size) > prev.size * 1e-6) {
+            // open → open with a SIZE change = an add / reduce filled. Resolve
+            // the pending adjust toast (keyed adjust-<sym>) that increase()/
+            // decrease() opened, so it never spins forever.
+            toastAdjust(toast, prev, next);
+          }
           lastOpen.current[symbol] = next;
           dispatch(setPosition({ symbol, position: next }));
         }

@@ -19,7 +19,6 @@ interface Props {
   chartPosition: PositionOverlay | null;
   trade: ReturnType<typeof useTrade>;
   collateral: ReturnType<typeof useCollateral>;
-  price?: number;
   onOpenMarket: () => void;
   onOpenAccount: () => void;
   onShare: (subject: ShareSubject) => void;
@@ -31,6 +30,7 @@ export function MobileLayout({
   symbol,
   chartPosition,
   trade,
+  collateral,
   onOpenMarket,
   onOpenAccount,
   onShare,
@@ -53,6 +53,12 @@ export function MobileLayout({
           onFrame={handleFrame}
         />
       </div>
+
+      {/* Collateral dock — docked to the chart's left-center. Shown once the
+          account is funded (deposit/withdraw the shared cross-margin pool). */}
+      {collateral.equity != null && collateral.equity > 0 && (
+        <CollateralDock collateral={collateral} />
+      )}
 
       <header className="relative z-20 flex items-start justify-between px-3 pt-4">
         <MarketHeader symbol={symbol} onOpen={onOpenMarket} />

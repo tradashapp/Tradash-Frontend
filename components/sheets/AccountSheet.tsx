@@ -24,7 +24,8 @@ import { HistoryPanel } from "./panels/HistoryPanel";
 import type { ShareSubject } from "@/components/share/ShareCardModal";
 import { playSound } from "@/lib/sound";
 import { haptic } from "@/lib/haptics";
-import type { useAgentWallet } from "@/hooks/useAgentWallet";
+import { useAgentWallet } from "@/hooks/useAgentWallet";
+import { useCollateral } from "@/hooks/useCollateral";
 
 type View = "menu" | "settings" | "history";
 
@@ -62,6 +63,14 @@ export function AccountSheet({
   const liveEquity = useAppSelector((s) => s.user.balance?.equity);
   const agentAuthorized = useAppSelector((s) => s.trading.agentAuthorized);
   const builderApproved = useAppSelector((s) => s.trading.builderApproved);
+  const collateral = useCollateral(agent.masterAddress, agent.masterSign);
+
+  // Refresh the wallet balance each time the sheet opens (it may have changed
+  // since the last poll — e.g. right after a deposit or an external transfer).
+  useEffect(() => {
+    if (open) collateral.refreshWallet();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   // Reset to the menu whenever the sheet is (re)opened.
   useEffect(() => {
@@ -126,6 +135,7 @@ export function AccountSheet({
                       mode={mode}
                       demoBalance={demoBalance}
                       liveEquity={liveEquity}
+                      collateral={collateral}
                       authenticated={authenticated}
                       agent={agent}
                       agentAuthorized={agentAuthorized}
@@ -159,6 +169,7 @@ function Menu({
   mode,
   demoBalance,
   liveEquity,
+  collateral,
   authenticated,
   agent,
   agentAuthorized,
@@ -174,6 +185,7 @@ function Menu({
   mode: "demo" | "live";
   demoBalance: number;
   liveEquity: number | undefined;
+  collateral: ReturnType<typeof useCollateral>;
   authenticated: boolean;
   agent: ReturnType<typeof useAgentWallet>;
   agentAuthorized: boolean;
@@ -188,32 +200,74 @@ function Menu({
 }) {
   return (
     <div className="flex flex-col">
-      {/* Balance — with a small mode badge (toggle lives in Settings now). */}
-      <div className="glass-inset mb-4 rounded-2xl p-4">
-        <div className="flex items-center justify-between text-xs text-text-muted">
-          <span>{mode === "demo" ? "Demo balance" : "Account equity"}</span>
-          <span
-            className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold ${
-              mode === "demo" ? "bg-white/10 text-text-muted" : "bg-up-soft text-up"
-            }`}
-          >
-            {mode === "demo" ? "DEMO" : "LIVE"}
-          </span>
-        </div>
-        <div className="tabular text-2xl font-semibold">
-          {mode === "demo"
-            ? formatUsd(demoBalance)
-            : liveEquity != null
-              ? formatUsd(liveEquity)
-              : "—"}
-        </div>
-        {mode === "live" && (
-          <div className="mt-1 text-[10px] leading-tight text-text-muted">
-            Settled figure from Bulk (includes funding fees). On-chart PnL is a
-            live estimate.
+      {/* Balance. DEMO: a single simulated figure. LIVE: the two-balance model —
+          the user's own wallet USDC and their Bulk trading collateral (split into
+          free/in-use), which the collateral dock moves between. */}
+      {mode === "demo" ? (
+        <div className="glass-inset mb-4 rounded-2xl p-4">
+          <div className="flex items-center justify-between text-xs text-text-muted">
+            <span>Demo balance</span>
+            <span className="rounded-md bg-white/10 px-1.5 py-0.5 text-[10px] font-bold text-text-muted">
+              DEMO
+            </span>
           </div>
-        )}
-      </div>
+          <div className="tabular text-2xl font-semibold">
+            {formatUsd(demoBalance)}
+          </div>
+        </div>
+      ) : (
+        <div className="mb-4 flex flex-col gap-2">
+          {/* Wallet (the user's own USDC) */}
+          <div className="glass-inset rounded-2xl p-4">
+            <div className="flex items-center justify-between text-xs text-text-muted">
+              <span>Wallet balance</span>
+              <span className="rounded-md bg-white/10 px-1.5 py-0.5 text-[10px] font-bold text-text-muted">
+                USDC
+              </span>
+            </div>
+            <div className="tabular text-xl font-semibold">
+              {collateral.walletUsdc != null
+                ? formatUsd(collateral.walletUsdc)
+                : "—"}
+            </div>
+            <div className="mt-1 text-[10px] leading-tight text-text-muted">
+              Your own funds. Deposit into trading, or withdraw to any Solana
+              address.
+            </div>
+          </div>
+
+          {/* Trading collateral (Bulk) — equity + free / in-use split */}
+          <div className="glass-inset rounded-2xl p-4">
+            <div className="flex items-center justify-between text-xs text-text-muted">
+              <span>Trading collateral</span>
+              <span className="rounded-md bg-up-soft px-1.5 py-0.5 text-[10px] font-bold text-up">
+                LIVE
+              </span>
+            </div>
+            <div className="tabular text-xl font-semibold">
+              {liveEquity != null ? formatUsd(liveEquity) : "—"}
+            </div>
+            <div className="mt-2 grid grid-cols-2 gap-2 text-[11px]">
+              <div className="rounded-lg bg-white/[0.03] px-2 py-1.5">
+                <div className="text-text-muted">Free</div>
+                <div className="tabular font-semibold text-up">
+                  {formatUsd(collateral.available)}
+                </div>
+              </div>
+              <div className="rounded-lg bg-white/[0.03] px-2 py-1.5">
+                <div className="text-text-muted">In use</div>
+                <div className="tabular font-semibold">
+                  {formatUsd(collateral.inUse)}
+                </div>
+              </div>
+            </div>
+            <div className="mt-1 text-[10px] leading-tight text-text-muted">
+              Settled figure from Bulk (includes funding fees). Only free
+              collateral is withdrawable.
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Navigation */}
       <div className="mb-4 flex flex-col gap-2">

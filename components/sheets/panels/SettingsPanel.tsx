@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { MinusSignIcon, PlusSignIcon } from "@hugeicons/core-free-icons";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
@@ -117,6 +118,23 @@ function Stepper({
 }) {
   const clamp = (v: number) =>
     +Math.min(max, Math.max(min, v)).toFixed(decimals);
+
+  // Tap the number itself to type it manually (instead of only +/− stepping).
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  const commit = () => {
+    const v = Number(draft);
+    if (!Number.isNaN(v) && draft.trim() !== "") onChange(clamp(v));
+    setEditing(false);
+  };
+  const startEdit = () => {
+    setDraft(String(value));
+    setEditing(true);
+    requestAnimationFrame(() => inputRef.current?.select());
+  };
+
   return (
     <div className="glass-inset flex items-center justify-between rounded-2xl px-4 py-3">
       <span className="text-sm">{label}</span>
@@ -128,11 +146,33 @@ function Stepper({
         >
           <HugeiconsIcon icon={MinusSignIcon} size={16} />
         </button>
-        <span className="tabular w-16 text-center text-sm font-semibold">
-          {suffix === "$" ? "$" : ""}
-          {value}
-          {suffix && suffix !== "$" ? suffix : ""}
-        </span>
+        {editing ? (
+          <input
+            ref={inputRef}
+            type="number"
+            inputMode="decimal"
+            value={draft}
+            autoFocus
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commit}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") commit();
+              if (e.key === "Escape") setEditing(false);
+            }}
+            className="tabular w-16 bg-transparent text-center text-sm font-semibold text-text outline-none"
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={startEdit}
+            className="tabular w-16 text-center text-sm font-semibold text-text"
+            aria-label={`Edit ${label}`}
+          >
+            {suffix === "$" ? "$" : ""}
+            {value}
+            {suffix && suffix !== "$" ? suffix : ""}
+          </button>
+        )}
         <button
           type="button"
           onClick={() => onChange(clamp(value + step))}

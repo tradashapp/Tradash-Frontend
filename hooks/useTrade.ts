@@ -270,9 +270,12 @@ export function useTrade(signer: AgentSigner | null) {
         return;
       }
       dispatch(setOrderStatus("submitting"));
+      // Fallback duration so a 504-that-never-fills can't spin forever; the WS
+      // normally upgrades this to success/info well before it elapses.
       toast(`Adding to ${position.symbol}…`, {
         type: "loading",
         id: `adjust-${position.symbol}`,
+        duration: 90_000,
       });
       try {
         await openMarket(signer, {
@@ -371,11 +374,15 @@ export function useTrade(signer: AgentSigner | null) {
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Reduce failed";
         dispatch(setOrderError(msg));
-        toast("Reduce failed", {
-          type: "error",
-          id: `adjust-${position.symbol}`,
-          description: msg.replace(/^Bulk order error:\s*/, ""),
-        });
+        // A 504/abort may have still filled — keep the loading toast and let the
+        // WS confirm. Only show a hard failure for a genuine rejection.
+        if (!isGatewayTimeout(msg)) {
+          toast("Reduce failed", {
+            type: "error",
+            id: `adjust-${position.symbol}`,
+            description: msg.replace(/^Bulk order error:\s*/, ""),
+          });
+        }
       }
     },
     [mode, position, price, signer, dispatch, toast]

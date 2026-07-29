@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useMotionValue } from "framer-motion";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Coins01Icon,
@@ -19,6 +19,13 @@ import type { useTrade } from "@/hooks/useTrade";
 // covers anything in between.
 const QUICK = [10, 25, 50];
 const STEP = 5; // ⌄ / ⌃ increment
+
+// Drag band insets (px from top / bottom of the viewport). The dock is docked to
+// the vertical CENTER and can be dragged up/down within a band that clears the
+// market selector (top) and the trade controls / "View positions" section
+// (bottom) on the mobile layout. Purely vertical — it never leaves the left edge.
+const TOP_INSET = 96; // clears the market header + a little gap
+const BOTTOM_INSET = 190; // clears the trade controls / positions section
 
 interface Props {
   trade: ReturnType<typeof useTrade>;
@@ -45,14 +52,63 @@ export function PositionDock({ trade }: Props) {
     return () => clearTimeout(id);
   }, []);
 
+  // Vertical drag. `y` is an offset from the centered rest position and persists
+  // across collapse/expand (the wrapper lives outside the AnimatePresence swap).
+  // Constraints are computed from the viewport so the dock stays in the allowed
+  // band: below the market selector, above the trade controls / positions.
+  const y = useMotionValue(0);
+  const [constraints, setConstraints] = useState({ top: 0, bottom: 0 });
+  useEffect(() => {
+    const recompute = () => {
+      const h = window.innerHeight;
+      const center = h / 2;
+      // Up: from center to TOP_INSET. Down: from center to (h - BOTTOM_INSET).
+      const up = -(center - TOP_INSET);
+      const down = h - BOTTOM_INSET - center;
+      setConstraints({ top: Math.min(0, up), bottom: Math.max(0, down) });
+      // Re-clamp current position if the viewport shrank past it.
+      const cur = y.get();
+      if (cur < up) y.set(up);
+      else if (cur > down) y.set(down);
+    };
+    recompute();
+    window.addEventListener("resize", recompute);
+    return () => window.removeEventListener("resize", recompute);
+  }, [y]);
+
+  // Distinguish a tap (toggle) from a drag (reposition) so dragging the tab
+  // doesn't also open/close it. Set on drag start, checked on click.
+  const dragged = useRef(false);
+
   const toggle = () => {
+    // A click synthesized right after a drag is ignored (onDragEnd clears the
+    // flag shortly after), so dragging the tab never also toggles it.
+    if (dragged.current) return;
     playSound("tap");
     haptic("tap");
     setOpen((o) => !o);
   };
 
   return (
-    <div className="pointer-events-auto absolute left-0 top-1/2 z-30 -translate-y-1/2">
+    <motion.div
+      className="pointer-events-auto absolute left-0 top-1/2 z-30 -translate-y-1/2 touch-none"
+      style={{ y }}
+      drag="y"
+      dragConstraints={constraints}
+      dragElastic={0.06}
+      dragMomentum={false}
+      onDragStart={() => {
+        dragged.current = true;
+        haptic("tap");
+      }}
+      onDragEnd={() => {
+        // Clear the drag flag after the click that follows dragEnd would fire,
+        // so a genuine tap right after still toggles.
+        setTimeout(() => {
+          dragged.current = false;
+        }, 50);
+      }}
+    >
       <AnimatePresence mode="wait" initial={false}>
         {!open ? (
           <motion.button
@@ -118,7 +174,7 @@ export function PositionDock({ trade }: Props) {
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </motion.div>
   );
 }
 

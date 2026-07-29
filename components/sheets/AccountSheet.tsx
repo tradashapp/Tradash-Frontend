@@ -211,6 +211,15 @@ function Menu({
   onTutorial: () => void;
   onInstall: () => void;
 }) {
+  const { fundWallet } = useFundWallet();
+  // Privy on-ramp: top up the user's OWN Solana wallet with USDC from outside.
+  const onFundWallet = () => {
+    if (!agent.masterAddress) return;
+    playSound("tap");
+    haptic("tap");
+    void fundWallet(agent.masterAddress);
+  };
+
   return (
     <div className="flex flex-col">
       {/* Balance. DEMO: a single simulated figure. LIVE: the two-balance model —
@@ -229,33 +238,56 @@ function Menu({
           </div>
         </div>
       ) : (
-        <div className="mb-4 flex flex-col gap-2">
-          {/* Wallet (the user's own USDC) */}
+        // DEX-style: Wallet card and Trading card stacked, with a floating swap
+        // button at the seam that opens the transfer sheet.
+        <div className="relative mb-4 flex flex-col gap-2">
+          {/* Wallet (the user's own USDC) + Deposit / Withdraw buttons */}
           <div className="glass-inset rounded-2xl p-4">
             <div className="flex items-center justify-between text-xs text-text-muted">
               <span>Wallet balance</span>
-              {/* <span className="rounded-md bg-white/10 px-1.5 py-0.5 text-[10px] font-bold text-text-muted">
-                USDC
-              </span> */}
             </div>
             <div className="tabular text-xl font-semibold">
               {collateral.walletUsdc != null
                 ? formatUsd(collateral.walletUsdc)
                 : "—"}
             </div>
-            {/* <div className="mt-1 text-[10px] leading-tight text-text-muted">
-              Your own funds. Deposit into trading, or withdraw to any Solana
-              address.
-            </div> */}
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={onFundWallet}
+                className="rounded-xl bg-up-soft py-2 text-xs font-semibold text-up transition-transform active:scale-95"
+              >
+                Deposit
+              </button>
+              <button
+                type="button"
+                disabled
+                className="rounded-xl bg-white/5 py-2 text-xs font-semibold text-text-muted opacity-50"
+              >
+                Withdraw
+              </button>
+            </div>
           </div>
+
+          {/* Swap button at the seam — opens the transfer sheet. Sits centered
+              over the gap so it reads as connecting both cards (DEX style). */}
+          <button
+            type="button"
+            onClick={() => {
+              playSound("tap");
+              haptic("tap");
+              onTransfer();
+            }}
+            aria-label="Transfer margin"
+            className="glass absolute left-1/2 top-1/2 z-10 flex h-10 w-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-bg-elevated text-text shadow-lg transition-transform active:scale-90"
+          >
+            <HugeiconsIcon icon={ArrowDataTransferVerticalIcon} size={18} />
+          </button>
 
           {/* Trading collateral (Bulk) — equity + free / in-use split */}
           <div className="glass-inset rounded-2xl p-4">
             <div className="flex items-center justify-between text-xs text-text-muted">
               <span>Trading collateral</span>
-              {/* <span className="rounded-md bg-up-soft px-1.5 py-0.5 text-[10px] font-bold text-up">
-                LIVE
-              </span> */}
             </div>
             <div className="tabular text-xl font-semibold">
               {liveEquity != null ? formatUsd(liveEquity) : "—"}
@@ -274,10 +306,6 @@ function Menu({
                 </div>
               </div>
             </div>
-            {/* <div className="mt-1 text-[10px] leading-tight text-text-muted">
-              Settled figure from Bulk (includes funding fees). Only free
-              collateral is withdrawable.
-            </div> */}
           </div>
         </div>
       )}

@@ -6,16 +6,20 @@ import { DotGrid, type DotGridHandle } from "@/components/background/DotGrid";
 import { MarketHeader } from "@/components/trade/MarketHeader";
 import { BalancePill } from "@/components/trade/BalancePill";
 import { TradeControls } from "@/components/trade/TradeControls";
+import { CollateralDock } from "@/components/trade/CollateralDock";
 import { PositionsSheet } from "@/components/sheets/PositionsSheet";
 import type { ChartFrame, PositionOverlay } from "@/lib/chart/engine";
 import type { MarketSymbol } from "@/types";
 import type { useTrade } from "@/hooks/useTrade";
+import type { useCollateral } from "@/hooks/useCollateral";
 import type { ShareSubject } from "@/components/share/ShareCardModal";
 
 interface Props {
   symbol: MarketSymbol;
   chartPosition: PositionOverlay | null;
   trade: ReturnType<typeof useTrade>;
+  collateral: ReturnType<typeof useCollateral>;
+  price?: number;
   onOpenMarket: () => void;
   onOpenAccount: () => void;
   onShare: (subject: ShareSubject) => void;

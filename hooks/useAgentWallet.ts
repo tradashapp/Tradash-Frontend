@@ -222,5 +222,8 @@ export function useAgentWallet() {
     isReady: signer !== null,
     onboarding,
     onboard,
+    // Master (Privy) byte-signer — needed for collateral deposits/withdrawals,
+    // which are master-signed transfers (the agent key can't sign these).
+    masterSign,
   };
 }

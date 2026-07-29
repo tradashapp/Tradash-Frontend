@@ -1,4 +1,4 @@
-import type { Direction, Position } from "@/types";
+import type { Balance, Direction, Position } from "@/types";
 
 // Shared perpetual math used by the demo simulator and by live PnL display.
 // Conventions: `margin` is the USD collateral the user puts up; notional =
@@ -197,4 +197,42 @@ export function canTrail(
       ? currentPrice / entryPrice - 1
       : 1 - currentPrice / entryPrice;
   return profitFrac > trailPct;
+}
+
+// --- Account collateral (cross margin) ---------------------------------------
+//
+// Under cross margin there is ONE shared collateral pool. `equity` is the total,
+// `marginUsed` is locked by open positions, `available` is free. "Margin health"
+// = the fraction of equity that is NOT locked — a rough safety gauge (1 = all
+// free, 0 = fully committed / near liquidation). Only the AVAILABLE portion can
+// ever be withdrawn; the in-use portion belongs to open positions.
+
+export interface MarginHealth {
+  /** Fraction of equity that is free (0..1). Higher = safer. */
+  ratio: number;
+  /** Free collateral in USD (== balance.available). */
+  available: number;
+  /** Collateral locked by open positions in USD (== balance.marginUsed). */
+  inUse: number;
+  /**
+   * Max USD safely withdrawable — the available balance minus a small buffer so
+   * a withdraw can't leave open positions on the edge of liquidation.
+   */
+  maxWithdrawable: number;
+}
+
+/** Safety buffer kept back from withdrawals: 5% of equity, so pulling "all
+ *  available" still leaves a cushion above the maintenance requirement. */
+const WITHDRAW_BUFFER_FRAC = 0.05;
+
+export function marginHealth(balance: Balance | null | undefined): MarginHealth {
+  if (!balance || balance.equity <= 0) {
+    return { ratio: 1, available: 0, inUse: 0, maxWithdrawable: 0 };
+  }
+  const available = Math.max(0, balance.available);
+  const inUse = Math.max(0, balance.marginUsed);
+  const ratio = Math.max(0, Math.min(1, available / balance.equity));
+  const buffer = balance.equity * WITHDRAW_BUFFER_FRAC;
+  const maxWithdrawable = Math.max(0, available - buffer);
+  return { ratio, available, inUse, maxWithdrawable };
 }

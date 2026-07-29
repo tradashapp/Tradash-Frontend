@@ -54,6 +54,19 @@ export const config = {
       "https://rpc.magicblock.app/devnet",
   },
 
+  solana: {
+    // Base-layer RPC used for wallet reads (USDC balance) — shares the same node
+    // as the MagicBlock base layer unless overridden.
+    rpcUrl:
+      process.env.NEXT_PUBLIC_SOLANA_RPC_URL ??
+      "https://rpc.magicblock.app/devnet",
+    // USDC mint per Bulk network. Bulk is on devnet today, so the deposit/withdraw
+    // and wallet-balance reads use the devnet USDC mint; flipping BULK_NETWORK to
+    // mainnet swaps in the canonical mainnet USDC mint (see usdcMint() below).
+    usdcMintDevnet: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+    usdcMintMainnet: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+  },
+
   apiUrl: process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000",
 
   // Public site origin — used to build shareable PnL-card referral links
@@ -61,6 +74,13 @@ export const config = {
   // domain for now. Prefers the live origin at runtime, falling back to the env.
   appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "https://tradash.app",
 } as const;
+
+/** The USDC mint for the active Bulk network (devnet today, mainnet when live). */
+export function usdcMint(): string {
+  return config.bulk.network === "mainnet"
+    ? config.solana.usdcMintMainnet
+    : config.solana.usdcMintDevnet;
+}
 
 /** The public origin for share links — the real origin in the browser, else config. */
 export function siteOrigin(): string {

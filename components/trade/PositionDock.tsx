@@ -136,8 +136,19 @@ export function PositionDock({ trade }: Props) {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -16 }}
             transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-            className="glass flex w-44 flex-col gap-2 rounded-r-2xl !border !border-dashed !border-l-0 !border-white/40 p-2 shadow-2xl"
+            className="glass relative flex w-44 flex-col gap-2 rounded-r-2xl !border !border-dashed !border-l-0 !border-white/40 p-2 shadow-2xl"
           >
+            {/* Collapse — a small protrusion on the RIGHT-MIDDLE edge, away from
+                the Reduce button so it can't be mis-tapped. */}
+            <button
+              type="button"
+              onClick={toggle}
+              className="glass absolute -right-6 top-1/2 flex h-9 w-6 -translate-y-1/2 items-center justify-center rounded-r-lg !border !border-dashed !border-l-0 !border-white/40 text-text-muted shadow-lg transition-colors hover:text-text active:scale-95"
+              aria-label="Collapse"
+            >
+              <HugeiconsIcon icon={Cancel01Icon} size={14} />
+            </button>
+
             {/* Add (green) — opens more size in the same direction */}
             <ActionButton
               tone="up"
@@ -161,16 +172,6 @@ export function PositionDock({ trade }: Props) {
                 </span>
               )}
             </div>
-
-            {/* Collapse */}
-            <button
-              type="button"
-              onClick={toggle}
-              className="mx-auto mt-0.5 text-text-muted transition-colors hover:text-text"
-              aria-label="Collapse"
-            >
-              <HugeiconsIcon icon={Cancel01Icon} size={14} />
-            </button>
           </motion.div>
         )}
       </AnimatePresence>

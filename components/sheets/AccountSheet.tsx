@@ -15,7 +15,6 @@ import {
   ArrowRight01Icon,
   ArrowLeft01Icon,
   ArrowDataTransferVerticalIcon,
-  ArrowDown01Icon,
   HelpCircleIcon,
   Download04Icon,
 } from "@hugeicons/core-free-icons";
@@ -369,6 +368,159 @@ function Menu({
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+// Transfer sheet (sub-view of the Account sheet). Move USDC between the user's
+// Privy wallet and their Bulk trading collateral. Direction is switchable:
+//   Wallet → Trading  = deposit into Bulk (works, via depositCollateral)
+//   Trading → Wallet  = withdraw from Bulk (DISABLED for now — Phase B)
+// Plus a "Fund wallet" action (Privy on-ramp) to top up the Privy wallet itself.
+function TransferPanel({
+  collateral,
+  masterAddress,
+}: {
+  collateral: ReturnType<typeof useCollateral>;
+  masterAddress: string | null;
+}) {
+  const { fundWallet } = useFundWallet();
+  // dir: which way the transfer moves. "in" = wallet→trading (deposit),
+  // "out" = trading→wallet (withdraw, disabled for now).
+  const [dir, setDir] = useState<"in" | "out">("in");
+  const [amount, setAmount] = useState<string>("25");
+
+  const walletUsdc = collateral.walletUsdc;
+  const available = collateral.available;
+  const amt = Number(amount) || 0;
+
+  // The "from" and "to" labels + balances, driven by direction.
+  const from =
+    dir === "in"
+      ? { label: "Wallet", bal: walletUsdc }
+      : { label: "Trading", bal: available };
+  const to =
+    dir === "in"
+      ? { label: "Trading", bal: available }
+      : { label: "Wallet", bal: walletUsdc };
+
+  const isDeposit = dir === "in";
+  const overBalance = from.bal != null && amt > from.bal;
+  const canSubmit =
+    isDeposit && amt > 0 && !overBalance && !collateral.busy && !!masterAddress;
+
+  const submit = () => {
+    if (!isDeposit) return; // withdraw disabled
+    playSound("tap");
+    haptic("tap");
+    collateral.deposit(amt);
+  };
+
+  const swap = () => {
+    playSound("tap");
+    haptic("tap");
+    setDir((d) => (d === "in" ? "out" : "in"));
+  };
+
+  return (
+    <div className="flex flex-col gap-3">
+      {/* From / To with a swap button at the seam (mirrors the menu cards). */}
+      <div className="relative flex flex-col gap-2">
+        <TransferRow label={`From · ${from.label}`} balance={from.bal} />
+        <button
+          type="button"
+          onClick={swap}
+          aria-label="Swap direction"
+          className="glass absolute left-1/2 top-1/2 z-10 flex h-9 w-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-bg-elevated text-text shadow-lg transition-transform active:scale-90"
+        >
+          <HugeiconsIcon icon={ArrowDataTransferVerticalIcon} size={16} />
+        </button>
+        <TransferRow label={`To · ${to.label}`} balance={to.bal} />
+      </div>
+
+      {/* Amount */}
+      <div className="glass-inset rounded-2xl p-4">
+        <div className="mb-1 text-xs text-text-muted">Amount (USDC)</div>
+        <div className="flex items-center gap-2">
+          <span className="text-lg font-semibold text-text-muted">$</span>
+          <input
+            type="number"
+            inputMode="decimal"
+            min={0}
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            className="tabular w-full bg-transparent text-2xl font-semibold text-text outline-none"
+            placeholder="0"
+          />
+          {from.bal != null && (
+            <button
+              type="button"
+              onClick={() => setAmount(String(from.bal))}
+              className="rounded-lg bg-white/5 px-2 py-1 text-[11px] font-semibold text-text-muted transition-colors hover:text-text"
+            >
+              MAX
+            </button>
+          )}
+        </div>
+        {overBalance && (
+          <div className="mt-1 text-[10px] text-down">
+            Exceeds {from.label.toLowerCase()} balance
+          </div>
+        )}
+      </div>
+
+      {/* Primary action — follows direction. Deposit works; Withdraw disabled. */}
+      <button
+        type="button"
+        onClick={submit}
+        disabled={!canSubmit}
+        className={`flex w-full items-center justify-center gap-2 rounded-2xl py-3.5 font-semibold transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-45 ${
+          isDeposit ? "bg-up text-black" : "bg-white/10 text-text"
+        }`}
+      >
+        {collateral.busy && (
+          <HugeiconsIcon icon={Loading03Icon} size={18} className="animate-spin" />
+        )}
+        {isDeposit ? "Deposit" : "Withdraw"}
+      </button>
+      {!isDeposit && (
+        <div className="-mt-1 text-center text-[10px] text-text-muted">
+          Withdrawals are coming soon
+        </div>
+      )}
+
+      {/* Secondary — Privy on-ramp to top up the Privy wallet itself. */}
+      <button
+        type="button"
+        onClick={() => {
+          if (!masterAddress) return;
+          playSound("tap");
+          haptic("tap");
+          void fundWallet(masterAddress);
+        }}
+        className="glass-inset flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-sm font-medium text-text-muted transition-colors hover:text-text"
+      >
+        <HugeiconsIcon icon={Wallet01Icon} size={18} />
+        Fund wallet
+      </button>
+    </div>
+  );
+}
+
+// One balance row in the transfer sheet (From / To).
+function TransferRow({
+  label,
+  balance,
+}: {
+  label: string;
+  balance: number | null | undefined;
+}) {
+  return (
+    <div className="glass-inset flex items-center justify-between rounded-2xl px-4 py-3.5">
+      <span className="text-xs text-text-muted">{label}</span>
+      <span className="tabular text-sm font-semibold">
+        {balance != null ? formatUsd(balance) : "—"}
+      </span>
     </div>
   );
 }

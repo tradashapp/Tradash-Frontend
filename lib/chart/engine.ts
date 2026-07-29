@@ -202,16 +202,13 @@ export class ChartEngine {
     // huge spikes. Both center and half ease per frame so the scale glides
     // instead of snapping (this is what removes the zigzag jitter).
     const floor = price * 0.0005; // ~0.05% minimum visible half-range (zoomed in)
-    // When a position is open, make sure the entry (and liq, if near) fit in view.
+    // Scale ONLY to recent live-price movement — the entry/liq/trail lines are
+    // NOT forced into view. Pinning them made the chart zoom out (squeeze) to
+    // chase a static line as price ran away; instead we let those lines scroll
+    // off and mark them at the top/bottom edge (see drawEdgeTag) so the live
+    // price action always stays legible and zoomed to its own movement.
     const pos = this.position;
-    let reach = Math.max(price - range.min, range.max - price);
-    if (pos) {
-      reach = Math.max(reach, Math.abs(pos.entryPrice - this.center || 0));
-      reach = Math.max(reach, Math.abs(pos.entryPrice - price));
-      if (pos.trailStopPrice != null) {
-        reach = Math.max(reach, Math.abs(pos.trailStopPrice - price));
-      }
-    }
+    const reach = Math.max(price - range.min, range.max - price);
     const needed = Math.max(reach * 1.15, floor);
     this.center += (price - this.center) * 0.06;
     const ease = needed > this.half ? 0.12 : 0.02;
@@ -255,22 +252,22 @@ export class ChartEngine {
       ctx.fillStyle = grad;
       ctx.fill();
 
-      // Neutral entry line.
-      this.drawHLine(entryY, plotW, this.theme.entryLine, [4, 4], 1);
-      this.drawTag(entryY, plotW, "Entry", this.theme.entryLine, "#08090c", false);
-
-      // Liquidation line (only if within the visible window).
-      const liqY = yOf(pos.liquidationPrice);
-      if (liqY >= top - 2 && liqY <= bottom + 2) {
-        this.drawHLine(liqY, plotW, this.theme.liqLine, [2, 3], 1);
-        this.drawTag(liqY, plotW, "Liq", this.theme.liqLine, "#08090c", false);
-      }
-
-      // Trailing-stop line — accent-colored, ratchets with price to lock profit.
+      // Entry / Liq / Trail lines. Each draws in place when on-screen, or as a
+      // clamped edge marker (caret + price) at the top/bottom when it has
+      // scrolled out of view — so the chart never squeezes to hold them.
+      this.drawLineOrEdge(
+        entryY, top, bottom, plotW, "Entry",
+        pos.entryPrice, this.theme.entryLine, "#08090c", [4, 4], 1, false
+      );
+      this.drawLineOrEdge(
+        yOf(pos.liquidationPrice), top, bottom, plotW, "Liq",
+        pos.liquidationPrice, this.theme.liqLine, "#08090c", [2, 3], 1, false
+      );
       if (pos.trailStopPrice != null) {
-        const trailY = yOf(pos.trailStopPrice);
-        this.drawHLine(trailY, plotW, accent, [6, 3], 1.5);
-        this.drawTag(trailY, plotW, "Trail", accent, "#08090c", true);
+        this.drawLineOrEdge(
+          yOf(pos.trailStopPrice), top, bottom, plotW, "Trail",
+          pos.trailStopPrice, accent, "#08090c", [6, 3], 1.5, true
+        );
       }
     }
 
@@ -337,6 +334,64 @@ export class ChartEngine {
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
     ctx.fillText(text, x + padX, y);
+  }
+
+  /**
+   * Draw a reference line (entry/liq/trail) in place when it's within the plot,
+   * or as a clamped edge marker when it has scrolled off. The marker sits flush
+   * against the top or bottom edge and shows a caret (▲ above / ▼ below) plus the
+   * label and price, so the level stays known without the scale zooming to hold it.
+   */
+  private drawLineOrEdge(
+    lineY: number,
+    top: number,
+    bottom: number,
+    plotW: number,
+    label: string,
+    price: number,
+    color: string,
+    fg: string,
+    dash: number[],
+    width: number,
+    bold: boolean
+  ) {
+    if (lineY >= top - 2 && lineY <= bottom + 2) {
+      this.drawHLine(lineY, plotW, color, dash, width);
+      this.drawTag(lineY, plotW, label, color, fg, bold);
+      return;
+    }
+    // Off-screen: clamp to the nearest edge and mark it there.
+    const above = lineY < top; // line is above the visible window
+    const y = above ? top + 9 : bottom - 9;
+    this.drawEdgeTag(y, plotW, `${above ? "▲" : "▼"} ${label} $${formatPrice(price)}`, color, fg);
+  }
+
+  /** An edge marker: caret + label + price, right-aligned in the gutter. Used
+   *  when a reference line has scrolled out of the visible price window. */
+  private drawEdgeTag(
+    y: number,
+    plotW: number,
+    text: string,
+    bg: string,
+    fg: string
+  ) {
+    const { ctx, w } = this;
+    ctx.font = `700 10px ui-monospace, monospace`;
+    const padX = 5;
+    const tw = ctx.measureText(text).width;
+    const bw = tw + padX * 2;
+    const bh = 15;
+    const x = w - AXIS_RIGHT_INSET - bw;
+    ctx.save();
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = bg;
+    this.roundRect(x, y - bh / 2, bw, bh, 3);
+    ctx.fill();
+    ctx.fillStyle = fg;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.fillText(text, x + padX, y);
+    ctx.restore();
   }
 
   /**

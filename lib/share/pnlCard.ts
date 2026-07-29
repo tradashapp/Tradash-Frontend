@@ -273,7 +273,7 @@ export function drawPnlCard(
   let y = PAD;
 
   // --- Market identity (top): icon + name + symbol. ---
-  const iconSize = 84;
+  const iconSize = 80;
   if (assets.marketIcon) {
     ctx.save();
     roundRect(ctx, PAD, y, iconSize, iconSize, iconSize / 2);
@@ -283,10 +283,10 @@ export function drawPnlCard(
   }
   ctx.textBaseline = "alphabetic";
   ctx.fillStyle = TEXT;
-  ctx.font = `700 56px ${SANS}`;
+  ctx.font = `700 52px ${SANS}`;
   ctx.fillText(data.marketLabel, PAD + iconSize + 28, y + 38);
   ctx.fillStyle = MUTED;
-  ctx.font = `500 36px ${MONO}`;
+  ctx.font = `500 32px ${MONO}`;
   ctx.fillText(`${data.symbol}-USD`, PAD + iconSize + 28, y + 80);
 
   // Direction pill (UP / DOWN, arrow + colour — never long/short), top-right.
@@ -315,7 +315,7 @@ export function drawPnlCard(
   // In single modes: just the one metric, large.
   if (metric === "pnl" || metric === "both") {
     ctx.fillStyle = accent;
-    ctx.font = `800 140px ${MONO}`;
+    ctx.font = `800 120px ${MONO}`;
     ctx.textBaseline = "alphabetic";
     const pnlText = fmtUsd(data.pnl);
     ctx.fillText(pnlText, PAD, y);
@@ -328,7 +328,7 @@ export function drawPnlCard(
   } else {
     // ROI only, large.
     ctx.fillStyle = accent;
-    ctx.font = `800 140px ${MONO}`;
+    ctx.font = `800 120px ${MONO}`;
     ctx.fillText(fmtPct(data.roiPct), PAD, y);
   }
 
@@ -386,7 +386,7 @@ function drawPriceRow(
   ctx.textBaseline = "alphabetic";
   ctx.fillText(label, x, y);
   ctx.fillStyle = TEXT;
-  ctx.font = `700 44px ${MONO}`;
+  ctx.font = `700 40px ${MONO}`;
   ctx.fillText(value, x + 320, y);
 }
 
@@ -412,20 +412,10 @@ function drawFooter(
 
   // Referral block (left column), vertically anchored to the QR band.
   const leftX = PAD;
-  let ly = qrY + 60;
-  ctx.fillStyle = MUTED;
-  ctx.font = `500 32px ${SANS}`;
-  ctx.textBaseline = "alphabetic";
-  ctx.fillText("Trade & share your own", leftX, ly);
-
-  ly += 52;
-  ctx.fillStyle = TEXT;
-  ctx.font = `700 38px ${SANS}`;
-  ctx.fillText(prettyUrl(data.referralUrl), leftX, ly);
+  let ly = qrY + 10;
 
   // Tradash logo UNDER the link (logo mark + wordmark).
-  ly += 34;
-  const logoSize = 60;
+  const logoSize = 50;
   if (assets.logo) {
     ctx.save();
     roundRect(ctx, leftX, ly, logoSize, logoSize, 16);
@@ -442,6 +432,19 @@ function drawFooter(
   ctx.textBaseline = "middle";
   ctx.fillText("Tradash", leftX + logoSize + 20, ly + logoSize / 2 + 2);
   ctx.textBaseline = "alphabetic";
+
+  // Referral text + link above the logo.
+  ly += 115;
+
+  ctx.fillStyle = MUTED;
+  ctx.font = `500 32px ${SANS}`;
+  ctx.textBaseline = "alphabetic";
+  ctx.fillText("Trade & share your own", leftX, ly);
+
+  ly += 60;
+  ctx.fillStyle = TEXT;
+  ctx.font = `700 38px ${SANS}`;
+  ctx.fillText(prettyUrl(data.referralUrl), leftX, ly);
 }
 
 function hexA(hex: string, a: number): string {

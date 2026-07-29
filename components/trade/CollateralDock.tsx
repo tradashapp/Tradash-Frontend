@@ -57,7 +57,7 @@ export function CollateralDock({ collateral }: Props) {
             animate={{ opacity: 1, x: peeked ? 0 : 4 }}
             exit={{ opacity: 0, x: -12 }}
             transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-            className="glass flex flex-col items-center gap-1 rounded-r-2xl border border-dashed border-l-0 border-white py-3 pl-2 pr-3 shadow-lg transition-transform active:scale-95"
+            className="glass flex flex-col items-center gap-1 rounded-r-2xl !border !border-dashed !border-l-0 !border-white/40 py-3 pl-2 pr-3 shadow-lg transition-transform active:scale-95"
             aria-label="Manage collateral"
           >
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-up-soft text-up">
@@ -74,7 +74,7 @@ export function CollateralDock({ collateral }: Props) {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -16 }}
             transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-            className="glass flex w-44 flex-col gap-2 rounded-r-2xl border border-dashed border-l-0 border-white p-2 shadow-2xl"
+            className="glass flex w-44 flex-col gap-2 rounded-r-2xl !border !border-dashed !border-l-0 !border-white/40 p-2 shadow-2xl"
           >
             {/* Add (green) — rounded-full, text only (color signals add vs reduce) */}
             <ActionButton
@@ -139,8 +139,8 @@ function ActionButton({
         onClick();
       }}
       disabled={disabled || busy}
-      className={`flex items-center justify-center rounded-full py-3 text-sm font-bold transition-transform active:scale-95 disabled:opacity-45 ${
-        up ? "bg-up-soft text-up" : "bg-down-soft text-down"
+      className={`flex items-center justify-center rounded-full border border-dashed py-3 text-sm font-bold transition-transform active:scale-95 disabled:opacity-45 ${
+        up ? "bg-up-soft text-up border-up" : "bg-down-soft text-down border-down"
       }`}
     >
       {label}

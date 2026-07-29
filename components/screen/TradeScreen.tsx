@@ -20,7 +20,6 @@ import { useLiveTrail } from "@/hooks/useLiveTrail";
 import { useFeedback } from "@/hooks/useFeedback";
 import { useAllPrices } from "@/hooks/useAllPrices";
 import { useTrade } from "@/hooks/useTrade";
-import { useCollateral } from "@/hooks/useCollateral";
 import { useIsDesktop } from "@/hooks/useIsDesktop";
 import type { PositionOverlay } from "@/lib/chart/engine";
 import type { MarketSymbol } from "@/types";
@@ -75,7 +74,6 @@ export function TradeScreen({ initialMarket }: Props) {
   useDemoPnl();
   useLiveTrail(agent.signer);
   const trade = useTrade(agent.signer);
-  const collateral = useCollateral(agent.masterAddress, agent.masterSign);
 
   // Position overlay for the chart. The entry LINE is drawn at the BREAK-EVEN
   // MagicBlock price — the exact level where the displayed PnL reads 0.00 and the
@@ -109,7 +107,6 @@ export function TradeScreen({ initialMarket }: Props) {
     symbol: activeSymbol,
     chartPosition,
     trade,
-    collateral,
     onOpenMarket: () => setSwitcherOpen(true),
     onOpenAccount: () => setAccountOpen(true),
     onShare: (subject: ShareSubject) => setShareSubject(subject),

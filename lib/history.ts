@@ -1,13 +1,15 @@
 import type { AppDispatch } from "@/store";
 import { addTrade } from "@/store/slices/historySlice";
 import { roi } from "@/lib/perp";
-import type { CompletedTrade, Position } from "@/types";
+import type { CompletedTrade, Position, TradingMode } from "@/types";
 
 // Build a CompletedTrade from a position + its exit and log it to the history
 // slice. `pnl` is the realized PnL at close (may be a partial for reductions,
-// but for full close it's the position's unrealized PnL at exit).
+// but for full close it's the position's unrealized PnL at exit). `mode` tags
+// the trade so demo (localStorage) and live (backend) history stay separable.
 export function recordClose(
   dispatch: AppDispatch,
+  mode: TradingMode,
   position: Position,
   exitPrice: number,
   pnl: number
@@ -15,6 +17,7 @@ export function recordClose(
   const now = Date.now();
   const trade: CompletedTrade = {
     id: `${now}-${Math.random().toString(36).slice(2, 8)}`,
+    mode,
     symbol: position.symbol,
     direction: position.direction,
     entryPrice: position.entryPrice,

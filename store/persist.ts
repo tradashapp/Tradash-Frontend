@@ -31,11 +31,16 @@ export function wireSettingsPersistence(store: AppStore) {
     /* corrupt storage — keep defaults */
   }
 
-  // Hydrate history.
+  // Hydrate history. Only demo trades are persisted locally; live trades come
+  // from the backend on login. Filter defensively in case an older build wrote
+  // untagged or live rows to this key.
   try {
     const raw = window.localStorage.getItem(HISTORY_KEY);
     if (raw) {
-      store.dispatch(hydrateHistory(JSON.parse(raw) as CompletedTrade[]));
+      const parsed = (JSON.parse(raw) as CompletedTrade[]).filter(
+        (t) => t.mode === "demo"
+      );
+      store.dispatch(hydrateHistory(parsed));
     }
   } catch {
     /* corrupt storage — keep empty */
@@ -84,9 +89,10 @@ export function wireSettingsPersistence(store: AppStore) {
     if (state.history.trades !== lastHistory) {
       lastHistory = state.history.trades;
       try {
+        // Persist demo trades only — live history is owned by the backend.
         window.localStorage.setItem(
           HISTORY_KEY,
-          JSON.stringify(state.history.trades)
+          JSON.stringify(state.history.trades.filter((t) => t.mode === "demo"))
         );
       } catch {
         /* non-fatal */

@@ -47,6 +47,8 @@ function toApiTrade(t: CompletedTrade): ApiTrade {
 function fromApiTrade(t: ApiTrade & { id?: string }): CompletedTrade {
   return {
     id: t.id ?? `${t.closedAt}-${t.symbol}`,
+    // Backend only ever stores live trades.
+    mode: "live",
     symbol: t.symbol as CompletedTrade["symbol"],
     direction: t.direction as CompletedTrade["direction"],
     entryPrice: t.entryPrice,

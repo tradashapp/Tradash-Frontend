@@ -4,6 +4,10 @@ export type MarketSymbol = "BTC" | "ETH" | "SOL";
 
 export type Direction = "long" | "short";
 
+/** Trading account. Mirrors the slice's TradingMode; kept here to avoid a
+ * circular import (the slice imports from this module). */
+export type TradingMode = "demo" | "live";
+
 export interface MarketInfo {
   symbol: MarketSymbol;
   /** Bulk market identifier, e.g. "BTC-USD". */
@@ -75,6 +79,8 @@ export type OrderStatus =
 
 export interface CompletedTrade {
   id: string;
+  /** Which account produced it: demo (localStorage) or live (backend). */
+  mode: TradingMode;
   symbol: MarketSymbol;
   direction: Direction;
   entryPrice: number;

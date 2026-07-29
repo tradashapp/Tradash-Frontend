@@ -16,8 +16,17 @@ const historySlice = createSlice({
     addTrade(state, action: PayloadAction<CompletedTrade>) {
       state.trades.unshift(action.payload);
     },
+    // Replace the whole log (used when hydrating persisted demo trades on load).
     hydrateHistory(_state, action: PayloadAction<CompletedTrade[]>) {
       return { trades: action.payload };
+    },
+    // Swap in the backend's live rows while preserving demo trades. Merged and
+    // re-sorted newest-first so a mixed store stays chronological.
+    hydrateLiveHistory(state, action: PayloadAction<CompletedTrade[]>) {
+      const demo = state.trades.filter((t) => t.mode === "demo");
+      state.trades = [...demo, ...action.payload].sort(
+        (a, b) => b.closedAt - a.closedAt
+      );
     },
     clearHistory(state) {
       state.trades = [];
@@ -25,5 +34,6 @@ const historySlice = createSlice({
   },
 });
 
-export const { addTrade, hydrateHistory, clearHistory } = historySlice.actions;
+export const { addTrade, hydrateHistory, hydrateLiveHistory, clearHistory } =
+  historySlice.actions;
 export default historySlice.reducer;

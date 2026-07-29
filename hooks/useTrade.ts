@@ -153,7 +153,7 @@ export function useTrade(signer: AgentSigner | null) {
 
     if (mode === "demo") {
       // Log the completed trade, then realize PnL into the demo balance.
-      if (price != null) recordClose(dispatch, position, price, position.unrealizedPnl);
+      if (price != null) recordClose(dispatch, "demo", position, price, position.unrealizedPnl);
       dispatch(settleDemo({ symbol: position.symbol, pnl: position.unrealizedPnl }));
       playSound("close");
       haptic("close");

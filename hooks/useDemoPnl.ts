@@ -49,7 +49,7 @@ export function useDemoPnl() {
       if (!position || price == null) continue;
 
       if (isLiquidated(position, price)) {
-        recordClose(dispatch, position, price, -position.marginUsed);
+        recordClose(dispatch, "demo", position, price, -position.marginUsed);
         dispatch(settleDemo({ symbol: sym, pnl: -position.marginUsed }));
         if (sym === activeSymbol) {
           playSound("close");
@@ -74,7 +74,7 @@ export function useDemoPnl() {
       // Trailing stop: ratchet toward profit, auto-close on reversal into it.
       if (position.trailActive && position.trailStopPrice != null) {
         if (trailHit(position.direction, position.trailStopPrice, price)) {
-          recordClose(dispatch, position, price, pnl);
+          recordClose(dispatch, "demo", position, price, pnl);
           dispatch(settleDemo({ symbol: sym, pnl }));
           if (sym === activeSymbol) {
             playSound("close");

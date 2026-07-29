@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   ArrowUpRight01Icon,
@@ -16,9 +17,17 @@ interface Props {
 }
 
 // Trade history + derived stats, rendered inside the AccountSheet as a sub-view.
+// Scoped to the active trading mode so demo (localStorage) and live (backend)
+// trades never mix — demo money and real money keep separate logs + stats.
 export function HistoryPanel({ onShare }: Props) {
-  const trades = useAppSelector((s) => s.history.trades);
-  const stats = computeStats(trades);
+  const mode = useAppSelector((s) => s.tradingMode.mode);
+  const allTrades = useAppSelector((s) => s.history.trades);
+  // Memoize so the filtered array keeps a stable identity between renders.
+  const trades = useMemo(
+    () => allTrades.filter((t) => t.mode === mode),
+    [allTrades, mode]
+  );
+  const stats = useMemo(() => computeStats(trades), [trades]);
 
   return (
     <>

@@ -1,12 +1,12 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
-import type { MarketSymbol, Position } from "@/types";
+import type { MarketSymbol, Position, TradingMode } from "@/types";
 
 // App-wide trading mode. Demo and Live coexist permanently; the user toggles
 // between them from the Account sheet. Demo keeps its own balance + simulated
 // positions here (keyed by market, like live) so it never collides with the live
 // slices. Demo supports one position per market simultaneously, same as Bulk.
 
-export type TradingMode = "demo" | "live";
+export type { TradingMode };
 
 const DEMO_STARTING_BALANCE = 10_000;
 

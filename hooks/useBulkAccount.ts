@@ -14,7 +14,7 @@ import {
   clearAllPositions,
 } from "@/store/slices/positionSlice";
 import { clearPendingChartEntry } from "@/store/slices/tradingSlice";
-import { hydrateHistory } from "@/store/slices/historySlice";
+import { hydrateLiveHistory } from "@/store/slices/historySlice";
 import { recordClose } from "@/lib/history";
 import { useToast, type ToastOptions } from "@/components/toast/ToastProvider";
 import type { Direction, MarketSymbol, Position } from "@/types";
@@ -58,7 +58,9 @@ export function useBulkAccount(
       api
         .fetchHistory(privyId)
         .then((trades) => {
-          if (trades.length) dispatch(hydrateHistory(trades));
+          // Always apply: an empty result means this user has no live trades,
+          // so any stale live rows should be cleared while demo trades stay.
+          dispatch(hydrateLiveHistory(trades));
         })
         .catch(() => {});
     }
@@ -174,7 +176,7 @@ function recordCloseFor(
   toast: ToastFn
 ) {
   const exit = store.getState().price.prices[prev.symbol] ?? prev.entryPrice;
-  const trade = recordClose(dispatch, prev, exit, prev.unrealizedPnl);
+  const trade = recordClose(dispatch, "live", prev, exit, prev.unrealizedPnl);
   if (privyId) api.recordTrade(privyId, trade).catch(() => {});
   // Confirm the close (upgrades the pending close-<sym> loading toast if present).
   toast(`Closed ${prev.symbol}`, {

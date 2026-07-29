@@ -242,10 +242,10 @@ function Menu({
         <div className="relative mb-4 flex flex-col gap-2">
           {/* Wallet (the user's own USDC) + Deposit / Withdraw buttons */}
           <div className="glass-inset rounded-2xl p-4">
-            <div className="flex items-center justify-between text-xs text-text-muted">
+            <div className="flex items-center justify-between text-xs text-text-muted mb-1">
               <span>Wallet balance</span>
             </div>
-            <div className="tabular text-xl font-semibold">
+            <div className="tabular text-2xl font-semibold">
               {collateral.walletUsdc != null
                 ? formatUsd(collateral.walletUsdc)
                 : "—"}
@@ -254,7 +254,7 @@ function Menu({
               <button
                 type="button"
                 onClick={onFundWallet}
-                className="rounded-xl bg-up py-2 text-xs font-semibold text-black transition-transform active:scale-95"
+                className="rounded-xl bg-up py-3 text-sm font-semibold text-black transition-transform active:scale-95"
               >
                 Deposit
               </button>
@@ -262,7 +262,7 @@ function Menu({
               <button
                 type="button"
                 disabled
-                className="rounded-xl bg-white/5 py-2 text-xs font-semibold text-text-muted opacity-50"
+                className="rounded-xl bg-white/5 py-3 text-sm font-semibold text-text-muted opacity-50"
               >
                 Withdraw
               </button>
@@ -279,23 +279,23 @@ function Menu({
               onTransfer();
             }}
             aria-label="Transfer margin"
-            className="glass absolute left-1/2 top-1/2 z-10 flex h-10 w-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-bg-elevated text-text shadow-lg transition-transform active:scale-90"
+            className="glass absolute left-1/2 top-1/2 z-10 flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 !border-dashed !border-white/30 text-text shadow-lg transition-transform active:scale-90"
           >
-            <HugeiconsIcon icon={ArrowDataTransferVerticalIcon} size={18} />
+            <HugeiconsIcon icon={ArrowDataTransferVerticalIcon} size={20} />
           </button>
 
           {/* Trading collateral (Bulk) — equity + free / in-use split */}
           <div className="glass-inset rounded-2xl p-4">
-            <div className="flex items-center justify-between text-xs text-text-muted">
+            <div className="flex items-center justify-between text-xs text-text-muted mb-1">
               <span>Trading collateral</span>
             </div>
-            <div className="tabular text-xl font-semibold">
+            <div className="tabular text-2xl font-semibold mb-1">
               {liveEquity != null ? formatUsd(liveEquity) : "—"}
             </div>
             <div className="mt-2 grid grid-cols-2 gap-2 text-[11px]">
               <div className="rounded-lg bg-white/[0.03] px-2 py-1.5">
                 <div className="text-text-muted">Free</div>
-                <div className="tabular font-semibold text-up">
+                <div className="tabular font-semibold ">
                   {formatUsd(collateral.available)}
                 </div>
               </div>

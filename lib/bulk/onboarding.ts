@@ -73,7 +73,7 @@ export async function depositCollateral(
     masterAccount, // from: user's Solana wallet
     masterAccount, // to: their Bulk trading account
     amount,
-    { account: masterAccount, kind: "external", marginSymbol: "USDC", nonce: nonce() }
+    { ...signOpts(masterAccount), kind: "external", marginSymbol: "USDC" }
   );
   return prepareSignSubmit(prepared, signBytes);
 }
@@ -101,7 +101,7 @@ export async function withdrawCollateral(
     masterAccount, // from: their Bulk trading account
     masterAccount, // to: user's Solana wallet
     amount,
-    { account: masterAccount, kind: "external", marginSymbol: "USDC", nonce: nonce() }
+    { ...signOpts(masterAccount), kind: "external", marginSymbol: "USDC" }
   );
   return prepareSignSubmit(prepared, signBytes);
 }
@@ -113,7 +113,7 @@ export async function withdrawCollateral(
 export async function fundAccount(
   masterAccount: string,
   signBytes: MasterSignBytes,
-  opts: { network: "testnet" | "mainnet"; depositAmount?: number }
+  opts: { network: BulkNetwork; depositAmount?: number }
 ): Promise<OrderResponse> {
   if (opts.network === "mainnet") {
     if (!opts.depositAmount || opts.depositAmount <= 0) {
@@ -147,9 +147,10 @@ export async function approveBuilderCode(
   signBytes: MasterSignBytes
 ): Promise<OrderResponse> {
   const kc = await ensureKeychain();
-  const prepared = kc.prepareApproveBuilderCode(recipient, feeBps, {
-    account: masterAccount,
-    nonce: nonce(),
-  });
+  const prepared = kc.prepareApproveBuilderCode(
+    recipient,
+    feeBps,
+    signOpts(masterAccount)
+  );
   return prepareSignSubmit(prepared, signBytes);
 }

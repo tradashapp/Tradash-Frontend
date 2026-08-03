@@ -1,5 +1,7 @@
 import { ensureKeychain } from "./keychain";
 import { submitSigned } from "./client";
+import { signatureDomain } from "@/lib/config";
+import type { BulkNetwork } from "@/lib/config";
 import type { OrderResponse } from "./types";
 
 // Onboarding = the two MASTER-signed actions that make one-tap trading work:
@@ -11,11 +13,21 @@ import type { OrderResponse } from "./types";
 /** Signs raw bytes with the master wallet, returning a base58 signature. */
 export type MasterSignBytes = (message: Uint8Array) => Promise<string>;
 
-// IMPORTANT: the WASM `prepare*` fns call SystemTime::now() for the nonce when
-// none is given — which PANICS ("time not implemented") in both the browser and
-// Node. We MUST always pass an explicit nonce so the WASM never touches the
-// system clock. Use ms-epoch (u64).
-const nonce = () => Date.now();
+// Shared options every `prepare*` call MUST carry. Both fields fail obscurely
+// when missing, so they're built in one place rather than per call site:
+//
+//  - nonce: the WASM calls SystemTime::now() when no nonce is given, which
+//    PANICS ("time not implemented") in both the browser and Node. Always pass
+//    an explicit ms-epoch (u64) nonce so it never touches the system clock.
+//  - signatureDomain: Bulk v1.0.17 binds every signature to one network. It is
+//    NOT sent in the payload — the server rebuilds the preimage with its own
+//    domain, so a missing/mismatched one comes back as an opaque `bad
+//    signature` with nothing pointing at the domain as the cause.
+const signOpts = (account: string) => ({
+  account,
+  nonce: Date.now(),
+  signatureDomain: signatureDomain(),
+});
 
 async function prepareSignSubmit(
   prepared: { messageBytes: Uint8Array; finalize: (sig: string) => unknown },
@@ -41,7 +53,7 @@ export async function claimFaucet(
   signBytes: MasterSignBytes
 ): Promise<OrderResponse> {
   const kc = await ensureKeychain();
-  const prepared = kc.prepareFaucet({ account: masterAccount, nonce: nonce() });
+  const prepared = kc.prepareFaucet(signOpts(masterAccount));
   return prepareSignSubmit(prepared, signBytes);
 }
 
@@ -119,10 +131,11 @@ export async function authorizeAgentWallet(
   signBytes: MasterSignBytes
 ): Promise<OrderResponse> {
   const kc = await ensureKeychain();
-  const prepared = kc.prepareAgentWallet(agentPubkey, false, {
-    account: masterAccount,
-    nonce: nonce(),
-  });
+  const prepared = kc.prepareAgentWallet(
+    agentPubkey,
+    false,
+    signOpts(masterAccount)
+  );
   return prepareSignSubmit(prepared, signBytes);
 }
 

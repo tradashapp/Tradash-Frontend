@@ -1,5 +1,6 @@
 import { ensureKeychain } from "./keychain";
 import type { Keychain } from "./keychain";
+import { signatureDomain } from "@/lib/config";
 
 // One-tap trade signing with the agent session key. The agent signs orders on
 // behalf of the MASTER account (agent-wallet flow): we `prepareOrder` with
@@ -25,7 +26,9 @@ export async function makeAgentSigner(
   masterAccount: string
 ): Promise<AgentSigner> {
   const kc: typeof Keychain = await ensureKeychain();
-  const signer = kc.WasmSigner.fromBase58(agentSecretBase58);
+  // Since keychain 0.1.21+ the signer is bound to a network at construction:
+  // `fromBase58` takes the signature domain as a required 2nd argument.
+  const signer = kc.WasmSigner.fromBase58(agentSecretBase58, signatureDomain());
   return {
     pubkey: signer.pubkey,
     account: masterAccount,
@@ -33,10 +36,13 @@ export async function makeAgentSigner(
       // account = master (whose position), signer = agent (who signs).
       // Pass an explicit nonce — without it the WASM calls SystemTime::now()
       // which panics ("time not implemented") in the browser.
+      // `signatureDomain` binds the signature to this network (Bulk v1.0.17);
+      // omitting it signs the old preimage → Bulk rejects with `bad signature`.
       const prepared = kc.prepareOrder(order, {
         account: masterAccount,
         signer: signer.pubkey,
         nonce: Date.now(),
+        signatureDomain: signatureDomain(),
       });
       return signer.signPrepared(prepared);
     },

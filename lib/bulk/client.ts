@@ -79,6 +79,22 @@ export async function submitSigned(
     const msg = (status.agentWalletFailed as { message?: string }).message;
     throw new Error(`Agent wallet authorization failed: ${msg}`);
   }
+  // An order can also be turned away with `rejectedInvalid` (e.g. "builder-code
+  // fee 10bps not approved for <recipient>"). It is NOT an `error` status, so
+  // without this it read as success: the caller never threw, the loading toast
+  // never resolved, and the UI span forever on "Opening long…".
+  if (status && "rejectedInvalid" in status) {
+    const r = status.rejectedInvalid as { reason?: string };
+    throw new Error(`Bulk order error: ${r?.reason ?? "order rejected"}`);
+  }
+  // Non-order actions (e.g. approveBuilderCode) answer with an `ack` that can
+  // carry ok:false — also a failure dressed as HTTP 200.
+  if (status && "ack" in status) {
+    const ack = status.ack as { ok?: boolean; message?: string };
+    if (ack?.ok === false) {
+      throw new Error(`Bulk order error: ${ack.message ?? "request not acknowledged"}`);
+    }
+  }
   return res;
 }
 

@@ -81,6 +81,35 @@ export const config = {
   appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "https://tradash.app",
 } as const;
 
+/**
+ * The signature domain for the active Bulk network.
+ *
+ * Bulk v1.0.17 (31 Jul 2026) made every signed transaction network-bound: the
+ * signing preimage is
+ *   wincode(actions) || nonce_le_u64 || account_pubkey_32 || signature_domain_u8
+ * with the domain byte appended last (mainnet 1, testnet 2, devnet 3).
+ *
+ * CRITICAL: the domain is *trusted client configuration*. It is NOT sent as a
+ * JSON field or header — the server rebuilds the preimage with its OWN domain
+ * and compares. So a domain that doesn't match the network `restUrl` points at
+ * fails as an opaque `bad signature`, identical to a genuinely corrupt one.
+ * There is no server-side error that names the domain as the cause. Keep this
+ * derived from `network` and never pass it by hand.
+ *
+ * The keychain WASM takes the NAME, not the byte, and rejects anything else.
+ */
+export function signatureDomain(): BulkNetwork {
+  const n = config.bulk.network;
+  if (n !== "devnet" && n !== "testnet" && n !== "mainnet") {
+    // Fail loudly here: the alternative is an unexplainable `bad signature` on
+    // every order, faucet claim, and agent-wallet authorization.
+    throw new Error(
+      `Invalid NEXT_PUBLIC_BULK_NETWORK: ${JSON.stringify(n)} (expected devnet, testnet, or mainnet)`
+    );
+  }
+  return n;
+}
+
 /** The USDC mint for the active Bulk network (devnet today, mainnet when live). */
 export function usdcMint(): string {
   return config.bulk.network === "mainnet"

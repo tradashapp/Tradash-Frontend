@@ -15,6 +15,13 @@ function required(name: string, value: string | undefined): string {
   return value;
 }
 
+/**
+ * The Bulk network we sign for. Since Bulk v1.0.17 this is not just a funding
+ * switch — it selects the SIGNATURE DOMAIN that every signed transaction is
+ * bound to, so it must match the network `restUrl` points at.
+ */
+export type BulkNetwork = "devnet" | "testnet" | "mainnet";
+
 export const config = {
   privyAppId: process.env.NEXT_PUBLIC_PRIVY_APP_ID ?? "",
 
@@ -26,12 +33,11 @@ export const config = {
     accountWsUrl:
       process.env.NEXT_PUBLIC_BULK_ACCOUNT_WS_URL ??
       "wss://exchange-ws1.bulk.trade",
-    // "testnet" → new accounts are created/funded via the faucet during onboarding.
-    // "mainnet" → the faucet step is skipped; accounts are funded by a real USDC
-    // deposit (external transfer) instead. Flip this one value to go live.
-    network: (process.env.NEXT_PUBLIC_BULK_NETWORK ?? "testnet") as
-      | "testnet"
-      | "mainnet",
+    // "devnet"/"testnet" → new accounts are created/funded via the faucet during
+    // onboarding. "mainnet" → the faucet step is skipped; accounts are funded by
+    // a real USDC deposit (external transfer) instead. Flip this one value to go
+    // live. This ALSO selects the signature domain — see signatureDomain() below.
+    network: (process.env.NEXT_PUBLIC_BULK_NETWORK ?? "devnet") as BulkNetwork,
   },
 
   builder: {

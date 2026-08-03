@@ -37,7 +37,11 @@ export const config = {
     // onboarding. "mainnet" → the faucet step is skipped; accounts are funded by
     // a real USDC deposit (external transfer) instead. Flip this one value to go
     // live. This ALSO selects the signature domain — see signatureDomain() below.
-    network: (process.env.NEXT_PUBLIC_BULK_NETWORK ?? "devnet") as BulkNetwork,
+    // VERIFIED live 2026-08-03 by signing a faucet claim under each domain
+    // against exchange-api.bulk.trade: "testnet" is accepted, "devnet" and
+    // "mainnet" both return `bad signature`. Note this is the SIGNATURE domain
+    // and is independent of MagicBlock's devnet URLs — don't assume they match.
+    network: (process.env.NEXT_PUBLIC_BULK_NETWORK ?? "testnet") as BulkNetwork,
   },
 
   builder: {

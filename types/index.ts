@@ -2,7 +2,7 @@
 
 export type MarketSymbol = "BTC" | "ETH" | "SOL";
 
-export type Direction = "long" | "short";
+export type Direction = "long" | "short"; 
 
 /** Trading account. Mirrors the slice's TradingMode; kept here to avoid a
  * circular import (the slice imports from this module). */

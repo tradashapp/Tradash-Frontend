@@ -9,7 +9,7 @@ export type Direction = "long" | "short";
 export type TradingMode = "demo" | "live";  
 
 export interface MarketInfo {
-  symbol: MarketSymbol;
+  symbol: MarketSymbol; 
   /** Bulk market identifier, e.g. "BTC-USD". */
   bulkSymbol: string;
   /** Human label. */

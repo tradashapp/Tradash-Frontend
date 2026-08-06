@@ -10,7 +10,7 @@ export type TradingMode = "demo" | "live";
 
 export interface MarketInfo {
   symbol: MarketSymbol; 
-  /** Bulk market identifier, e.g. "BTC-USD". */ 
+  /** Bulk market identifier, e.g. "BTC-USD". */  
   bulkSymbol: string;
   /** Human label. */
   label: string;

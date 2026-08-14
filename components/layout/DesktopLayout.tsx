@@ -19,6 +19,7 @@ import type { ChartFrame, PositionOverlay } from "@/lib/chart/engine";
 import type { MarketSymbol } from "@/types";
 import type { useTrade } from "@/hooks/useTrade";
 import type { ShareSubject } from "@/components/share/ShareCardModal";
+import Image from "next/image";
 
 interface Props {
   symbol: MarketSymbol;
@@ -47,8 +48,8 @@ export function DesktopLayout({
     <main className="grid h-dvh w-full grid-cols-[220px_1fr_320px] overflow-hidden">
       {/* Sidebar */}
       <aside className="glass flex flex-col gap-1 border-r border-white/5 p-4">
-        <div className="mb-4 flex items-center gap-2 px-2">
-          <HugeiconsIcon icon={ChartLineData01Icon} size={22} className="text-up" />
+        <div className="mb-4 flex items-center px-2">
+          <Image src={"/images/logos/tradash-white.png"} alt="logo" height={100} width={100} className="w-6 h-6" />
           <span className="text-lg font-bold tracking-tight">Tradash</span>
         </div>
         <SidebarItem icon={ChartLineData01Icon} label="Markets" onClick={onOpenMarket} />

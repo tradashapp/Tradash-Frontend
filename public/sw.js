@@ -5,7 +5,9 @@
 // So we only cache the navigation shell + a tight allowlist of static media
 // (icons/manifest), and always go network-first for everything else.
 
-const CACHE = "tradash-v2";
+// Bump on every icon/shell asset change — installed PWAs cache icons
+// cache-first, so a stale CACHE name keeps serving the previous brand mark.
+const CACHE = "tradash-v3";
 const SHELL = ["/"];
 
 self.addEventListener("install", (event) => {

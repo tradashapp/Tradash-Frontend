@@ -32,8 +32,8 @@ export default async function Image({
   const symbol = marketFromSlug(market) ?? "BTC";
   const m = MARKETS[symbol];
 
-  // Brand logo (lightning-T) + the market icon, embedded as data URIs.
-  const logoSrc = dataUri("icon.svg", "image/svg+xml");
+  // Brand logo + the market icon, embedded as data URIs.
+  const logoSrc = dataUri("icon-512.png", "image/png");
   const iconMime = m.logo.endsWith(".png")
     ? "image/png"
     : m.logo.endsWith(".svg")

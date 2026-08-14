@@ -55,7 +55,7 @@ export function SplashScreen() {
             transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
           >
             <Image
-              src="/icon.svg"
+              src="/icon-512.png"
               alt="Tradash"
               width={88}
               height={88}

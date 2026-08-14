@@ -84,7 +84,7 @@ function ShareCardInner({
     setReady(false);
     (async () => {
       const [logo, marketIcon, qrUrl] = await Promise.all([
-        loadImage("/icon.svg"),
+        loadImage("/icon-512.png"),
         loadImage(MARKETS[symbol].logo),
         QRCode.toDataURL(referralUrl, {
           margin: 0,

@@ -14,8 +14,8 @@ const BG = "#08090c";
 
 function logoUri(): string | null {
   try {
-    const p = path.join(process.cwd(), "public", "icon.svg");
-    return `data:image/svg+xml;base64,${fs.readFileSync(p).toString("base64")}`;
+    const p = path.join(process.cwd(), "public", "icon-512.png");
+    return `data:image/png;base64,${fs.readFileSync(p).toString("base64")}`;
   } catch {
     return null;
   }

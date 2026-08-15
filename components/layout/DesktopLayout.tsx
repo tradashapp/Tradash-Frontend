@@ -56,7 +56,7 @@ export function DesktopLayout({
         <SidebarItem icon={Clock01Icon} label="History" onClick={onOpenAccount} />
         <SidebarItem icon={Analytics01Icon} label="Statistics" onClick={onOpenAccount} />
         <SidebarItem icon={Settings02Icon} label="Settings" onClick={onOpenAccount} />
-      </aside>
+      </aside> 
 
       {/* Chart (center, ~70% of the remaining space) */}
       <section className="relative overflow-hidden">

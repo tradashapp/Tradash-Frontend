@@ -58,7 +58,7 @@ export function DesktopLayout({
         <SidebarItem icon={Settings02Icon} label="Settings" onClick={onOpenAccount} />
       </aside> 
 
-      {/* Chart (center, ~70% of the remaining space) */}
+      {/* Chart (center, ~70% of the remaining space) */} 
       <section className="relative overflow-hidden">
         <div className="pointer-events-none absolute inset-0 z-0">
           <DotGrid ref={gridRef} />

@@ -41,7 +41,7 @@ export function DesktopLayout({
 }: Props) {
   const gridRef = useRef<DotGridHandle | null>(null);
   const handleFrame = useCallback((f: ChartFrame) => {
-    gridRef.current?.react(f);
+    gridRef.current?.react(f); 
   }, []);
 
   return (

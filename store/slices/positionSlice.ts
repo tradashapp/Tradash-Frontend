@@ -2,7 +2,7 @@ import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 import type { MarketSymbol, Position } from "@/types";
 
 // Live positions from the Bulk account WS, keyed BY MARKET — Bulk supports one
-// position per market simultaneously (BTC + ETH + SOL), so each market's chart
+// position per market simultaneously, so each market's chart
 // shows its own. `null`/absent for a symbol = flat on that market.
 interface PositionState {
   bySymbol: Partial<Record<MarketSymbol, Position>>;

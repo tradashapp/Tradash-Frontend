@@ -20,7 +20,7 @@ export interface LivePosition {
 }
 
 export interface AllPositions {
-  /** Every open position (across BTC/ETH/SOL), ordered by market. */
+  /** Every open position (across all markets), ordered by market. */
   items: LivePosition[];
   /** Aggregated unrealized PnL across all open positions. */
   totalPnl: number;

@@ -37,16 +37,28 @@ export function initSound(isEnabled: () => boolean) {
 }
 
 // Browsers block audio until a user gesture. Call once on first interaction.
+//
+// The unlock MUST be silent. play() resolves asynchronously, so pausing in the
+// .then() still lets each clip sound for a few ms first — with four buffers
+// that's an audible smear layered under the tap that triggered the unlock.
+// Muting for the round-trip makes the unlock inaudible; we restore the real
+// volume afterwards so the next playSound() is unaffected.
 export function unlockSound() {
   if (unlocked || typeof Audio === "undefined") return;
   unlocked = true;
-  buffers.forEach((a) => {
+  buffers.forEach((a, name) => {
+    a.muted = true;
+    a.volume = 0;
     a.play()
       .then(() => {
         a.pause();
         a.currentTime = 0;
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        a.muted = false;
+        a.volume = VOLUME[name];
+      });
   });
 }
 
@@ -55,7 +67,10 @@ export function playSound(name: SoundName) {
   const base = buffers.get(name);
   if (!base) return;
   // Clone so rapid repeats overlap cleanly instead of restarting one element.
+  // Reset muted/volume explicitly: a clone taken mid-unlock would otherwise
+  // inherit the muted state the unlock sets on the base element.
   const node = base.cloneNode() as HTMLAudioElement;
+  node.muted = false;
   node.volume = VOLUME[name];
   node.play().catch(() => {});
 }

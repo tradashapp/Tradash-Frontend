@@ -17,6 +17,8 @@ import {
   ArrowDataTransferVerticalIcon,
   HelpCircleIcon,
   Download04Icon,
+  ShieldKeyIcon,
+  CodeIcon,
 } from "@hugeicons/core-free-icons";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { resetDemo } from "@/store/slices/tradingModeSlice";
@@ -310,13 +312,44 @@ function Menu({
         </div>
       )}
 
-      {/* Navigation */}
-      <div className="mb-4 flex flex-col gap-2">
-        <NavRow icon={Settings02Icon} label="Settings" onClick={onSettings} />
+      {/* Trading — what you reach for mid-session. */}
+      <MenuSection title="Trading">
         <NavRow icon={Clock01Icon} label="Trade history" onClick={onHistory} />
+        <NavRow icon={Settings02Icon} label="Settings" onClick={onSettings} />
+      </MenuSection>
+
+      {/* Advanced — the Bulk permission plumbing. Read-only status in demo (no
+          wallet is connected, so neither step applies); actionable when live. */}
+      {mode === "live" && authenticated && (
+        <MenuSection title="Advanced">
+          <NavRow
+            icon={ShieldKeyIcon}
+            label="Agent authorization"
+            detail={agentAuthorized ? "Authorized" : "Not set up"}
+            status={agentAuthorized ? "done" : "pending"}
+            onClick={agentAuthorized || agent.onboarding ? undefined : agent.onboard}
+            disabled={agentAuthorized || agent.onboarding}
+          />
+          <NavRow
+            icon={CodeIcon}
+            label="Builder code"
+            detail={builderApproved ? "Approved" : "Not approved"}
+            status={builderApproved ? "done" : "pending"}
+            onClick={
+              builderApproved || agent.onboarding
+                ? undefined
+                : agent.approveBuilder
+            }
+            disabled={builderApproved || agent.onboarding}
+          />
+        </MenuSection>
+      )}
+
+      {/* App — everything that isn't trading. */}
+      <MenuSection title="App">
         <NavRow icon={HelpCircleIcon} label="How it works" onClick={onTutorial} />
         <NavRow icon={Download04Icon} label="Install app" onClick={onInstall} />
-      </div>
+      </MenuSection>
 
       {/* Mode-specific actions */}
       {mode === "demo" ? (
@@ -338,9 +371,6 @@ function Menu({
         </button>
       ) : (
         <div className="flex flex-col gap-2">
-          <OnboardRow label="Agent wallet authorized" done={agentAuthorized} />
-          <OnboardRow label="Builder code approved" done={builderApproved} />
-
           {/* Setup is only complete when BOTH steps are done. Gating this on
               `agent.isReady` alone hid the button whenever the agent wallet was
               authorized but the builder code wasn't — leaving every order to be
@@ -352,7 +382,7 @@ function Menu({
               type="button"
               onClick={agent.isReady ? agent.approveBuilder : agent.onboard}
               disabled={agent.onboarding}
-              className="mt-1 flex w-full items-center justify-center gap-2 rounded-2xl bg-up py-3.5 font-semibold text-black transition-transform active:scale-95 disabled:opacity-60"
+              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-up py-3.5 font-semibold text-black transition-transform active:scale-95 disabled:opacity-60"
             >
               {agent.onboarding && (
                 <HugeiconsIcon
@@ -532,37 +562,72 @@ function TransferRow({
   );
 }
 
+// A titled group of rows rendered as ONE joined card: the group owns the
+// rounding and the glass surface, rows sit flush inside it separated only by
+// hairlines. Keeps related settings visually bound instead of floating as
+// separate pills.
+function MenuSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="mb-4">
+      <h3 className="mb-1.5 px-1 text-[11px] font-medium uppercase tracking-wide text-text-muted">
+        {title}
+      </h3>
+      <div className="glass-inset overflow-hidden rounded-2xl">
+        {/* Hairline between rows only — never above the first or below the last. */}
+        <div className="divide-y divide-white/[0.06]">{children}</div>
+      </div>
+    </div>
+  );
+}
+
 function NavRow({
   icon,
   label,
+  detail,
+  status,
   onClick,
+  disabled,
 }: {
   icon: typeof Settings02Icon;
   label: string;
-  onClick: () => void;
+  /** Muted text on the right, before the chevron. */
+  detail?: string;
+  /** Renders a state dot instead of a chevron: done = green, pending = amber. */
+  status?: "done" | "pending";
+  onClick?: () => void;
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="glass-inset flex items-center gap-3 rounded-2xl px-4 py-3 text-sm transition-colors hover:bg-white/10 active:scale-[0.98]"
+      disabled={disabled}
+      className="flex w-full items-center gap-3 px-4 py-3 text-sm transition-colors hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-45"
     >
-      <HugeiconsIcon icon={icon} size={18} className="text-text-muted" />
+      <HugeiconsIcon icon={icon} size={18} className="shrink-0 text-text-muted" />
       <span className="flex-1 text-left">{label}</span>
-      <HugeiconsIcon icon={ArrowRight01Icon} size={16} className="text-text-muted" />
+      {detail && (
+        <span className="tabular shrink-0 text-xs text-text-muted">{detail}</span>
+      )}
+      {status ? (
+        <HugeiconsIcon
+          icon={CheckmarkCircle02Icon}
+          size={17}
+          className={`shrink-0 ${status === "done" ? "text-up" : "text-text-muted/40"}`}
+        />
+      ) : (
+        <HugeiconsIcon
+          icon={ArrowRight01Icon}
+          size={16}
+          className="shrink-0 text-text-muted"
+        />
+      )}
     </button>
-  );
-}
-
-function OnboardRow({ label, done }: { label: string; done: boolean }) {
-  return (
-    <div className="glass-inset flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm">
-      <HugeiconsIcon
-        icon={CheckmarkCircle02Icon}
-        size={18}
-        className={done ? "text-up" : "text-text-muted/40"}
-      />
-      <span className={done ? "text-text" : "text-text-muted"}>{label}</span>
-    </div>
   );
 }

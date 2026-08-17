@@ -14,6 +14,21 @@ function builderCode(): BuilderCode | undefined {
   return { to: recipient, fee: feeBps };
 }
 
+/**
+ * Does this error mean "the master never approved our builder code"?
+ *
+ * Bulk turns these away as `rejectedInvalid` with a reason like
+ *   "builder-code fee 5bps not approved for <recipient>"
+ * which `submitSigned` surfaces as `Bulk order error: <reason>`. Since Bulk
+ * exposes no readable approval state (see builderStore.ts), this rejection is
+ * the ONLY authoritative signal that our optimistic cache is wrong — callers
+ * use it to clear the cache and re-run onboarding.
+ */
+export function isBuilderNotApprovedError(e: unknown): boolean {
+  const msg = e instanceof Error ? e.message : String(e);
+  return /builder-code fee .*not approved/i.test(msg);
+}
+
 /** Convert a USD margin + leverage into base-asset size at the given price. */
 export function baseSizeFromUsd(
   usdMargin: number,

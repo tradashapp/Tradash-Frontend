@@ -11,6 +11,11 @@ import {
   saveAgent,
   type StoredAgent,
 } from "@/lib/bulk/agentStore";
+import {
+  clearApproval,
+  hasApprovalFor,
+  saveApproval,
+} from "@/lib/bulk/builderStore";
 import { generateAgentKeypair, makeAgentSigner, type AgentSigner } from "@/lib/bulk/signing";
 import { fetchAccount } from "@/lib/bulk/client";
 import {

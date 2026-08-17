@@ -73,7 +73,10 @@ export function TradeScreen({ initialMarket }: Props) {
   useBulkAccount(agent.masterAddress, agent.privyId);
   useDemoPnl();
   useLiveTrail(agent.signer);
-  const trade = useTrade(agent.signer);
+  // A rejected-for-unapproved-builder-code order is the only reliable signal
+  // that our cached approval is stale — feed it back so the Account sheet shows
+  // the step as incomplete and offers the re-approve button.
+  const trade = useTrade(agent.signer, agent.invalidateBuilderApproval);
 
   // Position overlay for the chart. The entry LINE is drawn at the BREAK-EVEN
   // MagicBlock price — the exact level where the displayed PnL reads 0.00 and the

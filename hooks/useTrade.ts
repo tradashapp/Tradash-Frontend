@@ -29,7 +29,12 @@ import {
 } from "@/lib/sound";
 import { haptic } from "@/lib/haptics";
 import { useToast } from "@/components/toast/ToastProvider";
-import { openMarket, reduceMarket, baseSizeFromUsd } from "@/lib/bulk/orders";
+import {
+  openMarket,
+  reduceMarket,
+  baseSizeFromUsd,
+  isBuilderNotApprovedError,
+} from "@/lib/bulk/orders";
 import type { AgentSigner } from "@/lib/bulk/signing";
 import type { Direction, Position } from "@/types";
 
@@ -56,7 +61,15 @@ const fmtUsd = (n: number) =>
 // The single entry point the UI uses to trade. Routes to the demo simulator or
 // the live Bulk client based on the current mode, behind one identical API.
 // Live trading requires a ready agent signer (passed in from useAgentWallet).
-export function useTrade(signer: AgentSigner | null) {
+//
+// `onBuilderNotApproved` is called when Bulk rejects an order because our
+// builder code was never approved. Since Bulk exposes no readable approval
+// state, that rejection is the only authoritative correction signal — the
+// caller uses it to drop the optimistic cache and re-surface the setup button.
+export function useTrade(
+  signer: AgentSigner | null,
+  onBuilderNotApproved?: () => void
+) {
   const dispatch = useAppDispatch();
   const { toast } = useToast();
   const mode = useAppSelector((s) => s.tradingMode.mode);
@@ -154,6 +167,19 @@ export function useTrade(signer: AgentSigner | null) {
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Order failed";
         dispatch(setOrderError(msg));
+        // Our builder code isn't approved on this account — every order will be
+        // rejected until it is. Correct the cached state and tell the user what
+        // to actually DO, rather than surfacing Bulk's raw pubkey message.
+        if (isBuilderNotApprovedError(e)) {
+          onBuilderNotApproved?.();
+          toast("Finish setup to trade", {
+            type: "error",
+            id: `open-${activeSymbol}`,
+            description:
+              "Approve the builder code in Account to enable trading.",
+          });
+          return;
+        }
         toast("Order failed", {
           type: "error",
           id: `open-${activeSymbol}`,
@@ -161,7 +187,16 @@ export function useTrade(signer: AgentSigner | null) {
         });
       }
     },
-    [mode, price, activeSymbol, settings, signer, dispatch, toast]
+    [
+      mode,
+      price,
+      activeSymbol,
+      settings,
+      signer,
+      dispatch,
+      toast,
+      onBuilderNotApproved,
+    ]
   );
 
   const close = useCallback(async () => {

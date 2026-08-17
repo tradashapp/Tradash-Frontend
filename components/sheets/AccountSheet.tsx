@@ -341,10 +341,16 @@ function Menu({
           <OnboardRow label="Agent wallet authorized" done={agentAuthorized} />
           <OnboardRow label="Builder code approved" done={builderApproved} />
 
-          {!agent.isReady && (
+          {/* Setup is only complete when BOTH steps are done. Gating this on
+              `agent.isReady` alone hid the button whenever the agent wallet was
+              authorized but the builder code wasn't — leaving every order to be
+              rejected with no way to recover. When only the builder step is
+              missing we run just that, rather than re-prompting for the agent
+              signature the user already gave. */}
+          {(!agent.isReady || !builderApproved) && (
             <button
               type="button"
-              onClick={agent.onboard}
+              onClick={agent.isReady ? agent.approveBuilder : agent.onboard}
               disabled={agent.onboarding}
               className="mt-1 flex w-full items-center justify-center gap-2 rounded-2xl bg-up py-3.5 font-semibold text-black transition-transform active:scale-95 disabled:opacity-60"
             >
@@ -355,7 +361,11 @@ function Menu({
                   className="animate-spin"
                 />
               )}
-              {agent.onboarding ? "Approve in wallet…" : "Enable one-tap trading"}
+              {agent.onboarding
+                ? "Approve in wallet…"
+                : agent.isReady
+                  ? "Approve builder code"
+                  : "Enable one-tap trading"}
             </button>
           )}
 

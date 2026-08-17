@@ -7,7 +7,7 @@ import { MARKETS, marketFromSlug } from "@/lib/markets";
 // runtime — matches the working reference: nodejs + no generateStaticParams).
 // Layered absolute layout, assets read from /public as base64 data URIs.
 export const runtime = "nodejs";
-export const alt = "Tradash — tap to trade perpetuals";
+export const alt = "Tradash | One Tap Away From Glory";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 

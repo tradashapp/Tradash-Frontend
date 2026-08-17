@@ -182,8 +182,8 @@ export function MarketSwitcher({ open, onClose }: Props) {
                 return (
                   <div
                     key={symbol}
-                    className={`glass-inset flex items-center gap-3 rounded-2xl px-3 py-3 transition-colors hover:bg-white/90 ${
-                      selected ? "bg-up" : ""
+                    className={`flex items-center gap-3 rounded-2xl px-3 py-3 transition-colors hover:bg-white/10 ${
+                      selected ? "bg-white/10" : "glass-inset"
                     }`}
                   >
                     <button

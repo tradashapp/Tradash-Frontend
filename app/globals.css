@@ -40,23 +40,21 @@ body {
   /* border: 1px solid rgba(255, 255, 255, 0); */
 }
 
-/* Thin, near-invisible glass scrollbar for internal scroll regions. ~1px wide,
-   transparent track, faint translucent thumb that only hints at scroll. */
+/* Scrollbars are hidden app-wide — sheets and panels scroll by touch/wheel, and
+   a visible bar would cut into the glass surfaces. Applied to every element so
+   new scroll regions inherit it without opting in. Scrolling itself is
+   untouched; only the chrome is hidden. */
+* {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* legacy Edge */
+}
+*::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+/* Kept as an explicit marker on scroll regions. The hiding is global (above);
+   this class documents intent at the call site. */
 .scroll-glass {
-  scrollbar-width: thin; /* Firefox */
-  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
-}
-.scroll-glass::-webkit-scrollbar {
-  width: 1px;
-  height: 1px;
-}
-.scroll-glass::-webkit-scrollbar-track {
-  background: transparent;
-}
-.scroll-glass::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: 999px;
-}
-.scroll-glass::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.22);
+  -webkit-overflow-scrolling: touch;
 }

@@ -81,7 +81,7 @@ export function MarketSwitcher({ open, onClose }: Props) {
             onClick={onClose}
           />
           <motion.div
-            className="glass fixed inset-x-0 bottom-0 z-50 flex max-h-[85vh] flex-col rounded-t-3xl p-4 pb-8"
+            className="glass fixed inset-x-0 bottom-0 z-50 flex flex-col rounded-t-3xl p-4 pb-8"
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
@@ -162,7 +162,10 @@ export function MarketSwitcher({ open, onClose }: Props) {
               <div>Last price</div>
             </div>
 
-            <div className="scroll-glass -mx-1 flex flex-col gap-1 overflow-y-auto px-1">
+            {/* Only the list scrolls. Capped at ~5.5 rows so the sheet stays a
+                sheet and the half-row hints there's more below; on short
+                screens the vh cap wins so it never overruns the viewport. */}
+            <div className="scroll-glass -mx-1 flex max-h-[min(342px,45vh)] flex-col gap-1 overflow-y-auto px-1">
               {visible.length === 0 && (
                 <p className="px-3 py-8 text-center text-sm text-text-muted">
                   {category === "favourites" && !query

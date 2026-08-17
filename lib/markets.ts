@@ -63,7 +63,7 @@ export function marketMeta(symbol: MarketSymbol): {
 } {
   const m = MARKETS[symbol];
   return {
-    title: `${m.label} (${m.symbol}) — Tradash`,
+    title: `${m.label} (${m.symbol}) | Tradash`,
     description: `Trade ${m.label} (${m.symbol}) perpetuals on Tradash. Watch the live chart and tap UP or DOWN to open a leveraged position instantly.`,
   };
 }

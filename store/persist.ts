@@ -9,6 +9,7 @@ import {
   hydrateTradingMode,
   type TradingMode,
 } from "./slices/tradingModeSlice";
+import { isMarketSymbol } from "@/lib/markets";
 import type { CompletedTrade } from "@/types";
 
 const SETTINGS_KEY = "tradash.settings.v1";
@@ -25,7 +26,16 @@ export function wireSettingsPersistence(store: AppStore) {
     const raw = window.localStorage.getItem(SETTINGS_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<SettingsState>;
-      store.dispatch(hydrateSettings({ ...defaultSettings, ...parsed }));
+      const merged = { ...defaultSettings, ...parsed };
+      // Favourites were added after v1 shipped; drop anything that isn't a
+      // list of markets we still support so the switcher can't render a
+      // dead row (Bulk delists, or a feed we pulled for lacking an oracle).
+      merged.favouriteMarkets = Array.isArray(parsed.favouriteMarkets)
+        ? parsed.favouriteMarkets.filter(
+            (s): s is string => typeof s === "string" && isMarketSymbol(s)
+          )
+        : [];
+      store.dispatch(hydrateSettings(merged));
     }
   } catch {
     /* corrupt storage — keep defaults */

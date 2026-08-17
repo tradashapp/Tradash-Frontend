@@ -27,6 +27,7 @@ const initialState: SettingsState = {
   stopLossPct: null,
   defaultTrailPct: 0.001, // 1% trailing distance by default
   preferredMarket: "BTC",
+  favouriteMarkets: [],
   theme: "dark",
   soundEnabled: true,
   hapticsEnabled: true,
@@ -43,9 +44,16 @@ const settingsSlice = createSlice({
     hydrateSettings(_state, action: PayloadAction<SettingsState>) {
       return action.payload;
     },
+    toggleFavouriteMarket(state, action: PayloadAction<MarketSymbol>) {
+      const symbol = action.payload;
+      const i = state.favouriteMarkets.indexOf(symbol);
+      if (i === -1) state.favouriteMarkets.push(symbol);
+      else state.favouriteMarkets.splice(i, 1);
+    },
   },
 });
 
-export const { updateSettings, hydrateSettings } = settingsSlice.actions;
+export const { updateSettings, hydrateSettings, toggleFavouriteMarket } =
+  settingsSlice.actions;
 export { initialState as defaultSettings };
 export default settingsSlice.reducer;

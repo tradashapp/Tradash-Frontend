@@ -23,6 +23,7 @@ import {
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { resetDemo } from "@/store/slices/tradingModeSlice";
 import { formatUsd } from "@/lib/format";
+import { MenuSection } from "@/components/ui/MenuSection";
 import { SettingsPanel } from "./panels/SettingsPanel";
 import { HistoryPanel } from "./panels/HistoryPanel";
 import type { ShareSubject } from "@/components/share/ShareCardModal";
@@ -558,30 +559,6 @@ function TransferRow({
       <span className="tabular text-sm font-semibold">
         {balance != null ? formatUsd(balance) : "—"}
       </span>
-    </div>
-  );
-}
-
-// A titled group of rows rendered as ONE joined card: the group owns the
-// rounding and the glass surface, rows sit flush inside it separated only by
-// hairlines. Keeps related settings visually bound instead of floating as
-// separate pills.
-function MenuSection({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="mb-4">
-      <h3 className="mb-1.5 px-1 text-[11px] font-medium uppercase tracking-wide text-text-muted">
-        {title}
-      </h3>
-      <div className="glass-inset overflow-hidden rounded-2xl">
-        {/* Hairline between rows only — never above the first or below the last. */}
-        <div className="divide-y divide-white/[0.06]">{children}</div>
-      </div>
     </div>
   );
 }

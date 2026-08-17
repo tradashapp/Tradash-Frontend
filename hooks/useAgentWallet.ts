@@ -115,12 +115,29 @@ export function useAgentWallet() {
   // authorized. A stored key that Bulk doesn't recognize (e.g. from a failed
   // earlier onboarding) would otherwise masquerade as "ready" and every order
   // would fail with "unauthorized signer". We verify against the live account.
+  //
+  // The builder-code approval is rehydrated here too, but from a LOCAL cache
+  // rather than the account: Bulk exposes no readable builder-approval state
+  // (verified against every /account query type — see builderStore.ts). Without
+  // this, `builderApproved` reset to false on every reload while the agent row
+  // showed approved, and the onboard button — gated on the agent signer alone —
+  // disappeared, leaving no way to ever re-approve.
   useEffect(() => {
     let cancelled = false;
     if (!masterAddress) {
       setSigner(null);
       return;
     }
+    // Optimistic: cleared automatically when an order proves it wrong.
+    dispatch(
+      setBuilderApproved(
+        hasApprovalFor(
+          masterAddress,
+          config.builder.recipient,
+          config.builder.feeBps
+        )
+      )
+    );
     const stored = loadAgent(masterAddress);
     if (!stored) {
       setSigner(null);
@@ -144,6 +161,16 @@ export function useAgentWallet() {
     return () => {
       cancelled = true;
     };
+  }, [masterAddress, dispatch]);
+
+  /**
+   * Forget the builder approval after Bulk rejects an order for it. Bulk is the
+   * only authority here, so a rejection means our cache lied: drop it and flip
+   * the UI back to un-approved, which re-reveals the setup button.
+   */
+  const invalidateBuilderApproval = useCallback(() => {
+    if (masterAddress) clearApproval(masterAddress);
+    dispatch(setBuilderApproved(false));
   }, [masterAddress, dispatch]);
 
   /** Full one-time onboarding: create agent, authorize it, approve builder code. */
@@ -186,16 +213,28 @@ export function useAgentWallet() {
       if (privyId) api.recordOnboard(privyId, "agent").catch(() => {});
 
       // 3. Approve our builder code (master-signed) — required for revenue.
-      if (config.builder.recipient && config.builder.feeBps) {
+      //    Every order carries the builder code, so if this step fails EVERY
+      //    trade is rejected with "builder-code fee Nbps not approved". It gets
+      //    its own try/catch because a failure here is a distinct, recoverable
+      //    state from a failed agent auth — previously both surfaced as one
+      //    generic "Setup failed" and the difference was invisible.
+      const { recipient, feeBps } = config.builder;
+      if (recipient && feeBps) {
         toast("Approving builder code…", { type: "loading", id: TID });
-        await approveBuilderCode(
-          masterAddress,
-          config.builder.recipient,
-          config.builder.feeBps,
-          masterSign
-        );
-        dispatch(setBuilderApproved(true));
-        if (privyId) api.recordOnboard(privyId, "builder").catch(() => {});
+        try {
+          await approveBuilderCode(masterAddress, recipient, feeBps, masterSign);
+          saveApproval(masterAddress, { recipient, feeBps });
+          dispatch(setBuilderApproved(true));
+          if (privyId) api.recordOnboard(privyId, "builder").catch(() => {});
+        } catch (e) {
+          // Don't let a bad cache outlive the failure.
+          clearApproval(masterAddress);
+          dispatch(setBuilderApproved(false));
+          const msg = e instanceof Error ? e.message : String(e);
+          throw new Error(
+            `Builder-code approval failed: ${msg.replace(/^Bulk order error:\s*/, "")}`
+          );
+        }
       }
 
       // 4. Ready signer.
@@ -211,7 +250,49 @@ export function useAgentWallet() {
       toast("Setup failed", {
         type: "error",
         id: TID,
-        description: msg.replace(/^(Bulk order error|Agent wallet authorization failed):\s*/, ""),
+        description: msg.replace(
+          /^(Bulk order error|Agent wallet authorization failed):\s*/,
+          ""
+        ),
+      });
+    } finally {
+      setOnboarding(false);
+    }
+  }, [privyId, masterAddress, onboarding, masterSign, dispatch, toast]);
+
+  /**
+   * Run ONLY the builder-code approval (master-signed).
+   *
+   * Needed on its own because the agent wallet and the builder code fail
+   * independently: an account can have a working agent signer while the `abc`
+   * approval never landed, and re-running full onboarding to fix that would
+   * pointlessly re-prompt for the agent signature.
+   */
+  const approveBuilder = useCallback(async () => {
+    const { recipient, feeBps } = config.builder;
+    if (!masterAddress || onboarding || !recipient || !feeBps) return;
+    setOnboarding(true);
+    const TID = "approve-builder";
+    toast("Approving builder code…", { type: "loading", id: TID });
+    try {
+      await approveBuilderCode(masterAddress, recipient, feeBps, masterSign);
+      saveApproval(masterAddress, { recipient, feeBps });
+      dispatch(setBuilderApproved(true));
+      if (privyId) api.recordOnboard(privyId, "builder").catch(() => {});
+      toast("Builder code approved", {
+        type: "success",
+        id: TID,
+        description: "You're ready to trade.",
+      });
+    } catch (e) {
+      clearApproval(masterAddress);
+      dispatch(setBuilderApproved(false));
+      const msg = e instanceof Error ? e.message : "Approval failed";
+      dispatch(setOrderError(msg));
+      toast("Approval failed", {
+        type: "error",
+        id: TID,
+        description: msg.replace(/^Bulk order error:\s*/, ""),
       });
     } finally {
       setOnboarding(false);
@@ -227,6 +308,10 @@ export function useAgentWallet() {
     isReady: signer !== null,
     onboarding,
     onboard,
+    // Builder-code approval, separate from the agent wallet: they fail
+    // independently and each needs its own recovery path.
+    approveBuilder,
+    invalidateBuilderApproval,
     // Master (Privy) byte-signer — needed for collateral deposits/withdrawals,
     // which are master-signed transfers (the agent key can't sign these).
     masterSign,

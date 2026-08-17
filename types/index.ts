@@ -1,6 +1,18 @@
 // Shared domain types used across slices, hooks, and integration clients.
 
-export type MarketSymbol = "BTC" | "ETH" | "SOL";
+/** A supported market's base asset, e.g. "BTC". The authoritative set is the
+ * keys of MARKETS in lib/markets.ts — use isMarketSymbol() to narrow a string
+ * (e.g. a URL slug) before treating it as one. */
+export type MarketSymbol = string;
+
+/** Filter pills above the market list. "favourites" is user state, not a
+ * property of the market itself. */
+export type MarketCategory =
+  | "favourites"
+  | "all"
+  | "hot"
+  | "crypto"
+  | "stocks";
 
 export type Direction = "long" | "short"; 
 
@@ -18,8 +30,12 @@ export interface MarketInfo {
   pythLazerId: number;
   /** Price scaling exponent; USD price = rawI64 * 10^exponent. */
   exponent: number;
+  /** Max leverage Bulk allows on this market (from exchangeInfo). */
+  maxLeverage: number;
   /** Public path to the asset logo. */
   logo: string;
+  /** Static categories this market belongs to (excludes "favourites"). */
+  categories: MarketCategory[];
 }
 
 export interface Position {

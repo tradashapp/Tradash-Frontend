@@ -198,7 +198,7 @@ export const DEFAULT_MARKET: MarketSymbol = "BTC";
 export const MARKET_CATEGORIES: { id: MarketCategory; label: string }[] = [
   { id: "favourites", label: "Favourites" },
   { id: "all", label: "All" },
-  { id: "hot", label: "Hot" },
+  { id: "hot", label: "Hot 🔥" },
   { id: "crypto", label: "Crypto" },
   { id: "stocks", label: "Stocks" },
 ];

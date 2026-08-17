@@ -155,17 +155,18 @@ export function MarketSwitcher({ open, onClose }: Props) {
             </div>
 
             {/* Column headings for the list below. */}
-            <div className="mb-1 flex shrink-0 items-center gap-3 px-3 text-[11px] uppercase tracking-wide text-text-muted">
+            <div className="mb-2 flex shrink-0 items-center gap-3 px-3 text-[11px] tracking-wide text-text-muted">
               {/* Spacer matches the star + logo so "Market" sits over the name. */}
-              <div className="w-[52px] shrink-0" />
+              {/* <div className="w-[52px] shrink-0" /> */}
               <div className="flex-1">Market</div>
               <div>Last price</div>
             </div>
 
-            {/* Only the list scrolls. Capped at ~5.5 rows so the sheet stays a
-                sheet and the half-row hints there's more below; on short
-                screens the vh cap wins so it never overruns the viewport. */}
-            <div className="scroll-glass -mx-1 flex max-h-[min(342px,45vh)] flex-col gap-1 overflow-y-auto px-1">
+            {/* Only the list scrolls. A row is ~61px + 4px gap; capped at ~5.5
+                rows so the sheet stays a sheet and the half-row hints there's
+                more below. On short screens the vh cap wins so the sheet never
+                overruns the viewport. */}
+            <div className="scroll-glass -mx-1 flex max-h-[min(358px,45vh)] flex-col gap-1 overflow-y-auto px-1">
               {visible.length === 0 && (
                 <p className="px-3 py-8 text-center text-sm text-text-muted">
                   {category === "favourites" && !query
@@ -181,8 +182,8 @@ export function MarketSwitcher({ open, onClose }: Props) {
                 return (
                   <div
                     key={symbol}
-                    className={`glass-inset flex items-center gap-3 rounded-2xl px-3 py-3 transition-colors hover:bg-white/10 ${
-                      selected ? "border border-up" : ""
+                    className={`glass-inset flex items-center gap-3 rounded-2xl px-3 py-3 transition-colors hover:bg-white/90 ${
+                      selected ? "bg-up" : ""
                     }`}
                   >
                     <button

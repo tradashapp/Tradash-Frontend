@@ -314,7 +314,7 @@ function Menu({
       )}
 
       {/* Trading — what you reach for mid-session. */}
-      <MenuSection title="Trading">
+      <MenuSection title="Trading" className="mb-4">
         <NavRow icon={Clock01Icon} label="Trade history" onClick={onHistory} />
         <NavRow icon={Settings02Icon} label="Settings" onClick={onSettings} />
       </MenuSection>
@@ -322,7 +322,7 @@ function Menu({
       {/* Advanced — the Bulk permission plumbing. Read-only status in demo (no
           wallet is connected, so neither step applies); actionable when live. */}
       {mode === "live" && authenticated && (
-        <MenuSection title="Advanced">
+        <MenuSection title="Advanced" className="mb-4">
           <NavRow
             icon={ShieldKeyIcon}
             label="Agent authorization"
@@ -347,7 +347,7 @@ function Menu({
       )}
 
       {/* App — everything that isn't trading. */}
-      <MenuSection title="App">
+      <MenuSection title="App" className="mb-4">
         <NavRow icon={HelpCircleIcon} label="How it works" onClick={onTutorial} />
         <NavRow icon={Download04Icon} label="Install app" onClick={onInstall} />
       </MenuSection>

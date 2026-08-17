@@ -7,6 +7,7 @@ import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { updateSettings } from "@/store/slices/settingsSlice";
 import { setMode } from "@/store/slices/tradingModeSlice";
 import { ToggleSwitch } from "@/components/ui/ToggleSwitch";
+import { MenuSection } from "@/components/ui/MenuSection";
 import { MARKETS, MARKET_ORDER } from "@/lib/markets";
 import type { MarketSymbol } from "@/types";
 
@@ -18,81 +19,94 @@ export function SettingsPanel() {
   const mode = useAppSelector((st) => st.tradingMode.mode);
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col">
       {/* Demo mode toggle. Live is the default; turning this ON switches to
           demo (simulated funds). The choice is remembered across reloads. */}
-      <div className="glass-inset flex items-center justify-between rounded-2xl px-4 py-3.5">
-        <div className="leading-tight">
-          <div className="text-sm font-medium">Demo mode</div>
-          <div className="text-xs text-text-muted">
-            {mode === "demo"
-              ? "Practicing with simulated funds"
-              : "Trading live with real funds"}
+      <MenuSection title="Mode" className="mb-4">
+        <div className="flex items-center justify-between px-4 py-3.5">
+          <div className="leading-tight">
+            <div className="text-sm font-medium">Demo mode</div>
+            <div className="text-xs text-text-muted">
+              {mode === "demo"
+                ? "Practicing with simulated funds"
+                : "Trading live with real funds"}
+            </div>
+          </div>
+          <ToggleSwitch
+            on={mode === "demo"}
+            onChange={(on) => dispatch(setMode(on ? "demo" : "live"))}
+          />
+        </div>
+      </MenuSection>
+
+      {/* Defaults applied to every new trade. */}
+      <MenuSection title="Trade defaults" className="mb-4">
+        <Stepper
+          label="Position size"
+          value={s.defaultPositionSize}
+          suffix="$"
+          step={25}
+          min={5}
+          onChange={(v) => dispatch(updateSettings({ defaultPositionSize: v }))}
+        />
+        <Stepper
+          label="Leverage"
+          value={s.defaultLeverage}
+          suffix="×"
+          step={1}
+          min={1}
+          max={100}
+          onChange={(v) => dispatch(updateSettings({ defaultLeverage: v }))}
+        />
+        <Stepper
+          label="Trailing stop distance"
+          value={+(s.defaultTrailPct * 100).toFixed(2)}
+          suffix="%"
+          step={0.1}
+          min={0.1}
+          decimals={1}
+          onChange={(v) => dispatch(updateSettings({ defaultTrailPct: v / 100 }))}
+        />
+        {/* Market the app opens on. Scrolls horizontally rather than wrapping
+            into a tall grid — the list grows as markets are added. */}
+        <div className="px-4 py-3">
+          <div className="mb-2 text-sm">Preferred market</div>
+          <div className="scroll-glass -mx-4 overflow-x-auto px-4">
+            <div className="flex w-max items-center gap-2">
+              {MARKET_ORDER.map((sym: MarketSymbol) => (
+                <button
+                  key={sym}
+                  type="button"
+                  onClick={() =>
+                    dispatch(updateSettings({ preferredMarket: sym }))
+                  }
+                  className={`whitespace-nowrap rounded-xl px-3 py-2 text-sm font-semibold transition-colors ${
+                    s.preferredMarket === sym
+                      ? "bg-up text-black"
+                      : "bg-white/5 text-text-muted"
+                  }`}
+                >
+                  {MARKETS[sym].symbol}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
-        <ToggleSwitch
-          on={mode === "demo"}
-          onChange={(on) => dispatch(setMode(on ? "demo" : "live"))}
+      </MenuSection>
+
+      {/* Feedback on interaction. */}
+      <MenuSection title="Feedback">
+        <ToggleRow
+          label="Sound effects"
+          on={s.soundEnabled}
+          onChange={(on) => dispatch(updateSettings({ soundEnabled: on }))}
         />
-      </div>
-
-      <Stepper
-        label="Default position size"
-        value={s.defaultPositionSize}
-        suffix="$"
-        step={25}
-        min={5}
-        onChange={(v) => dispatch(updateSettings({ defaultPositionSize: v }))}
-      />
-      <Stepper
-        label="Default leverage"
-        value={s.defaultLeverage}
-        suffix="×"
-        step={1}
-        min={1}
-        max={100}
-        onChange={(v) => dispatch(updateSettings({ defaultLeverage: v }))}
-      />
-      <Stepper
-        label="Trailing stop distance"
-        value={+(s.defaultTrailPct * 100).toFixed(2)}
-        suffix="%"
-        step={0.1}
-        min={0.1}
-        decimals={1}
-        onChange={(v) => dispatch(updateSettings({ defaultTrailPct: v / 100 }))}
-      />
-
-      <div className="glass-inset rounded-2xl px-4 py-3">
-        <div className="mb-2 text-sm">Preferred market</div>
-        <div className="grid grid-cols-3 gap-2">
-          {MARKET_ORDER.map((sym: MarketSymbol) => (
-            <button
-              key={sym}
-              type="button"
-              onClick={() => dispatch(updateSettings({ preferredMarket: sym }))}
-              className={`rounded-xl py-2 text-sm font-semibold transition-colors ${
-                s.preferredMarket === sym
-                  ? "bg-up text-black"
-                  : "bg-white/5 text-text-muted"
-              }`}
-            >
-              {MARKETS[sym].symbol}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <ToggleRow
-        label="Sound effects"
-        on={s.soundEnabled}
-        onChange={(on) => dispatch(updateSettings({ soundEnabled: on }))}
-      />
-      <ToggleRow
-        label="Haptics"
-        on={s.hapticsEnabled}
-        onChange={(on) => dispatch(updateSettings({ hapticsEnabled: on }))}
-      />
+        <ToggleRow
+          label="Haptics"
+          on={s.hapticsEnabled}
+          onChange={(on) => dispatch(updateSettings({ hapticsEnabled: on }))}
+        />
+      </MenuSection>
     </div>
   );
 }
@@ -136,7 +150,7 @@ function Stepper({
   };
 
   return (
-    <div className="glass-inset flex items-center justify-between rounded-2xl px-4 py-3">
+    <div className="flex items-center justify-between px-4 py-3">
       <span className="text-sm">{label}</span>
       <div className="flex items-center gap-3">
         <button
@@ -195,7 +209,7 @@ function ToggleRow({
   onChange: (on: boolean) => void;
 }) {
   return (
-    <div className="glass-inset flex items-center justify-between rounded-2xl px-4 py-3">
+    <div className="flex items-center justify-between px-4 py-3">
       <span className="text-sm">{label}</span>
       <ToggleSwitch on={on} onChange={onChange} />
     </div>

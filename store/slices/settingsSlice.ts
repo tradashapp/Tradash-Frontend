@@ -11,6 +11,8 @@ export interface SettingsState {
   /** Trailing-stop distance behind price, as a fraction (e.g. 0.01 = 1%). */
   defaultTrailPct: number;
   preferredMarket: MarketSymbol;
+  /** Markets the user starred in the market switcher, in the order added. */
+  favouriteMarkets: MarketSymbol[];
   theme: "dark" | "light";
   soundEnabled: boolean;
   hapticsEnabled: boolean;

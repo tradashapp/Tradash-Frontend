@@ -2,6 +2,7 @@
 
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import type { ChartFrame } from "@/lib/chart/engine";
+import { useSplashDone } from "@/hooks/useSplashDone";
 
 export interface DotGridHandle {
   react: (frame: ChartFrame) => void;
@@ -26,6 +27,9 @@ export const DotGrid = forwardRef<DotGridHandle, { className?: string }>(
     const scrollX = useRef(0); // accumulated leftward travel, wrapped per cell
     const raf = useRef(0);
     const size = useRef({ w: 0, h: 0, dpr: 1 });
+    // This loop is independent of the chart engine's, so it needs the same gate
+    // — otherwise it keeps repainting the full grid behind the opaque splash.
+    const splashDone = useSplashDone();
 
     useImperativeHandle(ref, () => ({
       react(frame: ChartFrame) {
@@ -60,6 +64,11 @@ export const DotGrid = forwardRef<DotGridHandle, { className?: string }>(
       const ro = new ResizeObserver(resize);
       ro.observe(canvas);
 
+      if (!splashDone) {
+        // Sized and ready, but not painting yet.
+        return () => ro.disconnect();
+      }
+
       const draw = () => {
         // Ease drift toward its target and wrap within one grid cell.
         offset.current += (targetOffset.current - offset.current) * 0.06;
@@ -86,7 +95,7 @@ export const DotGrid = forwardRef<DotGridHandle, { className?: string }>(
         ro.disconnect();
         cancelAnimationFrame(raf.current);
       };
-    }, []);
+    }, [splashDone]);
 
     return (
       <canvas

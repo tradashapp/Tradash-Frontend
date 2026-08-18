@@ -7,6 +7,7 @@ import {
   type PositionOverlay,
 } from "@/lib/chart/engine";
 import { useLivePrice } from "@/hooks/useLivePrice";
+import { useSplashDone } from "@/hooks/useSplashDone";
 import type { MarketSymbol } from "@/types";
 
 interface Props {
@@ -25,6 +26,12 @@ function CanvasChartImpl({ symbol, position = null, onFrame, className }: Props)
   const engineRef = useRef<ChartEngine | null>(null);
   const onFrameRef = useRef(onFrame);
   onFrameRef.current = onFrame;
+  // The splash covers the whole viewport while it's up, so any frame we draw
+  // before it lifts is painted for nobody — but still costs a full 600-point
+  // bezier trace + blurred stroke every 16ms, competing with Privy/Redux boot
+  // and the splash's own animations for the main thread. That contention is
+  // what made the chart stutter for the first seconds after a reload.
+  const splashDone = useSplashDone();
 
   // Create the engine once the canvas mounts.
   useEffect(() => {
@@ -35,8 +42,8 @@ function CanvasChartImpl({ symbol, position = null, onFrame, className }: Props)
       onFrame: (f) => onFrameRef.current?.(f),
     });
     engineRef.current = engine;
-    engine.start();
 
+    // Keep the canvas correctly sized from the start; only the rAF loop waits.
     const ro = new ResizeObserver(() => engine.resize());
     ro.observe(canvas);
 
@@ -46,6 +53,17 @@ function CanvasChartImpl({ symbol, position = null, onFrame, className }: Props)
       engineRef.current = null;
     };
   }, []);
+
+  // Run the loop only while the chart is actually visible.
+  useEffect(() => {
+    if (!splashDone) return;
+    const engine = engineRef.current;
+    if (!engine) return;
+    // Re-measure first: the canvas may have been laid out while hidden.
+    engine.resize();
+    engine.start();
+    return () => engine.stop();
+  }, [splashDone]);
 
   // On market switch, clear the window so the new feed starts fresh.
   useEffect(() => {

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { AnimatePresence, motion } from "framer-motion";
+import { markSplashDone } from "@/lib/splash";
 
 // Full-screen splash / preloader shown on first load: brand logo centered, with
 // an animated chart-line loader directly beneath it, over a dark background.
@@ -40,7 +41,7 @@ export function SplashScreen() {
   }, []);
 
   return (
-    <AnimatePresence>
+    <AnimatePresence onExitComplete={markSplashDone}>
       {show && (
         <motion.div
           className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-bg"

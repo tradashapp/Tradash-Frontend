@@ -44,21 +44,36 @@ export function MarketSwitcher({ open, onClose }: Props) {
 
   const favouriteSet = useMemo(() => new Set(favourites), [favourites]);
 
+  // 24h stats from Bulk drive both the "Hot" set and the change column. Only
+  // polls while the sheet is open.
+  const { stats, hot } = useMarketStats(open);
+
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return MARKET_ORDER.filter((symbol) => {
+    const rows = MARKET_ORDER.filter((symbol) => {
       const m = MARKETS[symbol];
       const matchesCategory =
         category === "favourites"
           ? favouriteSet.has(symbol)
-          : inCategory(symbol, category);
+          : category === "hot"
+            ? hot.has(symbol)
+            : inCategory(symbol, category);
       if (!matchesCategory) return false;
       if (!q) return true;
       return (
         symbol.toLowerCase().includes(q) || m.label.toLowerCase().includes(q)
       );
     });
-  }, [query, category, favouriteSet]);
+    // Hot is a ranking, not just a filter — show the biggest movers first.
+    if (category === "hot") {
+      return rows.sort(
+        (a, b) =>
+          Math.abs(stats[b]?.changePercent ?? 0) -
+          Math.abs(stats[a]?.changePercent ?? 0)
+      );
+    }
+    return rows;
+  }, [query, category, favouriteSet, hot, stats]);
 
   const select = (symbol: MarketSymbol) => {
     if (symbol !== active) {
@@ -179,6 +194,7 @@ export function MarketSwitcher({ open, onClose }: Props) {
                 const price = prices[symbol];
                 const selected = symbol === active;
                 const favourite = favouriteSet.has(symbol);
+                const change = stats[symbol]?.changePercent;
                 return (
                   <div
                     key={symbol}
@@ -228,8 +244,25 @@ export function MarketSwitcher({ open, onClose }: Props) {
                           </span>
                         </div>
                       </div>
-                      <div className="tabular shrink-0 text-sm text-text">
-                        {price != null ? formatUsd(price) : "—"}
+                      {/* Live oracle price, with Bulk's 24h change beneath it. */}
+                      <div className="shrink-0 text-right leading-tight">
+                        <div className="tabular text-sm text-text">
+                          {price != null ? formatUsd(price) : "—"}
+                        </div>
+                        {change != null && (
+                          <div
+                            className={`tabular text-xs ${
+                              change > 0
+                                ? "text-up"
+                                : change < 0
+                                  ? "text-down"
+                                  : "text-text-muted"
+                            }`}
+                          >
+                            {change > 0 ? "+" : ""}
+                            {change.toFixed(2)}%
+                          </div>
+                        )}
                       </div>
                     </button>
                   </div>

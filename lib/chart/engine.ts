@@ -198,7 +198,8 @@ export class ChartEngine {
     const { ctx, w, h } = this;
     ctx.clearRect(0, 0, w, h);
 
-    const samples = this.series.toArray();
+    // Reused buffer — must not be retained past this frame.
+    const samples = this.series.view();
     const range = this.series.range();
     if (samples.length < 2 || !range || price == null) return 0.5;
 
@@ -411,16 +412,19 @@ export class ChartEngine {
    * beziers). When `close` is true, closes down to the baseline for a fill.
    */
   private tracePath(
-    samples: { p: number }[],
+    samples: readonly { p: number }[],
     xOf: (i: number) => number,
     yOf: (p: number) => number,
     close: boolean,
     plotW: number,
-    bottom: number
+    bottom: number,
+    // When given, the path is built here instead of in the canvas context, so
+    // one trace can be reused for several draws (fill + stroke) in a frame.
+    into?: Path2D
   ) {
-    const ctx = this.ctx;
+    const ctx = into ?? this.ctx;
     const n = samples.length;
-    ctx.beginPath();
+    if (!into) this.ctx.beginPath();
     if (close) ctx.moveTo(0, bottom);
     else ctx.moveTo(xOf(0), yOf(samples[0]!.p));
 

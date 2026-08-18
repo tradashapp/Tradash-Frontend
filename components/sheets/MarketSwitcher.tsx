@@ -12,6 +12,7 @@ import {
   inCategory,
 } from "@/lib/markets";
 import { formatUsd } from "@/lib/format";
+import { useMarketStats } from "@/hooks/useMarketStats";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { startSwitch, finishSwitch } from "@/store/slices/marketSlice";
 import { toggleFavouriteMarket } from "@/store/slices/settingsSlice";
@@ -186,7 +187,9 @@ export function MarketSwitcher({ open, onClose }: Props) {
                 <p className="px-3 py-8 text-center text-sm text-text-muted">
                   {category === "favourites" && !query
                     ? "No favourites yet. Tap a star to add one."
-                    : "No markets match that search."}
+                    : category === "hot" && !query
+                      ? "Loading movers…"
+                      : "No markets match that search."}
                 </p>
               )}
               {visible.map((symbol) => {

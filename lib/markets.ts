@@ -19,7 +19,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
     exponent: -8,
     maxLeverage: 40,
     logo: "/images/crypto/btc.png",
-    categories: ["crypto", "hot"],
+    categories: ["crypto"],
   },
   ETH: {
     symbol: "ETH",
@@ -29,7 +29,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
     exponent: -8,
     maxLeverage: 25,
     logo: "/images/crypto/eth.png",
-    categories: ["crypto", "hot"],
+    categories: ["crypto"],
   },
   SOL: {
     symbol: "SOL",
@@ -39,7 +39,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
     exponent: -8,
     maxLeverage: 20,
     logo: "/images/crypto/sol.png",
-    categories: ["crypto", "hot"],
+    categories: ["crypto"],
   },
   XRP: {
     symbol: "XRP",
@@ -49,7 +49,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
     exponent: -8,
     maxLeverage: 20,
     logo: "/images/crypto/xrp.png",
-    categories: ["crypto", "hot"],
+    categories: ["crypto"],
   },
   BNB: {
     symbol: "BNB",
@@ -69,7 +69,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
     exponent: -8,
     maxLeverage: 10,
     logo: "/images/crypto/doge.png",
-    categories: ["crypto", "hot"],
+    categories: ["crypto"],
   },
   SUI: {
     symbol: "SUI",
@@ -109,7 +109,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
     exponent: -8,
     maxLeverage: 10,
     logo: "/images/crypto/tao.png",
-    categories: ["crypto", "hot"],
+    categories: ["crypto"],
   },
   ZEC: {
     symbol: "ZEC",
@@ -119,7 +119,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
     exponent: -8,
     maxLeverage: 10,
     logo: "/images/crypto/zec.png",
-    categories: ["crypto", "hot"],
+    categories: ["crypto"],
   },
   ENA: {
     symbol: "ENA",
@@ -159,7 +159,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
     exponent: -8,
     maxLeverage: 10,
     logo: "/images/crypto/hype.png",
-    categories: ["crypto", "hot"],
+    categories: ["crypto"],
   },
   FARTCOIN: {
     symbol: "FARTCOIN",
@@ -169,7 +169,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
     exponent: -8,
     maxLeverage: 10,
     logo: "/images/crypto/fartcoin.png",
-    categories: ["crypto", "hot"],
+    categories: ["crypto"],
   },
 };
 
@@ -203,14 +203,17 @@ export const MARKET_CATEGORIES: { id: MarketCategory; label: string }[] = [
   { id: "stocks", label: "Stocks" },
 ];
 
-/** True if a market belongs to a category. "all" matches everything;
- * "favourites" is caller-supplied state, so it never matches here. */
+/** True if a market belongs to a STATIC category. Two categories are dynamic
+ * and never match here — the caller resolves them:
+ *   "favourites" — persisted user state (settings slice)
+ *   "hot"        — computed from Bulk 24h stats (lib/bulk/marketStats)
+ * "all" matches everything. */
 export function inCategory(
   symbol: MarketSymbol,
   category: MarketCategory
 ): boolean {
   if (category === "all") return true;
-  if (category === "favourites") return false;
+  if (category === "favourites" || category === "hot") return false;
   return MARKETS[symbol]?.categories.includes(category) ?? false;
 }
 

@@ -46,6 +46,13 @@ export interface ChartFrame {
   yNorm: number;
   /** Frame-over-frame price delta, for parallax reactions. */
   velocity: number;
+  /**
+   * Horizontal distance (px) the plot scrolled this frame. One sample is pushed
+   * per frame into a fixed-capacity window stretched across the plot area, so
+   * every frame the whole series slides left by exactly this much. Background
+   * layers add it up to travel in lockstep with the price line.
+   */
+  scrollX: number;
 }
 
 // Right-hand gutter reserved for the price scale. Wide enough for the widest
@@ -175,7 +182,14 @@ export class ChartEngine {
     this.lastPrice = price;
 
     const yNorm = this.draw(price);
-    this.onFrame?.({ price, yNorm, velocity });
+    // Samples fill the plot width evenly, so a single new sample shifts the
+    // window left by one sample's worth of pixels. Zero until the series is
+    // seeded and actually scrolling.
+    const scrollX =
+      price != null && this.seeded
+        ? (this.w - AXIS_WIDTH) / (this.series.capacity - 1)
+        : 0;
+    this.onFrame?.({ price, yNorm, velocity, scrollX });
   }
 
   /**

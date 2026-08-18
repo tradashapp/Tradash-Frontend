@@ -34,9 +34,16 @@ export function SplashScreen() {
     // Hard cap so a hung `load` never traps the user behind the splash.
     const cap = window.setTimeout(dismiss, 3500);
 
+    // Safety net: the chart stays paused until the splash reports it's gone, so
+    // if the exit animation never completes (interrupted, reduced-motion, a
+    // Framer edge case) we must still release the gate rather than leave the
+    // chart frozen. Comfortably past the cap + fade.
+    const release = window.setTimeout(markSplashDone, 5000);
+
     return () => {
       window.removeEventListener("load", dismiss);
       window.clearTimeout(cap);
+      window.clearTimeout(release);
     };
   }, []);
 

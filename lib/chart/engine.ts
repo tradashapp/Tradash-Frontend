@@ -241,15 +241,22 @@ export class ChartEngine {
     const lx = xOf(samples.length - 1);
     const ly = yOf(price);
 
+    // Trace the price line ONCE per frame. It's a 600-point Catmull-Rom→bezier
+    // walk, and it was previously run twice whenever a position was open (once
+    // for the gradient band, once for the stroke). Building a Path2D lets both
+    // draws reuse the same geometry.
+    const linePath = new Path2D();
+    this.tracePath(samples, xOf, yOf, /*close*/ false, plotW, bottom, linePath);
+
     // --- Position overlay: gradient band between entry and mark lines ----------
     if (pos) {
       const entryY = yOf(pos.entryPrice);
-      // Fill the band bounded by the price line on top/bottom and the entry line.
-      this.tracePath(samples, xOf, yOf, /*close*/ false, plotW, bottom);
-      // Continue the path back along the entry line to close the band.
-      ctx.lineTo(plotW, entryY);
-      ctx.lineTo(0, entryY);
-      ctx.closePath();
+      // Fill the band bounded by the price line on top/bottom and the entry
+      // line: the traced line, then back along the entry line to close it.
+      const band = new Path2D(linePath);
+      band.lineTo(plotW, entryY);
+      band.lineTo(0, entryY);
+      band.closePath();
       const gTop = Math.min(ly, entryY);
       const gBot = Math.max(ly, entryY);
       const grad = ctx.createLinearGradient(0, gTop, 0, gBot);
@@ -263,7 +270,7 @@ export class ChartEngine {
       grad.addColorStop(0, ly <= entryY ? fillCol : faded);
       grad.addColorStop(1, ly <= entryY ? faded : fillCol);
       ctx.fillStyle = grad;
-      ctx.fill();
+      ctx.fill(band);
 
       // Entry / Liq / Trail lines. Each draws in place when on-screen, or as a
       // clamped edge marker (caret + price) at the top/bottom when it has
@@ -285,17 +292,19 @@ export class ChartEngine {
     }
 
     // --- Smooth price (mark) line ---------------------------------------------
-    this.tracePath(samples, xOf, yOf, /*close*/ false, plotW, bottom);
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
     ctx.lineWidth = 2;
-    ctx.shadowColor = inProfit
-      ? "rgba(114, 233, 18, 0.5)"
-      : "rgba(230, 67, 45, 0.5)";
-    ctx.shadowBlur = 12;
     ctx.strokeStyle = accent;
-    ctx.stroke();
-    ctx.shadowBlur = 0;
+    // The glow is by far the most expensive op in the frame (a full-canvas blur
+    // of the stroked path). Draw it as a wide, translucent under-stroke of the
+    // same path instead — visually near-identical, a fraction of the cost.
+    ctx.save();
+    ctx.globalAlpha = 0.18;
+    ctx.lineWidth = 6;
+    ctx.stroke(linePath);
+    ctx.restore();
+    ctx.stroke(linePath);
 
     // --- Right price scale + current-price marker (with PnL when in a trade) ---
     this.drawScale(min, span, top, bottom, usableH, plotW);

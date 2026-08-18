@@ -9,20 +9,32 @@ export interface DotGridHandle {
 
 const SPACING = 34; // px between dots
 const DOT_RADIUS = 1.1;
+// Fraction of the chart's scroll speed the grid travels at. < 1 so the
+// background lags the price line — that speed difference is the parallax.
+const PARALLAX = 0.5;
 
-// A canvas dot grid that drifts vertically as the price moves, giving the chart
-// a sense of parallax depth. Driven imperatively from the chart's per-frame
-// callback so it never triggers React re-renders.
+// A canvas dot grid that scrolls left in lockstep with the chart (so the
+// background reads as the world moving past as the price line advances right)
+// and drifts vertically as the price moves, giving a sense of parallax depth.
+// Driven imperatively from the chart's per-frame callback so it never triggers
+// React re-renders.
 export const DotGrid = forwardRef<DotGridHandle, { className?: string }>(
   function DotGrid({ className }, ref) {
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const offset = useRef(0); // accumulated vertical drift
     const targetOffset = useRef(0);
+    const scrollX = useRef(0); // accumulated leftward travel, wrapped per cell
     const raf = useRef(0);
     const size = useRef({ w: 0, h: 0, dpr: 1 });
 
     useImperativeHandle(ref, () => ({
       react(frame: ChartFrame) {
+        // Travel left by exactly what the plot scrolled, at a fraction of the
+        // rate so the grid sits *behind* the line rather than racing it. Kept
+        // wrapped to one cell so it never grows unbounded over a long session.
+        scrollX.current =
+          (scrollX.current + frame.scrollX * PARALLAX) % SPACING;
+
         // Price rising → grid drifts down slightly (and vice versa). Scaled and
         // clamped so it stays subtle even in volatile bursts.
         const shift = Math.max(-6, Math.min(6, frame.velocity * 0.4));
@@ -56,10 +68,13 @@ export const DotGrid = forwardRef<DotGridHandle, { className?: string }>(
         ctx.fillStyle = "#1a1d26";
 
         const oy = ((offset.current % SPACING) + SPACING) % SPACING;
-        for (let x = 0; x <= w + SPACING; x += SPACING) {
+        // Subtract so the columns march leftward; the extra column drawn past
+        // the right edge is what slides in to replace the one leaving at left.
+        const ox = ((-scrollX.current % SPACING) + SPACING) % SPACING;
+        for (let x = -SPACING; x <= w + SPACING; x += SPACING) {
           for (let y = -SPACING; y <= h + SPACING; y += SPACING) {
             ctx.beginPath();
-            ctx.arc(x, y + oy, DOT_RADIUS, 0, Math.PI * 2);
+            ctx.arc(x + ox, y + oy, DOT_RADIUS, 0, Math.PI * 2);
             ctx.fill();
           }
         }

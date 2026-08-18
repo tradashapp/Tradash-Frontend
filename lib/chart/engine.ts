@@ -183,12 +183,10 @@ export class ChartEngine {
 
     const yNorm = this.draw(price);
     // Samples fill the plot width evenly, so a single new sample shifts the
-    // window left by one sample's worth of pixels. Zero until the series is
-    // seeded and actually scrolling.
-    const scrollX =
-      price != null && this.seeded
-        ? (this.w - AXIS_WIDTH) / (this.series.capacity - 1)
-        : 0;
+    // window left by one sample's worth of pixels. Reported unconditionally:
+    // this is a property of the plot geometry, not of the feed, so background
+    // layers keep scrolling even while the oracle is silent or reconnecting.
+    const scrollX = (this.w - AXIS_WIDTH) / (this.series.capacity - 1);
     this.onFrame?.({ price, yNorm, velocity, scrollX });
   }
 

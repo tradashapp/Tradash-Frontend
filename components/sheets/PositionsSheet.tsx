@@ -26,7 +26,7 @@ export function PositionsSheet({ open, onClose, onShare }: Props) {
             onClick={onClose}
           />
           <motion.div
-            className="glass fixed inset-x-0 bottom-0 z-50 flex max-h-[80dvh] flex-col rounded-t-3xl p-4 pb-8"
+            className="glass fixed inset-x-0 bottom-0 z-50 flex max-h-[80dvh] flex-col rounded-t-[50px] p-4 pb-8"
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
             exit={{ y: "100%" }}

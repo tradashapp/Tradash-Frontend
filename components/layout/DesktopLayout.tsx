@@ -42,7 +42,7 @@ export function DesktopLayout({
   const gridRef = useRef<DotGridHandle | null>(null);
   const handleFrame = useCallback((f: ChartFrame) => {
     gridRef.current?.react(f); 
-  }, []);
+  }, []); 
 
   return (
     <main className="grid h-dvh w-full grid-cols-[220px_1fr_320px] overflow-hidden">

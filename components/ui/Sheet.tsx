@@ -3,11 +3,12 @@
 import type { ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { ArrowLeft01Icon } from "@hugeicons/core-free-icons";
+import { ArrowLeft01Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
 
 /**
  * The shared bottom-sheet shell. EVERY sheet in the app renders through this so
- * the surface (background, blur, radius, grabber, sizing, animation) is defined
+ * the surface (background, blur, radius, grabber, close button, sizing,
+ * animation) is defined
  * in exactly one place — restyling sheets means editing this file, not chasing
  * four call sites that had already drifted apart.
  *
@@ -42,6 +43,11 @@ interface SheetProps {
    */
   scrollBody?: boolean;
   children: ReactNode;
+  /**
+   * Hide the built-in close button — for sheets whose own header already
+   * carries one (the market switcher's search row).
+   */
+  hideClose?: boolean;
   /** Extra classes for the body wrapper. */
   className?: string;
 }
@@ -53,6 +59,7 @@ export function Sheet({
   onBack,
   header,
   scrollBody = true,
+  hideClose = false,
   children,
   className = "",
 }: SheetProps) {
@@ -81,14 +88,16 @@ export function Sheet({
 
             {header}
 
-            {(title || onBack) && (
-              <div className="relative mb-3 flex h-6 shrink-0 items-center justify-center">
+            {/* Title bar. Always rendered (even with no title) so the close
+                button has a home — it sits far right on every sheet. */}
+            {!hideClose || title || onBack ? (
+              <div className="relative mb-3 flex h-9 shrink-0 items-center justify-center">
                 {onBack && (
                   <button
                     type="button"
                     onClick={onBack}
                     aria-label="Back"
-                    className="absolute left-0 flex h-8 w-8 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-white/10 hover:text-text active:scale-90"
+                    className="absolute left-0 flex h-9 w-9 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-white/10 hover:text-text active:scale-90"
                   >
                     <HugeiconsIcon icon={ArrowLeft01Icon} size={20} />
                   </button>
@@ -98,8 +107,18 @@ export function Sheet({
                     {title}
                   </span>
                 )}
+                {!hideClose && (
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    aria-label="Close"
+                    className="glass-inset absolute right-0 flex h-9 w-9 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-white/10 hover:text-text active:scale-90"
+                  >
+                    <HugeiconsIcon icon={Cancel01Icon} size={18} />
+                  </button>
+                )}
               </div>
-            )}
+            ) : null}
 
             {/* Body. Grows to fill the min-height so short content leaves the
                 space below blank instead of shrinking the sheet. */}

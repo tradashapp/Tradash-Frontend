@@ -92,7 +92,7 @@ export function MarketSwitcher({ open, onClose }: Props) {
       scrollBody={false}
       header={
         <>
-          {/* Search + close. The field takes the whole line; close sits far right. */}
+          {/* Search. Closing is handled by the sheet shell's button above. */}
           <div className="mb-3 flex shrink-0 items-center gap-2">
             <div className="glass-inset flex min-w-0 flex-1 items-center gap-2 rounded-full px-3.5 py-2.5">
               <HugeiconsIcon
@@ -124,14 +124,6 @@ export function MarketSwitcher({ open, onClose }: Props) {
                 </button>
               )}
             </div>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Close"
-              className="glass-inset flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-white/10 hover:text-text"
-            >
-              <HugeiconsIcon icon={Cancel01Icon} size={18} />
-            </button>
           </div>
 
           {/* Category pills — scroll horizontally when they outrun the width. */}

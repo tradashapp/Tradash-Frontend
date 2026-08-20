@@ -42,7 +42,7 @@ export function ProfileHeader({ onLogin }: { onLogin: () => void }) {
   };
 
   return (
-    <div className="mb-4 flex flex-col items-center">
+    <div className="mb-4 flex flex-col items-center py-10">
       {/* Avatar + pencil */}
       <div className="relative">
         <div className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-full bg-white/[0.06] text-4xl">
@@ -71,7 +71,7 @@ export function ProfileHeader({ onLogin }: { onLogin: () => void }) {
         </button>
       </div>
 
-      {/* Handle (logged in) or login button. No background — just centred text. */}
+      {/* Handle (logged in) — plain centred text — or the login pill. */}
       {authenticated ? (
         <span className="mt-2 text-sm font-medium text-text">{handle}</span>
       ) : (
@@ -82,7 +82,7 @@ export function ProfileHeader({ onLogin }: { onLogin: () => void }) {
             haptic("tap");
             onLogin();
           }}
-          className="mt-2 text-sm font-semibold text-up transition-opacity active:opacity-70"
+          className="mt-2 flex w-full items-center justify-center gap-2 rounded-full bg-up px-7 py-3.5 text-base font-bold text-black transition-transform active:scale-95"
         >
           Log in
         </button>

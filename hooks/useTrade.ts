@@ -84,6 +84,11 @@ export function useTrade(
     (s) => s.tradingMode.demo.positions[activeSymbol] ?? null
   );
   const price = useAppSelector((s) => s.price.prices[activeSymbol]);
+  // closeAll works across EVERY market, so it needs the full position maps and
+  // price book rather than just the active market's slice.
+  const allLivePositions = useAppSelector((s) => s.position.bySymbol);
+  const allDemoPositions = useAppSelector((s) => s.tradingMode.demo.positions);
+  const allPrices = useAppSelector((s) => s.price.prices);
 
   const rawPosition = mode === "demo" ? demoPosition : livePosition;
 
@@ -249,6 +254,106 @@ export function useTrade(
       });
     }
   }, [mode, position, price, signer, dispatch, toast]);
+
+  // Close EVERY open position, across all markets. Fired from the aggregated
+  // PnL card when more than one position is open.
+  //
+  // Live closes are dispatched CONCURRENTLY (Promise.allSettled) rather than
+  // awaited in sequence: each is an independent reduce-only order on its own
+  // market, so serializing them would make the last position wait out every
+  // round-trip before it, and prices move meanwhile. Per-market toasts still
+  // arrive one after another as each resolves.
+  const closeAll = useCallback(async () => {
+    const source = mode === "demo" ? allDemoPositions : allLivePositions;
+    const open = Object.values(source).filter((p): p is Position => p != null);
+    if (open.length === 0) return;
+
+    if (mode === "demo") {
+      for (const pos of open) {
+        const mark = allPrices[pos.symbol];
+        const pnl = displayPnlFor("demo", pos, mark);
+        if (mark != null) recordClose(dispatch, "demo", pos, mark, pnl);
+        dispatch(settleDemo({ symbol: pos.symbol, pnl }));
+        toast(`Closed ${pos.symbol}`, {
+          type: pnl >= 0 ? "success" : "info",
+          description: `Realized ${fmtUsd(pnl)}`,
+        });
+      }
+      playSound("close");
+      haptic("close");
+      stopProfitTracking();
+      toast(`Closed all ${open.length} positions`, { type: "success" });
+      return;
+    }
+
+    if (!signer) {
+      dispatch(setOrderError("Connect wallet to trade live"));
+      toast("Connect wallet to trade live", { type: "error" });
+      return;
+    }
+
+    dispatch(setOrderStatus("submitting"));
+    for (const pos of open) {
+      toast(`Closing ${pos.symbol}…`, {
+        type: "loading",
+        id: `close-${pos.symbol}`,
+      });
+    }
+
+    const results = await Promise.allSettled(
+      open.map((pos) =>
+        reduceMarket(signer, {
+          bulkSymbol: MARKETS[pos.symbol].bulkSymbol,
+          positionIsLong: pos.direction === "long",
+          size: pos.size,
+          refPrice: allPrices[pos.symbol] ?? pos.entryPrice,
+        })
+      )
+    );
+
+    // Per-market SUCCESS toasts are not fired here — useBulkAccount raises them
+    // when the WS confirms each position actually went flat. Only failures need
+    // reporting from this side.
+    let failed = 0;
+    results.forEach((r, i) => {
+      if (r.status === "rejected") {
+        const msg =
+          r.reason instanceof Error ? r.reason.message : "Close failed";
+        // A gateway timeout does NOT mean the close failed — the order may
+        // still have filled. Leave the pending toast for the WS to resolve.
+        if (isGatewayTimeout(msg)) return;
+        failed += 1;
+        toast(`Close failed · ${open[i].symbol}`, {
+          type: "error",
+          id: `close-${open[i].symbol}`,
+          description: msg.replace(/^Bulk order error:\s*/, ""),
+        });
+      }
+    });
+
+    if (failed === open.length) {
+      dispatch(setOrderError("Close all failed"));
+      return;
+    }
+    dispatch(setOrderStatus("filled"));
+    playSound("close");
+    haptic("close");
+    stopProfitTracking();
+    toast(
+      failed === 0
+        ? `Closed all ${open.length} positions`
+        : `Closed ${open.length - failed} of ${open.length} positions`,
+      { type: failed === 0 ? "success" : "info" }
+    );
+  }, [
+    mode,
+    allDemoPositions,
+    allLivePositions,
+    allPrices,
+    signer,
+    dispatch,
+    toast,
+  ]);
 
   // Add SIZE to the open position (same direction) — a market order for the
   // extra notional. `deltaUsd` is the margin to add; at the position's current
@@ -489,6 +594,7 @@ export function useTrade(
     trailEligible,
     trailPct: settings.defaultTrailPct,
     close,
+    closeAll,
     // Add / reduce SIZE of the open position (deltaUsd = margin at current lev).
     increase,
     decrease,

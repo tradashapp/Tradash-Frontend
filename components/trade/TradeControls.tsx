@@ -61,7 +61,7 @@ export function TradeControls({
           <button
             type="button"
             onClick={onLong}
-            className="flex items-center justify-center gap-2 rounded-full bg-up-soft py-5 text-lg font-semibold text-up backdrop-blur-sm transition-transform duration-150 ease-snap active:scale-95"
+            className="flex items-center justify-center gap-2 rounded-full bg-up-soft py-5 text-lg font-semibold text-up backdrop-blur-sm transition-transform duration-150 ease-snap active:scale-95 tracking-wider"
           >
             <HugeiconsIcon icon={ArrowUp01Icon} size={22} />
             UP
@@ -69,7 +69,7 @@ export function TradeControls({
           <button
             type="button"
             onClick={onShort}
-            className="flex items-center justify-center gap-2 rounded-full bg-down-soft py-5 text-lg font-semibold text-down backdrop-blur-sm transition-transform duration-150 ease-snap active:scale-95"
+            className="flex items-center justify-center gap-2 rounded-full bg-down-soft py-5 text-lg font-semibold text-down backdrop-blur-sm transition-transform duration-150 ease-snap active:scale-95 tracking-wider"
           >
             <HugeiconsIcon icon={ArrowDown01Icon} size={22} />
             DOWN

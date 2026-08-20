@@ -9,6 +9,7 @@ import {
   ArrowDownRight01Icon,
   ArrowDown01Icon,
   Share08Icon,
+  ChartCandlestickIcon,
 } from "@hugeicons/core-free-icons";
 import { MARKETS } from "@/lib/markets";
 import { formatPrice, formatUsd } from "@/lib/format";
@@ -63,7 +64,13 @@ export function PositionsPanel({ onShare, onNavigate }: Props) {
 
       {/* Open positions list. */}
       {items.length === 0 ? (
-        <div className="glass-inset flex flex-1 items-center justify-center rounded-2xl p-4 text-center text-sm text-text-muted">
+        <div className="glass-inset flex flex-1 flex-col items-center justify-center gap-3 rounded-2xl p-4 text-center text-sm text-text-muted">
+          <HugeiconsIcon
+            icon={ChartCandlestickIcon}
+            size={40}
+            strokeWidth={1.5}
+            className="text-text-muted/40"
+          />
           No open positions
         </div>
       ) : (

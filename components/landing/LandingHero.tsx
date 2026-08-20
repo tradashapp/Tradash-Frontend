@@ -91,12 +91,12 @@ export function LandingHero() {
           {...fade(0.05)}
           className="text-center text-[2rem] font-bold leading-[1.08] tracking-tight sm:text-5xl lg:text-6xl"
         >
-          One Tap<span className="text-up">✦</span> Away From
+          One <span className="text-up">Tap</span> Away From
           <br />
           Glory
         </motion.h1>
 
-        <motion.div {...fade(0.15)} className="mt-6 sm:mt-7">
+        {/* <motion.div {...fade(0.15)} className="mt-6 sm:mt-7">
           <Link
             href="/trade"
             onClick={() => {
@@ -112,7 +112,7 @@ export function LandingHero() {
               className="transition-transform duration-200 group-hover:translate-x-0.5"
             />
           </Link>
-        </motion.div>
+        </motion.div> */}
 
         <motion.div
           {...fade(0.25)}

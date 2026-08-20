@@ -13,7 +13,7 @@ interface Props {
 export function LandingHeader({ onInstall }: Props) {
   return (
     <header className="fixed inset-x-0 top-0 z-40 flex items-center justify-between px-5 py-4 sm:px-8 sm:py-5">
-      <Link href="/" className="flex items-center gap-2" aria-label="Tradash">
+      <Link href="/" className="flex items-center gap-1" aria-label="Tradash">
         <Image
           src="/images/logos/tradash-white.png"
           alt="Tradash"
@@ -22,6 +22,7 @@ export function LandingHeader({ onInstall }: Props) {
           className="h-6 w-auto sm:h-7"
           priority
         />
+        <span>Tradash</span>
       </Link>
 
       <nav className="flex items-center gap-2 sm:gap-3">

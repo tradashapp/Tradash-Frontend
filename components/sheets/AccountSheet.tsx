@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { usePrivy } from "@privy-io/react-auth";
 import { useFundWallet } from "@privy-io/react-auth/solana";
@@ -73,9 +73,27 @@ export function AccountSheet({
   const mode = useAppSelector((s) => s.tradingMode.mode);
   const demoBalance = useAppSelector((s) => s.tradingMode.demo.balance);
   const liveEquity = useAppSelector((s) => s.user.balance?.equity);
+  const bulkUnrealized = useAppSelector((s) => s.user.balance?.unrealizedPnl);
   const agentAuthorized = useAppSelector((s) => s.trading.agentAuthorized);
   const builderApproved = useAppSelector((s) => s.trading.builderApproved);
   const collateral = useCollateral(agent.masterAddress, agent.masterSign);
+  // Unrealized PnL across every open position, re-derived each price tick — this
+  // is what makes the trading (and so the total) balance move in real time.
+  const { totalPnl } = useAllPositions();
+  const trades = useAppSelector((s) => s.history.trades);
+
+  // PnL realized since local midnight, for the current account only. `add` rows
+  // record an increase in size and realize nothing, so they're excluded.
+  const realizedToday = useMemo(() => {
+    const midnight = new Date().setHours(0, 0, 0, 0);
+    return trades.reduce(
+      (sum, t) =>
+        t.mode === mode && t.kind !== "add" && t.closedAt >= midnight
+          ? sum + t.pnl
+          : sum,
+      0
+    );
+  }, [trades, mode]);
 
   // Refresh the wallet balance each time the sheet opens (it may have changed
   // since the last poll — e.g. right after a deposit or an external transfer).
@@ -148,6 +166,9 @@ export function AccountSheet({
                       mode={mode}
                       demoBalance={demoBalance}
                       liveEquity={liveEquity}
+                      bulkUnrealized={bulkUnrealized}
+                      totalPnl={totalPnl}
+                      realizedToday={realizedToday}
                       collateral={collateral}
                       authenticated={authenticated}
                       agent={agent}
@@ -189,6 +210,9 @@ function Menu({
   mode,
   demoBalance,
   liveEquity,
+  bulkUnrealized,
+  totalPnl,
+  realizedToday,
   collateral,
   authenticated,
   agent,
@@ -206,6 +230,12 @@ function Menu({
   mode: "demo" | "live";
   demoBalance: number;
   liveEquity: number | undefined;
+  /** Bulk's own unrealized PnL, already inside `liveEquity`. */
+  bulkUnrealized: number | undefined;
+  /** Our live (MagicBlock-interpolated) unrealized PnL across all positions. */
+  totalPnl: number;
+  /** PnL realized since local midnight, from the trade log. */
+  realizedToday: number;
   collateral: ReturnType<typeof useCollateral>;
   authenticated: boolean;
   agent: ReturnType<typeof useAgentWallet>;
@@ -229,96 +259,107 @@ function Menu({
     void fundWallet(agent.masterAddress);
   };
 
+  // Live trading balance = realized collateral + our MagicBlock-derived
+  // unrealized PnL. Bulk already bakes ITS OWN unrealized figure into `equity`,
+  // so we strip that out before adding ours back — otherwise open positions
+  // would be counted twice.
+  const realizedBase =
+    liveEquity != null ? liveEquity - (bulkUnrealized ?? 0) : null;
+  const tradingBalance =
+    mode === "demo"
+      ? demoBalance
+      : realizedBase != null
+        ? realizedBase + totalPnl
+        : null;
+
+  // Total = funding wallet + trading. In demo there's no wallet, so it's just
+  // the simulated balance.
+  const fundingBalance = mode === "demo" ? null : collateral.walletUsdc;
+  const totalBalance =
+    mode === "demo"
+      ? demoBalance
+      : tradingBalance != null || fundingBalance != null
+        ? (tradingBalance ?? 0) + (fundingBalance ?? 0)
+        : null;
+
+  // Today's P&L = everything realized since local midnight + what's currently
+  // floating on open positions. The percentage is against the day's opening
+  // balance (today's balance minus today's P&L).
+  const todayPnl = realizedToday + totalPnl;
+  const dayOpen = totalBalance != null ? totalBalance - todayPnl : null;
+  const todayPct =
+    dayOpen != null && dayOpen > 0 ? (todayPnl / dayOpen) * 100 : null;
+  const todayUp = todayPnl >= 0;
+
   return (
     <div className="flex flex-col">
-      {/* Balance. DEMO: a single simulated figure. LIVE: the two-balance model —
-          the user's own wallet USDC and their Bulk trading collateral (split into
-          free/in-use), which the collateral dock moves between. */}
-      {mode === "demo" ? (
-        <div className="glass-inset mb-4 rounded-2xl p-4">
-          <div className="flex items-center justify-between text-xs text-text-muted">
-            <span>Demo balance</span>
+      {/* Avatar + handle / login */}
+      <ProfileHeader onLogin={onLogin} />
+
+      {/* Balance card: total on top, today's P&L beneath it, then the funding /
+          trading split that adds up to the total. */}
+      <div className="glass-inset mb-3 rounded-2xl p-4">
+        <div className="flex items-center justify-between text-xs text-text-muted">
+          <span>Total balance</span>
+          {mode === "demo" && (
             <span className="rounded-md bg-white/10 px-1.5 py-0.5 text-[10px] font-bold text-text-muted">
               DEMO
             </span>
-          </div>
-          <div className="tabular text-2xl font-semibold">
-            {formatUsd(demoBalance)}
-          </div>
+          )}
         </div>
-      ) : (
-        // DEX-style: Wallet card and Trading card stacked, with a floating swap
-        // button at the seam that opens the transfer sheet.
-        <div className="relative mb-4 flex flex-col gap-2">
-          {/* Wallet (the user's own USDC) + Deposit / Withdraw buttons */}
-          <div className="glass-inset rounded-2xl p-4">
-            <div className="flex items-center justify-between text-xs text-text-muted mb-1">
-              <span>Wallet balance</span>
-            </div>
-            <div className="tabular text-2xl font-semibold">
-              {collateral.walletUsdc != null
-                ? formatUsd(collateral.walletUsdc)
-                : "—"}
-            </div>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={onFundWallet}
-                className="rounded-xl bg-up py-3 text-sm font-semibold text-black transition-transform active:scale-95"
-              >
-                Deposit
-              </button>
-              {/* External off-ramp (wallet → any Solana address) — disabled. */}
-              <button
-                type="button"
-                disabled
-                className="rounded-xl bg-white/5 py-3 text-sm font-semibold text-text-muted opacity-50"
-              >
-                Withdraw
-              </button>
-            </div>
-          </div>
+        <div className="tabular text-3xl font-semibold">
+          {totalBalance != null ? formatUsd(totalBalance) : "—"}
+        </div>
 
-          {/* Swap button at the seam — opens the transfer sheet. Sits centered
-              over the gap so it reads as connecting both cards (DEX style). */}
-          <button
-            type="button"
-            onClick={() => {
-              playSound("tap");
-              haptic("tap");
-              onTransfer();
-            }}
-            aria-label="Transfer margin"
-            className="glass absolute left-1/2 top-1/2 z-10 flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 !border-dashed !border-white/30 text-text shadow-lg transition-transform active:scale-90"
+        <div className="mt-1.5 flex items-center gap-1.5 text-xs">
+          <span className="text-text-muted">Today&rsquo;s P&amp;L</span>
+          <span
+            className={`tabular font-semibold ${todayUp ? "text-up" : "text-down"}`}
           >
-            <HugeiconsIcon icon={ArrowDataTransferVerticalIcon} size={20} />
-          </button>
-
-          {/* Trading collateral (Bulk) — equity + free / in-use split */}
-          <div className="glass-inset rounded-2xl p-4">
-            <div className="flex items-center justify-between text-xs text-text-muted mb-1">
-              <span>Trading collateral</span>
-            </div>
-            <div className="tabular text-2xl font-semibold mb-1">
-              {liveEquity != null ? formatUsd(liveEquity) : "—"}
-            </div>
-            <div className="mt-2 grid grid-cols-2 gap-2 text-[11px]">
-              <div className="rounded-lg bg-white/[0.03] px-2 py-1.5">
-                <div className="text-text-muted">Free</div>
-                <div className="tabular font-semibold ">
-                  {formatUsd(collateral.available)}
-                </div>
-              </div>
-              <div className="rounded-lg bg-white/[0.03] px-2 py-1.5">
-                <div className="text-text-muted">In use</div>
-                <div className="tabular font-semibold">
-                  {formatUsd(collateral.inUse)}
-                </div>
-              </div>
-            </div>
-          </div>
+            {todayUp ? "+" : "−"}
+            {formatUsd(Math.abs(todayPnl))}
+            {todayPct != null && (
+              <span className="font-medium">
+                {" "}
+                ({todayUp ? "+" : "−"}
+                {Math.abs(todayPct).toFixed(2)}%)
+              </span>
+            )}
+          </span>
         </div>
-      )}
+
+        {/* The two balances that make up the total. */}
+        <div className="mt-3 flex gap-2">
+          <BalanceCell label="Funding" value={fundingBalance} />
+          <BalanceCell label="Trading" value={tradingBalance} />
+        </div>
+      </div>
+
+      {/* Money actions. Deposit leads in brand green; the rest are glass. */}
+      <div className="mb-5 grid grid-cols-4 gap-2">
+        <ActionButton
+          icon={Download04Icon}
+          label="Deposit"
+          primary
+          onClick={onFundWallet}
+        />
+        <ActionButton
+          icon={Upload04Icon}
+          label="Withdraw"
+          onClick={onTransfer}
+        />
+        <ActionButton
+          icon={ArrowDataTransferHorizontalIcon}
+          label="Transfer"
+          onClick={onTransfer}
+        />
+        <ActionButton
+          icon={Plant02Icon}
+          label="Earn"
+          disabled
+          onClick={() => {}}
+        />
+      </div>
 
       {/* Trading — what you reach for mid-session. */}
       <MenuSection title="Trading" className="mb-4">
@@ -368,16 +409,7 @@ function Menu({
         >
           Reset demo balance
         </button>
-      ) : !authenticated ? (
-        <button
-          type="button"
-          onClick={onLogin}
-          className="flex w-full items-center justify-center gap-2 rounded-2xl bg-up py-3.5 font-semibold text-black transition-transform active:scale-95"
-        >
-          <HugeiconsIcon icon={Wallet01Icon} size={20} />
-          Connect wallet
-        </button>
-      ) : (
+      ) : !authenticated ? null : (
         <div className="flex flex-col gap-2">
           {/* Setup is only complete when BOTH steps are done. Gating this on
               `agent.isReady` alone hid the button whenever the agent wallet was
@@ -413,7 +445,7 @@ function Menu({
             className="glass-inset mt-1 flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-sm font-medium text-text-muted transition-colors hover:text-down"
           >
             <HugeiconsIcon icon={Logout01Icon} size={18} />
-            Disconnect
+            Log out
           </button>
         </div>
       )}

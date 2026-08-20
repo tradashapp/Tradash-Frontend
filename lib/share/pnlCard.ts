@@ -218,9 +218,10 @@ function drawCandle(ctx: CanvasRenderingContext2D, profit: boolean) {
 // stand on the same ground line.
 function drawMascot(ctx: CanvasRenderingContext2D, img: HTMLImageElement) {
   const boxX = CARD_W / 2 - 20;
-  const boxY = 210;
+  const boxY = 200;
   const boxW = CARD_W - 40 - boxX;
-  const boxH = 560;
+  // Bottom stops 30px above the QR's white plate (QR top = CARD_H - PAD - 176 - 14).
+  const boxH = CARD_H - 80 - 176 - 14 - 30 - boxY;
 
   const scale = Math.min(boxW / img.naturalWidth, boxH / img.naturalHeight);
   const w = img.naturalWidth * scale;

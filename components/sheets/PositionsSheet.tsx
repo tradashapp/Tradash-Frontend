@@ -19,7 +19,7 @@ export function PositionsSheet({ open, onClose, onShare }: Props) {
       {open && (
         <>
           <motion.div
-            className="fixed inset-0 z-40 bg-black/50"
+            className="bg-[#08090C] inset-0 z-40 bg-black/50"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}

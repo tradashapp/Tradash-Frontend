@@ -45,7 +45,7 @@ export function ProfileHeader({ onLogin }: { onLogin: () => void }) {
     <div className="mb-4 flex flex-col items-center">
       {/* Avatar + pencil */}
       <div className="relative">
-        <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-white/[0.06] text-4xl">
+        <div className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-full bg-white/[0.06] text-4xl">
           {isPhotoAvatar(avatar) ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img

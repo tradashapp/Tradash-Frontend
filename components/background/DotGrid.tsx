@@ -19,8 +19,10 @@ const PARALLAX = 0.5;
 // and drifts vertically as the price moves, giving a sense of parallax depth.
 // Driven imperatively from the chart's per-frame callback so it never triggers
 // React re-renders.
-export const DotGrid = forwardRef<DotGridHandle, { className?: string }>(
-  function DotGrid({ className }, ref) {
+export const DotGrid = forwardRef<
+  DotGridHandle,
+  { className?: string; ignoreSplash?: boolean }
+>(function DotGrid({ className, ignoreSplash = false }, ref) {
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const offset = useRef(0); // accumulated vertical drift
     const targetOffset = useRef(0);
@@ -29,7 +31,8 @@ export const DotGrid = forwardRef<DotGridHandle, { className?: string }>(
     const size = useRef({ w: 0, h: 0, dpr: 1 });
     // This loop is independent of the chart engine's, so it needs the same gate
     // — otherwise it keeps repainting the full grid behind the opaque splash.
-    const splashDone = useSplashDone();
+    const splashReady = useSplashDone();
+    const splashDone = ignoreSplash || splashReady;
 
     useImperativeHandle(ref, () => ({
       react(frame: ChartFrame) {
@@ -104,5 +107,4 @@ export const DotGrid = forwardRef<DotGridHandle, { className?: string }>(
         style={{ width: "100%", height: "100%", display: "block" }}
       />
     );
-  }
-);
+});

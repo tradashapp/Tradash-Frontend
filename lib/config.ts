@@ -83,6 +83,16 @@ export const config = {
   // (domain/?ref=<username>). Usernames don't exist yet, so the link is the bare
   // domain for now. Prefers the live origin at runtime, falling back to the env.
   appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "https://tradash.app",
+
+  // Community / docs destinations shown in the landing-page footer. Env-
+  // overridable so the links can be pointed at the real channels without a
+  // code change.
+  social: {
+    docs: process.env.NEXT_PUBLIC_DOCS_URL ?? "https://docs.tradash.app",
+    x: process.env.NEXT_PUBLIC_X_URL ?? "https://x.com/tradash",
+    discord: process.env.NEXT_PUBLIC_DISCORD_URL ?? "https://discord.gg/tradash",
+    telegram: process.env.NEXT_PUBLIC_TELEGRAM_URL ?? "https://t.me/tradash",
+  },
 } as const;
 
 /**

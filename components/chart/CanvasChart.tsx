@@ -17,11 +17,29 @@ interface Props {
   /** Called each animation frame with the latest chart state (for the dot grid). */
   onFrame?: (f: ChartFrame) => void;
   className?: string;
+  /**
+   * Drive the chart from an external price source instead of the oracle. Used
+   * by the landing-page mockup, which runs a simulated feed. When set, the
+   * oracle subscription is skipped entirely.
+   */
+  externalPrice?: number;
+  /**
+   * Start the render loop without waiting for the boot splash. The landing page
+   * never mounts the splash, so its chart would otherwise stay frozen.
+   */
+  ignoreSplash?: boolean;
 }
 
 // Wraps the custom ChartEngine in a React component. The engine owns the rAF
 // loop; React only manages its lifecycle and feeds it oracle ticks.
-function CanvasChartImpl({ symbol, position = null, onFrame, className }: Props) {
+function CanvasChartImpl({
+  symbol,
+  position = null,
+  onFrame,
+  className,
+  externalPrice,
+  ignoreSplash = false,
+}: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const engineRef = useRef<ChartEngine | null>(null);
   const onFrameRef = useRef(onFrame);
@@ -31,7 +49,8 @@ function CanvasChartImpl({ symbol, position = null, onFrame, className }: Props)
   // bezier trace + blurred stroke every 16ms, competing with Privy/Redux boot
   // and the splash's own animations for the main thread. That contention is
   // what made the chart stutter for the first seconds after a reload.
-  const splashDone = useSplashDone();
+  const splashReady = useSplashDone();
+  const splashDone = ignoreSplash || splashReady;
 
   // Create the engine once the canvas mounts.
   useEffect(() => {
@@ -75,11 +94,23 @@ function CanvasChartImpl({ symbol, position = null, onFrame, className }: Props)
     engineRef.current?.setPosition(position);
   }, [position]);
 
-  // Feed oracle ticks straight into the engine's interpolator.
-  const handleTick = useCallback((price: number) => {
-    engineRef.current?.setPrice(price);
-  }, []);
-  useLivePrice(symbol, handleTick);
+  // Feed oracle ticks straight into the engine's interpolator. When an external
+  // price is supplied the subscription is inert (`external` symbol has no feed),
+  // and the effect below pushes the caller's prices instead.
+  const external = externalPrice != null;
+  const handleTick = useCallback(
+    (price: number) => {
+      if (external) return;
+      engineRef.current?.setPrice(price);
+    },
+    [external]
+  );
+  useLivePrice(external ? null : symbol, handleTick);
+
+  useEffect(() => {
+    if (externalPrice == null) return;
+    engineRef.current?.setPrice(externalPrice);
+  }, [externalPrice]);
 
   return (
     <canvas
@@ -112,6 +143,8 @@ export const CanvasChart = memo(CanvasChartImpl, (a, b) => {
   return (
     a.symbol === b.symbol &&
     a.className === b.className &&
+    a.externalPrice === b.externalPrice &&
+    a.ignoreSplash === b.ignoreSplash &&
     samePosition(a.position, b.position)
   );
 });

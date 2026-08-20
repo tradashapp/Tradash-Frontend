@@ -12,10 +12,10 @@ import { ArrowLeft01Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
  * in exactly one place — restyling sheets means editing this file, not chasing
  * four call sites that had already drifted apart.
  *
- * Sizing: sheets always occupy at least MIN_H of the viewport (short content
- * leaves blank space beneath rather than a stubby sheet) and never more than
- * MAX_H, which leaves a sliver of the page visible at the top so the sheet
- * still reads as an overlay.
+ * Sizing: the body always occupies at least MIN_H of the viewport (short
+ * content leaves blank space beneath rather than a stubby sheet) and the sheet
+ * never exceeds MAX_H, which leaves a sliver of the page visible at the top so
+ * it still reads as an overlay. Past that, inner scroll regions take over.
  */
 
 /** Tallest a sheet gets — a sliver of page stays visible above it. */
@@ -77,7 +77,7 @@ export function Sheet({
           />
           <motion.div
             className="glass fixed inset-x-0 bottom-0 z-50 flex flex-col rounded-t-[50px] p-4 pb-8"
-            style={{ maxHeight: MAX_H, minHeight: MIN_H }}
+            style={{ maxHeight: MAX_H }}
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
@@ -120,12 +120,17 @@ export function Sheet({
 
             {header}
 
-            {/* Body. Grows to fill the min-height so short content leaves the
-                space below blank instead of shrinking the sheet. */}
+            {/* Body. The min-height lives HERE rather than on the sheet root:
+                a `flex-1` child of an auto-height container sizes to its content,
+                so a root min-height would let inner lists grow unbounded instead
+                of shrinking to scroll. Bounding the body instead means short
+                content leaves blank space beneath, while tall content hits the
+                root's max-height and the inner scroll region takes over. */}
             <div
               className={`flex min-h-0 flex-1 flex-col ${
                 scrollBody ? "overflow-y-auto" : ""
               } ${className}`}
+              style={{ minHeight: MIN_H }}
             >
               {children}
             </div>

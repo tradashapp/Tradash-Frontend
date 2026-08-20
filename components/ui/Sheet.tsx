@@ -31,9 +31,9 @@ interface SheetProps {
   /** Renders a back chevron on the left of the header instead of closing. */
   onBack?: () => void;
   /**
-   * Header content rendered in place of the title row — for sheets whose top
-   * line is a control (e.g. the market search field) rather than a heading.
-   * Stays pinned above the scroll region.
+   * Extra pinned content below the title bar — for sheets whose top line is a
+   * control (e.g. the market search field) rather than a heading. Stays above
+   * the scroll region.
    */
   header?: ReactNode;
   /**
@@ -86,8 +86,6 @@ export function Sheet({
             {/* Grabber */}
             <div className="mx-auto mb-3 h-1 w-10 shrink-0 rounded-full bg-up" />
 
-            {header}
-
             {/* Title bar. Always rendered (even with no title) so the close
                 button has a home — it sits far right on every sheet. */}
             {!hideClose || title || onBack ? (
@@ -119,6 +117,8 @@ export function Sheet({
                 )}
               </div>
             ) : null}
+
+            {header}
 
             {/* Body. Grows to fill the min-height so short content leaves the
                 space below blank instead of shrinking the sheet. */}

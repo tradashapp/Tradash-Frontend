@@ -69,6 +69,9 @@ export function AccountSheet({
   const dispatch = useAppDispatch();
   const { login, logout, authenticated } = usePrivy();
   const [view, setView] = useState<View>("menu");
+  // Which way the transfer panel starts out: "in" = wallet→trading (deposit),
+  // "out" = trading→wallet (withdraw). Set by the action button that opened it.
+  const [transferDir, setTransferDir] = useState<"in" | "out">("in");
 
   const mode = useAppSelector((s) => s.tradingMode.mode);
   const demoBalance = useAppSelector((s) => s.tradingMode.demo.balance);
@@ -179,7 +182,10 @@ export function AccountSheet({
                       onLogout={logout}
                       onSettings={() => go("settings")}
                       onHistory={() => go("history")}
-                      onTransfer={() => go("transfer")}
+                      onTransfer={(dir) => {
+                        setTransferDir(dir);
+                        go("transfer");
+                      }}
                       onTutorial={onOpenTutorial}
                       onInstall={onOpenInstall}
                     />
@@ -194,6 +200,7 @@ export function AccountSheet({
                     <TransferPanel
                       collateral={collateral}
                       masterAddress={agent.masterAddress}
+                      initialDir={transferDir}
                     />
                   )}
                 </motion.div>
@@ -246,7 +253,7 @@ function Menu({
   onLogout: () => void;
   onSettings: () => void;
   onHistory: () => void;
-  onTransfer: () => void;
+  onTransfer: (dir: "in" | "out") => void;
   onTutorial: () => void;
   onInstall: () => void;
 }) {
@@ -254,8 +261,6 @@ function Menu({
   // Privy on-ramp: top up the user's OWN Solana wallet with USDC from outside.
   const onFundWallet = () => {
     if (!agent.masterAddress) return;
-    playSound("tap");
-    haptic("tap");
     void fundWallet(agent.masterAddress);
   };
 
@@ -346,12 +351,12 @@ function Menu({
         <ActionButton
           icon={Upload04Icon}
           label="Withdraw"
-          onClick={onTransfer}
+          onClick={() => onTransfer("out")}
         />
         <ActionButton
           icon={ArrowDataTransferHorizontalIcon}
           label="Transfer"
-          onClick={onTransfer}
+          onClick={() => onTransfer("in")}
         />
         <ActionButton
           icon={Plant02Icon}
@@ -512,20 +517,23 @@ function ActionButton({
 
 // Transfer sheet (sub-view of the Account sheet). Move USDC between the user's
 // Privy wallet and their Bulk trading collateral. Direction is switchable:
-//   Wallet → Trading  = deposit into Bulk (works, via depositCollateral)
-//   Trading → Wallet  = withdraw from Bulk (DISABLED for now — Phase B)
+//   Wallet → Trading  = deposit into Bulk (via depositCollateral)
+//   Trading → Wallet  = withdraw from Bulk (via withdrawCollateral)
 // Plus a "Fund wallet" action (Privy on-ramp) to top up the Privy wallet itself.
 function TransferPanel({
   collateral,
   masterAddress,
+  initialDir,
 }: {
   collateral: ReturnType<typeof useCollateral>;
   masterAddress: string | null;
+  /** Direction the panel opens in — set by the action button that opened it. */
+  initialDir: "in" | "out";
 }) {
   const { fundWallet } = useFundWallet();
   // dir: which way the transfer moves. "in" = wallet→trading (deposit),
-  // "out" = trading→wallet (withdraw, disabled for now).
-  const [dir, setDir] = useState<"in" | "out">("in");
+  // "out" = trading→wallet (withdraw).
+  const [dir, setDir] = useState<"in" | "out">(initialDir);
   const [amount, setAmount] = useState<string>("25");
 
   const walletUsdc = collateral.walletUsdc;

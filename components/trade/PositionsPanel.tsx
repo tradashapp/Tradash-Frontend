@@ -93,7 +93,7 @@ export function PositionsPanel({ onShare, onNavigate, onCloseAll }: Props) {
             type="button"
             onClick={doCloseAll}
             disabled={closingAll}
-            className="flex shrink-0 items-center gap-1.5 rounded-full bg-down/15 px-3 py-1.5 text-xs font-semibold text-down transition-transform active:scale-95 disabled:opacity-50"
+            className="flex shrink-0 items-center gap-1.5 rounded-full bg-down-soft px-3 py-1.5 text-xs font-semibold text-down transition-transform active:scale-95 disabled:opacity-50"
           >
             {closingAll && (
               <HugeiconsIcon

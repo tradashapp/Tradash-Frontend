@@ -89,9 +89,9 @@ export const config = {
   // code change.
   social: {
     docs: process.env.NEXT_PUBLIC_DOCS_URL ?? "https://docs.tradash.app",
-    x: process.env.NEXT_PUBLIC_X_URL ?? "https://x.com/tradash",
-    discord: process.env.NEXT_PUBLIC_DISCORD_URL ?? "https://discord.gg/tradash",
-    telegram: process.env.NEXT_PUBLIC_TELEGRAM_URL ?? "https://t.me/tradash",
+    x: process.env.NEXT_PUBLIC_X_URL ?? "https://x.com/tradashapp",
+    discord: process.env.NEXT_PUBLIC_DISCORD_URL ?? "https://discord.gg/XXhdDaR2X",
+    telegram: process.env.NEXT_PUBLIC_TELEGRAM_URL ?? "https://t.me/tradashapp",
   },
 } as const;
 

@@ -453,6 +453,63 @@ function Menu({
   );
 }
 
+// One half of the funding / trading split inside the balance card.
+function BalanceCell({
+  label,
+  value,
+}: {
+  label: string;
+  value: number | null | undefined;
+}) {
+  return (
+    <div className="flex-1 rounded-xl bg-white/[0.03] px-3 py-2">
+      <div className="text-[11px] text-text-muted">{label}</div>
+      <div className="tabular text-sm font-semibold">
+        {value != null ? formatUsd(value) : "—"}
+      </div>
+    </div>
+  );
+}
+
+// One of the four money actions under the balance card: a round glass icon with
+// its label beneath. Deposit is the primary one and wears the brand green.
+function ActionButton({
+  icon,
+  label,
+  onClick,
+  primary,
+  disabled,
+}: {
+  icon: typeof Download04Icon;
+  label: string;
+  onClick: () => void;
+  primary?: boolean;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={() => {
+        if (disabled) return;
+        playSound("tap");
+        haptic("tap");
+        onClick();
+      }}
+      className="flex flex-col items-center gap-1.5 transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+    >
+      <span
+        className={`flex h-12 w-12 items-center justify-center rounded-full ${
+          primary ? "bg-up text-black" : "glass text-text"
+        }`}
+      >
+        <HugeiconsIcon icon={icon} size={20} />
+      </span>
+      <span className="text-[11px] font-medium text-text-muted">{label}</span>
+    </button>
+  );
+}
+
 // Transfer sheet (sub-view of the Account sheet). Move USDC between the user's
 // Privy wallet and their Bulk trading collateral. Direction is switchable:
 //   Wallet → Trading  = deposit into Bulk (works, via depositCollateral)

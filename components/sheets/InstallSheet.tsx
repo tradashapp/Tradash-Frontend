@@ -1,6 +1,5 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Download04Icon,
@@ -10,6 +9,7 @@ import {
   MoreVerticalIcon,
 } from "@hugeicons/core-free-icons";
 import { useInstallPrompt } from "@/hooks/useInstallPrompt";
+import { Sheet } from "@/components/ui/Sheet";
 import { playSound } from "@/lib/sound";
 import { haptic } from "@/lib/haptics";
 
@@ -32,74 +32,49 @@ export function InstallSheet({ open, onClose }: Props) {
   };
 
   return (
-    <AnimatePresence>
-      {open && (
-        <>
-          <motion.div
-            className="fixed inset-0 z-40 bg-black/50"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-          />
-          <motion.div
-            className="bg-[#08090C] fixed inset-x-0 bottom-0 z-50 max-h-[85dvh] overflow-y-auto rounded-t-[50px] p-4 pb-8"
-            initial={{ y: "100%" }}
-            animate={{ y: 0 }}
-            exit={{ y: "100%" }}
-            transition={{ type: "spring", damping: 30, stiffness: 300 }}
-          >
-            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-up" />
+    <Sheet open={open} onClose={onClose}>
+      <div className="mb-4 flex flex-col items-center text-center">
+        <div className="mb-3 flex h-16 w-16 items-center justify-center rounded-2xl bg-up">
+          <HugeiconsIcon icon={Download04Icon} size={30} className="text-black" />
+        </div>
+        <h2 className="text-xl font-bold">Install Tradash</h2>
+        <p className="mt-1 text-sm text-text-muted">
+          Add it to your home screen for a full-screen, app-like experience.
+        </p>
+      </div>
 
-            <div className="mb-4 flex flex-col items-center text-center">
-              <div className="mb-3 flex h-16 w-16 items-center justify-center rounded-2xl bg-up">
-                <HugeiconsIcon
-                  icon={Download04Icon}
-                  size={30}
-                  className="text-black"
-                />
-              </div>
-              <h2 className="text-xl font-bold">Install Tradash</h2>
-              <p className="mt-1 text-sm text-text-muted">
-                Add it to your home screen for a full-screen, app-like experience.
-              </p>
-            </div>
-
-            {installed ? (
-              <div className="glass-inset flex items-center justify-center gap-2 rounded-2xl py-4 text-sm font-medium text-up">
-                <HugeiconsIcon icon={CheckmarkCircle02Icon} size={18} />
-                Already installed
-              </div>
-            ) : canPrompt ? (
-              <button
-                type="button"
-                onClick={doInstall}
-                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-up py-4 text-lg font-semibold text-black transition-transform active:scale-95"
-              >
-                <HugeiconsIcon icon={Download04Icon} size={20} />
-                Install app
-              </button>
-            ) : platform === "ios" ? (
-              <Steps
-                steps={[
-                  { icon: ShareIcon, text: "Tap the Share button in Safari's toolbar." },
-                  { icon: Add01Icon, text: "Choose “Add to Home Screen”." },
-                  { icon: CheckmarkCircle02Icon, text: "Tap “Add” — Tradash lands on your home screen." },
-                ]}
-              />
-            ) : (
-              <Steps
-                steps={[
-                  { icon: MoreVerticalIcon, text: "Open your browser menu (⋮)." },
-                  { icon: Download04Icon, text: "Choose “Install app” or “Add to Home screen”." },
-                  { icon: CheckmarkCircle02Icon, text: "Confirm — Tradash installs like a native app." },
-                ]}
-              />
-            )}
-          </motion.div>
-        </>
+      {installed ? (
+        <div className="glass-inset flex items-center justify-center gap-2 rounded-2xl py-4 text-sm font-medium text-up">
+          <HugeiconsIcon icon={CheckmarkCircle02Icon} size={18} />
+          Already installed
+        </div>
+      ) : canPrompt ? (
+        <button
+          type="button"
+          onClick={doInstall}
+          className="flex w-full items-center justify-center gap-2 rounded-2xl bg-up py-4 text-lg font-semibold text-black transition-transform active:scale-95"
+        >
+          <HugeiconsIcon icon={Download04Icon} size={20} />
+          Install app
+        </button>
+      ) : platform === "ios" ? (
+        <Steps
+          steps={[
+            { icon: ShareIcon, text: "Tap the Share button in Safari's toolbar." },
+            { icon: Add01Icon, text: "Choose \u201CAdd to Home Screen\u201D." },
+            { icon: CheckmarkCircle02Icon, text: "Tap \u201CAdd\u201D \u2014 Tradash lands on your home screen." },
+          ]}
+        />
+      ) : (
+        <Steps
+          steps={[
+            { icon: MoreVerticalIcon, text: "Open your browser menu (\u22EE)." },
+            { icon: Download04Icon, text: "Choose \u201CInstall app\u201D or \u201CAdd to Home screen\u201D." },
+            { icon: CheckmarkCircle02Icon, text: "Confirm \u2014 Tradash installs like a native app." },
+          ]}
+        />
       )}
-    </AnimatePresence>
+    </Sheet>
   );
 }
 

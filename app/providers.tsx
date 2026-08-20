@@ -42,7 +42,7 @@ export function Providers({ children }: { children: ReactNode }) {
         appearance: {
           theme: "dark",
           accentColor: "#72E912",
-          // logo: "",
+          logo: "https://tradash.xyz/images/logos/tradash-full.png",
         },
         embeddedWallets: {
           solana: {

@@ -18,7 +18,7 @@ interface SocialLink {
 
 const LINKS: SocialLink[] = [
   { label: "Docs", href: config.social.docs, icon: Book02Icon },
-  { label: "X", href: config.social.x, icon: NewTwitterIcon },
+  { label: "X (formerly Twitter)", href: config.social.x, icon: NewTwitterIcon },
   { label: "Discord", href: config.social.discord, icon: DiscordIcon },
   { label: "Telegram", href: config.social.telegram, icon: TelegramIcon },
 ];
@@ -38,13 +38,13 @@ export function LandingFooter() {
       <div className="flex items-center gap-4 text-xs text-text-muted sm:gap-5">
         <Link
           href="/privacy"
-          className="transition-colors duration-200 hover:text-text"
+          className="transition-colors underline duration-200 hover:text-text"
         >
           Privacy
         </Link>
         <Link
           href="/terms"
-          className="transition-colors duration-200 hover:text-text"
+          className="transition-colors underline duration-200 hover:text-text"
         >
           Terms
         </Link>

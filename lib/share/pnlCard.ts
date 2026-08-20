@@ -46,6 +46,8 @@ export interface CardAssets {
   logo: HTMLImageElement | null;
   marketIcon: HTMLImageElement | null;
   qr: HTMLImageElement | null;
+  /** Selected mascot artwork for the right-hand side. Null → that space stays empty. */
+  mascot: HTMLImageElement | null;
 }
 
 const fmtUsd = (n: number) =>
@@ -208,6 +210,27 @@ function drawCandle(ctx: CanvasRenderingContext2D, profit: boolean) {
   ctx.restore();
 }
 
+
+// The mascot occupies the right half of the card — the space the old decorative
+// candle/curve used to fill. It's letterboxed (contain, never cropped or
+// stretched) into a fixed box that clears the direction pill above and the QR
+// footer below, and bottom-anchored so mascots of different aspect ratios all
+// stand on the same ground line.
+function drawMascot(ctx: CanvasRenderingContext2D, img: HTMLImageElement) {
+  const boxX = CARD_W / 2 - 20;
+  const boxY = 210;
+  const boxW = CARD_W - 40 - boxX;
+  const boxH = 560;
+
+  const scale = Math.min(boxW / img.naturalWidth, boxH / img.naturalHeight);
+  const w = img.naturalWidth * scale;
+  const h = img.naturalHeight * scale;
+  const x = boxX + (boxW - w) / 2;
+  const y = boxY + (boxH - h); // bottom-anchored within the box
+
+  ctx.drawImage(img, x, y, w, h);
+}
+
 function roundRect(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -268,6 +291,8 @@ export function drawPnlCard(
   drawDotGrid(ctx);
   // drawProgressCurve(ctx, profit);
   // drawCandle(ctx, profit);
+  // Mascot fills the right half, under the text layer so nothing can occlude it.
+  if (assets.mascot) drawMascot(ctx, assets.mascot);
 
   const PAD = 80;
   let y = PAD;
@@ -289,8 +314,9 @@ export function drawPnlCard(
   ctx.font = `500 32px ${MONO}`;
   ctx.fillText(`${data.symbol}-USD`, PAD + iconSize + 28, y + 80);
 
-  // Direction pill (UP / DOWN, arrow + colour — never long/short), top-right.
-  const pillLabel = up ? "UP" : "DOWN";
+  // Direction pill (UP / DOWN, arrow + colour — never long/short) with the
+  // leverage used appended, e.g. "Up/40x". Top-right.
+  const pillLabel = `${up ? "Up" : "Down"}/${data.leverage}x`;
   const dirColor = up ? UP : DOWN;
   ctx.font = `700 34px ${SANS}`;
   const pillTextW = ctx.measureText(pillLabel).width;

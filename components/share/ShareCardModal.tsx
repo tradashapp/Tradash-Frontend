@@ -23,6 +23,11 @@ import {
   type PnlCardData,
   type ShareMetric,
 } from "@/lib/share/pnlCard";
+import {
+  listMascots,
+  type Mascot,
+  type MascotOutcome,
+} from "@/lib/share/mascots";
 import type { CompletedTrade, MarketSymbol, Position } from "@/types";
 
 // What we can share: a live/open position (mark price streams) or a completed
@@ -63,7 +68,13 @@ function ShareCardInner({
     logo: null,
     marketIcon: null,
     qr: null,
+    mascot: null,
   });
+  // Mascots available for THIS result (win vs loss), plus the picked one. The
+  // picked id is remembered per outcome so flipping between a winning and a
+  // losing subject doesn't reset the other side's choice.
+  const [mascots, setMascots] = useState<Mascot[]>([]);
+  const [mascotId, setMascotId] = useState<string | null>(null);
   // Only reveal the card / enable download once EVERY asset has resolved, so a
   // partial (missing logo/icon/QR) card can never be shown or exported.
   const [ready, setReady] = useState(false);
@@ -76,6 +87,12 @@ function ShareCardInner({
   // Live mark price (only meaningful for an open position). Selecting the symbol's
   // primitive keeps redraws cheap and truthful.
   const livePrice = useAppSelector((s) => s.price.prices[symbol]);
+
+  // Which mascot set to offer. Derived from the same PnL the card prints, so a
+  // position that flips green→red mid-stream swaps to the losing mascots.
+  const pnlNow =
+    subject.kind === "trade" ? subject.trade.pnl : subject.position.unrealizedPnl;
+  const outcome: MascotOutcome = pnlNow >= 0 ? "win" : "lose";
 
   // Load the (static) assets once: brand logo, market icon, QR of the ref link.
   // Mark ready ONLY after all three settle, so we never draw/export a partial card.
@@ -97,7 +114,7 @@ function ShareCardInner({
       ]);
       const qr = qrUrl ? await loadImage(qrUrl) : null;
       if (!alive) return;
-      setAssets({ logo, marketIcon, qr });
+      setAssets((prev) => ({ ...prev, logo, marketIcon, qr }));
       // One more frame so the freshly-loaded fonts are ready to paint, then reveal.
       requestAnimationFrame(() => {
         if (alive) setReady(true);
@@ -107,6 +124,40 @@ function ShareCardInner({
       alive = false;
     };
   }, [symbol, referralUrl]);
+
+  // Discover the mascots for this outcome and default to the first one. Files
+  // are probed once per outcome and cached, so reopening the modal is instant.
+  useEffect(() => {
+    let alive = true;
+    listMascots(outcome).then((list) => {
+      if (!alive) return;
+      setMascots(list);
+      // Keep the current pick if it belongs to this outcome; otherwise default
+      // to the first mascot (or nothing at all if the folder is empty).
+      setMascotId((cur) =>
+        cur && list.some((m) => m.id === cur) ? cur : (list[0]?.id ?? null)
+      );
+    });
+    return () => {
+      alive = false;
+    };
+  }, [outcome]);
+
+  // Load the picked mascot's bitmap for the canvas.
+  useEffect(() => {
+    let alive = true;
+    const picked = mascots.find((m) => m.id === mascotId);
+    if (!picked) {
+      setAssets((prev) => (prev.mascot ? { ...prev, mascot: null } : prev));
+      return;
+    }
+    loadImage(picked.src).then((mascot) => {
+      if (alive) setAssets((prev) => ({ ...prev, mascot }));
+    });
+    return () => {
+      alive = false;
+    };
+  }, [mascotId, mascots]);
 
   // Assemble the card data, refreshing mark/PnL live for open positions.
   const data: PnlCardData = useMemo(() => {
@@ -230,6 +281,39 @@ function ShareCardInner({
             </div>
           )}
         </div>
+
+        {/* Mascot picker — sits directly under the card. Scrolls horizontally so
+            the strip stays one row no matter how many artworks get dropped into
+            /public/images/pnl-card. Hidden entirely if there's only one (or
+            none) to choose from. */}
+        {mascots.length > 1 && (
+          <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+            {mascots.map((m) => {
+              const active = m.id === mascotId;
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => setMascotId(m.id)}
+                  aria-label={`Mascot ${m.index}`}
+                  aria-pressed={active}
+                  className={`relative h-14 w-14 shrink-0 overflow-hidden rounded-xl border transition-colors ${
+                    active
+                      ? "border-up bg-white/10"
+                      : "border-white/10 bg-white/[0.03] hover:border-white/25"
+                  }`}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={m.src}
+                    alt=""
+                    className="h-full w-full object-contain p-1"
+                  />
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* Metric toggle: PnL / ROI / Both. */}
         <div className="glass-inset flex rounded-xl p-1">

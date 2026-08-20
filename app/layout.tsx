@@ -23,23 +23,23 @@ export const metadata: Metadata = {
   // NEXT_PUBLIC_APP_URL to the production origin.
   metadataBase: new URL(config.appUrl),
   title: {
-    default: "Tradash — Tap to trade perpetuals",
+    default: "Tradash | One Tap Away From Glory",
     // Per-market pages pass a full title, so no template suffix is needed.
     template: "%s",
   },
-  description: "Tap to trade. Perpetuals, made instant.",
+  description: "One Tap Away From Glory",
   manifest: "/manifest.webmanifest",
   applicationName: "Tradash",
   openGraph: {
-    title: "Tradash — Tap to trade perpetuals",
-    description: "Tap to trade. Perpetuals, made instant.",
+    title: "Tradash | One Tap Away From Glory",
+    description: "One Tap Away From Glory",
     siteName: "Tradash",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Tradash — Tap to trade perpetuals",
-    description: "Tap to trade. Perpetuals, made instant.",
+    title: "Tradash | One Tap Away From Glory",
+    description: "One Tap Away From Glory",
   },
   appleWebApp: {
     capable: true,

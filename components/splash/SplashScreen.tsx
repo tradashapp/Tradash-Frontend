@@ -76,12 +76,12 @@ export function SplashScreen() {
             transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
           >
             <Image
-              src="/icon-512.png"
+              src="/images/logos/tradash-full.png"
               alt="Tradash"
-              width={88}
-              height={88}
+              width={790}
+              height={316}
               priority
-              className="h-20 w-20 rounded-2xl"
+              className="h-auto w-44"
             />
           </motion.div>
 

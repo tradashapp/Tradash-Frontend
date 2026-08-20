@@ -47,7 +47,7 @@ export function DesktopLayout({
   return (
     <main className="grid h-dvh w-full grid-cols-[220px_1fr_320px] overflow-hidden">
       {/* Sidebar */}
-      <aside className=" flex flex-col gap-1 border-r border-white/5 rounded-r-3xl p-4">
+      <aside className=" flex flex-col gap-1 border-r border-white/5 rounded-r-[50px] p-4 py-6">
         <div className="mb-4 flex items-center px-2">
           <Image src={"/images/logos/tradash-white.png"} alt="logo" height={100} width={100} className="w-6 h-6" />
           <span className="text-lg font-bold tracking-tight">Tradash</span>
@@ -80,7 +80,7 @@ export function DesktopLayout({
       </section>
 
       {/* Right panel */}
-      <aside className="glass flex min-h-0 flex-col gap-3 overflow-hidden border-l border-white/5 p-4">
+      <aside className="flex min-h-0 flex-col gap-3 overflow-hidden border-l border-white/5 p-4">
         <div className="flex shrink-0 justify-end">
           <BalancePill onOpen={onOpenAccount} />
         </div>

@@ -194,7 +194,7 @@ function ActivePosition({
         <button
           type="button"
           onClick={onClose}
-          className="flex items-center justify-center gap-2 self-start rounded-full bg-white/10 py-4 text-base font-semibold text-text backdrop-blur-sm transition-transform active:scale-95"
+          className="flex items-center justify-center gap-2 self-start rounded-full bg-down-soft py-4 text-base font-semibold text-down backdrop-blur-sm transition-transform active:scale-95"
           style={{ width: "100%" }}
         >
           <HugeiconsIcon icon={Cancel01Icon} size={20} />

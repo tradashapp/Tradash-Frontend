@@ -18,6 +18,12 @@ export interface SettingsState {
   hapticsEnabled: boolean;
   /** Whether the first-run "how it works" tutorial has been shown. */
   tutorialSeen: boolean;
+  /**
+   * Profile avatar. Either an emoji (one of AVATAR_EMOJIS) or a data-URL for a
+   * photo the user picked from their device (downscaled before it's stored, so
+   * the settings blob stays small enough for localStorage).
+   */
+  avatar: string;
 }
 
 const initialState: SettingsState = {
@@ -32,6 +38,7 @@ const initialState: SettingsState = {
   soundEnabled: true,
   hapticsEnabled: true,
   tutorialSeen: false,
+  avatar: "\u{1F680}", // rocket
 };
 
 const settingsSlice = createSlice({

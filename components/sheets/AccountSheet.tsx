@@ -15,8 +15,11 @@ import {
   ArrowRight01Icon,
   ArrowLeft01Icon,
   ArrowDataTransferVerticalIcon,
+  ArrowDataTransferHorizontalIcon,
   HelpCircleIcon,
   Download04Icon,
+  Upload04Icon,
+  Plant02Icon,
   ShieldKeyIcon,
   CodeIcon,
 } from "@hugeicons/core-free-icons";
@@ -31,6 +34,8 @@ import { playSound } from "@/lib/sound";
 import { haptic } from "@/lib/haptics";
 import { useAgentWallet } from "@/hooks/useAgentWallet";
 import { useCollateral } from "@/hooks/useCollateral";
+import { useAllPositions } from "@/hooks/useAllPositions";
+import { ProfileHeader } from "./ProfileHeader";
 
 type View = "menu" | "settings" | "history" | "transfer";
 
@@ -43,8 +48,9 @@ interface Props {
   onShare: (subject: ShareSubject) => void;
 }
 
+// The menu view has no title — it leads with the profile header instead.
 const TITLES: Record<View, string> = {
-  menu: "Account",
+  menu: "",
   settings: "Settings",
   history: "Trade history",
   transfer: "Transfer margin",
@@ -109,9 +115,10 @@ export function AccountSheet({
           >
             <div className="mx-auto mb-3 h-1 w-10 shrink-0 rounded-full bg-up" />
 
-            {/* Header: back button (sub-views) + title */}
-            <div className="relative mb-3 flex h-6 shrink-0 items-center justify-center">
-              {view !== "menu" && (
+            {/* Header: sub-views get a back button + title. The menu view has
+                no title bar — its profile header (avatar + handle) leads. */}
+            {view !== "menu" && (
+              <div className="relative mb-3 flex h-6 shrink-0 items-center justify-center">
                 <button
                   type="button"
                   onClick={() => go("menu")}
@@ -120,11 +127,11 @@ export function AccountSheet({
                 >
                   <HugeiconsIcon icon={ArrowLeft01Icon} size={20} />
                 </button>
-              )}
-              <span className="text-sm font-medium text-text-muted">
-                {TITLES[view]}
-              </span>
-            </div>
+                <span className="text-sm font-medium text-text-muted">
+                  {TITLES[view]}
+                </span>
+              </div>
+            )}
 
             {/* Animated sub-views */}
             <div className="min-h-0 flex-1 overflow-y-auto">

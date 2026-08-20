@@ -80,6 +80,7 @@ export function MobileLayout({
         open={positionsOpen}
         onClose={() => setPositionsOpen(false)}
         onShare={onShare}
+        onCloseAll={trade.closeAll}
       />
     </main>
   );

@@ -85,7 +85,7 @@ export function DesktopLayout({
           <BalancePill onOpen={onOpenAccount} />
         </div>
 
-        <PositionsPanel onShare={onShare} />
+        <PositionsPanel onShare={onShare} onCloseAll={trade.closeAll} />
 
         <div className="shrink-0">
           <TradeControls

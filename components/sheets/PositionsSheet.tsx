@@ -8,12 +8,14 @@ interface Props {
   open: boolean;
   onClose: () => void;
   onShare: (subject: ShareSubject) => void;
+  /** Close every open position at once. */
+  onCloseAll?: () => void | Promise<void>;
 }
 
 // Mobile: a slide-up sheet that surfaces the SAME positions view used in the
 // desktop right panel (aggregated PnL + expandable per-market positions). Opened
 // from the "View positions" pill above the trade controls.
-export function PositionsSheet({ open, onClose, onShare }: Props) {
+export function PositionsSheet({ open, onClose, onShare, onCloseAll }: Props) {
   return (
     <Sheet open={open} onClose={onClose} title="Open positions" scrollBody={false}>
       {/* PositionsPanel manages its own internal scroll region. */}
@@ -23,6 +25,7 @@ export function PositionsSheet({ open, onClose, onShare }: Props) {
           onClose();
         }}
         onNavigate={onClose}
+        onCloseAll={onCloseAll}
       />
     </Sheet>
   );

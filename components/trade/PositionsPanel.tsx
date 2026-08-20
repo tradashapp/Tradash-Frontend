@@ -10,6 +10,7 @@ import {
   ArrowDown01Icon,
   Share08Icon,
   ChartCandlestickIcon,
+  Loading03Icon,
 } from "@hugeicons/core-free-icons";
 import { MARKETS } from "@/lib/markets";
 import { formatPrice, formatUsd } from "@/lib/format";
@@ -18,6 +19,8 @@ import { useAllPositions, type LivePosition } from "@/hooks/useAllPositions";
 import { useAppDispatch } from "@/store/hooks";
 import { startSwitch, finishSwitch } from "@/store/slices/marketSlice";
 import type { ShareSubject } from "@/components/share/ShareCardModal";
+import { playSound } from "@/lib/sound";
+import { haptic } from "@/lib/haptics";
 import type { MarketSymbol } from "@/types";
 
 interface Props {
@@ -25,16 +28,35 @@ interface Props {
   onShare: (subject: ShareSubject) => void;
   /** Called after navigating to a market's chart (e.g. to close the sheet). */
   onNavigate?: () => void;
+  /** Close every open position at once. Omit to hide the "Close all" action. */
+  onCloseAll?: () => void | Promise<void>;
 }
 
 // The right-panel positions view: an AGGREGATED Unrealized PnL across all markets,
 // then one expandable row per open position. Direction shows as an up/down arrow
 // (green/red), not "long/short". Each row can expand to full details and shares a
 // PnL card.
-export function PositionsPanel({ onShare, onNavigate }: Props) {
+export function PositionsPanel({ onShare, onNavigate, onCloseAll }: Props) {
   const { items, totalPnl, totalRoiPct } = useAllPositions();
   const dispatch = useAppDispatch();
+  const [closingAll, setClosingAll] = useState(false);
   const profit = totalPnl >= 0;
+
+  // Only worth offering when there's more than one position to close — with a
+  // single one, the position's own close action already covers it.
+  const canCloseAll = onCloseAll != null && items.length > 1;
+
+  const doCloseAll = async () => {
+    if (closingAll) return;
+    playSound("tap");
+    haptic("tap");
+    setClosingAll(true);
+    try {
+      await onCloseAll?.();
+    } finally {
+      setClosingAll(false);
+    }
+  };
 
   // Jump straight to a market's chart (same dispatch the switcher uses).
   const goToMarket = (symbol: MarketSymbol) => {
@@ -45,20 +67,43 @@ export function PositionsPanel({ onShare, onNavigate }: Props) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
-      {/* Aggregated Unrealized PnL (all markets). */}
-      <div className="glass-inset rounded-2xl p-4">
-        <div className="text-xs text-text-muted mb-1">Unrealized PnL</div>
-        <div className={`text-2xl font-bold ${profit ? "text-up" : "text-down"}`}>
-          <Odometer
-            value={`${profit ? "+" : "−"}${formatUsd(Math.abs(totalPnl))}`}
-          />
-        </div>
-        {items.length > 0 && (
-          <div className={`text-xs font-semibold ${profit ? "text-up" : "text-down"}`}>
+      {/* Aggregated Unrealized PnL (all markets), with the bulk close action. */}
+      <div className="glass-inset flex items-start gap-3 rounded-2xl p-4">
+        <div className="min-w-0 flex-1">
+          <div className="text-xs text-text-muted mb-1">Unrealized PnL</div>
+          <div
+            className={`text-2xl font-bold ${profit ? "text-up" : "text-down"}`}
+          >
             <Odometer
-              value={`${totalRoiPct >= 0 ? "+" : "−"}${Math.abs(totalRoiPct).toFixed(2)}%`}
+              value={`${profit ? "+" : "−"}${formatUsd(Math.abs(totalPnl))}`}
             />
           </div>
+          {items.length > 0 && (
+            <div
+              className={`text-xs font-semibold ${profit ? "text-up" : "text-down"}`}
+            >
+              <Odometer
+                value={`${totalRoiPct >= 0 ? "+" : "−"}${Math.abs(totalRoiPct).toFixed(2)}%`}
+              />
+            </div>
+          )}
+        </div>
+        {canCloseAll && (
+          <button
+            type="button"
+            onClick={doCloseAll}
+            disabled={closingAll}
+            className="flex shrink-0 items-center gap-1.5 rounded-full bg-down/15 px-3 py-1.5 text-xs font-semibold text-down transition-transform active:scale-95 disabled:opacity-50"
+          >
+            {closingAll && (
+              <HugeiconsIcon
+                icon={Loading03Icon}
+                size={14}
+                className="animate-spin"
+              />
+            )}
+            {closingAll ? "Closing…" : `Close all (${items.length})`}
+          </button>
         )}
       </div>
 

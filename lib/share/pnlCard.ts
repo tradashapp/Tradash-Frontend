@@ -266,8 +266,8 @@ export function drawPnlCard(
   ctx.fillStyle = BG;
   ctx.fillRect(0, 0, CARD_W, CARD_H);
   drawDotGrid(ctx);
-  drawProgressCurve(ctx, profit);
-  drawCandle(ctx, profit);
+  // drawProgressCurve(ctx, profit);
+  // drawCandle(ctx, profit);
 
   const PAD = 80;
   let y = PAD;

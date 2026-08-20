@@ -96,7 +96,7 @@ export function LandingHero() {
           Glory
         </motion.h1>
 
-        {/* <motion.div {...fade(0.15)} className="mt-6 sm:mt-7">
+        <motion.div {...fade(0.15)} className="mt-6 sm:mt-7">
           <Link
             href="/trade"
             onClick={() => {
@@ -112,7 +112,7 @@ export function LandingHero() {
               className="transition-transform duration-200 group-hover:translate-x-0.5"
             />
           </Link>
-        </motion.div> */}
+        </motion.div>
 
         <motion.div
           {...fade(0.25)}

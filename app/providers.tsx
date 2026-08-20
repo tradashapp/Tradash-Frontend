@@ -40,9 +40,10 @@ export function Providers({ children }: { children: ReactNode }) {
       appId={config.privyAppId}
       config={{
         appearance: {
-          theme: "dark",
+          theme: "#08090C",
           accentColor: "#72E912",
           logo: "https://tradash.xyz/images/logos/tradash-full.png",
+
         },
         embeddedWallets: {
           solana: {

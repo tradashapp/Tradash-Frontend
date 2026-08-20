@@ -25,6 +25,10 @@ const MUTED = "#8b90a0";
 const SANS = '"Space Grotesk", system-ui, sans-serif';
 const MONO = '"JetBrains Mono", ui-monospace, monospace';
 
+// Card-wide outer padding. Shared so the mascot can align its bottom edge with
+// the footer's margin rather than guessing at it.
+const PAD_OUTER = 80;
+
 export type ShareMetric = "pnl" | "roi" | "both";
 
 export interface PnlCardData {
@@ -211,28 +215,113 @@ function drawCandle(ctx: CanvasRenderingContext2D, profit: boolean) {
 }
 
 
-// The mascot occupies the right half of the card — the space the old decorative
-// candle/curve used to fill. It's letterboxed (contain, never cropped or
-// stretched) into a fixed box that clears the direction pill above and the QR
-// footer below, and bottom-anchored so mascots of different aspect ratios all
+// The mascot fills the right-hand side — the space the old decorative
+// candle/curve used to fill. It reaches down to the footer's baseline so it
+// reads as standing on the card, with the same breathing room from the bottom
+// edge that the footer has.
+//
+// The obstacles sit in two different vertical bands: the PnL/price text column
+// occupies the UPPER part of the card, the QR + referral footer the LOWER part.
+// Fitting one rectangle against the wider of the two would waste all the space
+// beside the narrower one, so we instead try both bands and keep whichever
+// yields the larger mascot:
+//
+//   • "tall"  — full height, but only as wide as BOTH obstacles allow.
+//   • "short" — starts below the text column, so it may run much further left,
+//               needing only to clear the footer.
+//
+// Sizing is always "contain": ONE uniform scale from whichever axis binds
+// first, so the art never stretches and a taller fit can never push the width
+// left into the text.
+interface MascotBounds {
+  /** Right edge of the big PnL row (incl. the ROI chip in "both" mode). */
+  pnlRowRight: number;
+  /** Baseline of the PnL row — nothing wide sits below this line. */
+  pnlRowBottom: number;
+  /** Right edge of the (much narrower) Entry / Mark price rows. */
+  priceRowsRight: number;
+  /** Baseline of the lowest price row. */
+  contentBottom: number;
+  /** Right edge of the QR + referral footer. */
+  footerRight: number;
+}
+
+function drawMascot(
+  ctx: CanvasRenderingContext2D,
+  img: HTMLImageElement,
+  bounds: MascotBounds
+) {
+  const GAP = 56; // clearance from the text column / footer
+  const TOP = 200; // clears the direction pill
+  // Bottom edge mirrors the footer's own margin, so both sit on one baseline.
+  const BOTTOM = CARD_H - PAD_OUTER;
+  // A slight bleed into the right margin — the art is transparent-padded.
+  const RIGHT = CARD_W - PAD_OUTER + 40;
+
+  const ar = img.naturalWidth / img.naturalHeight;
+
+  // Every candidate spans down to BOTTOM; they differ in how high they start
+  // and therefore how far left they may reach. Taking the largest by area lets
+  // the mascot grow into whichever pocket of empty card is actually biggest.
+  const candidates = [
+    // Full height — must clear the widest obstacle at every level.
+    fitBox(
+      Math.max(bounds.pnlRowRight, bounds.priceRowsRight, bounds.footerRight) +
+        GAP,
+      TOP,
+      RIGHT,
+      BOTTOM,
+      ar
+    ),
+    // Starts just under the PnL row's baseline, so only the much narrower price
+    // rows and the footer limit its width. Usually the winner: the empty band
+    // beside the price rows is the widest pocket on the card.
+    fitBox(
+      Math.max(bounds.priceRowsRight, bounds.footerRight) + GAP,
+      bounds.pnlRowBottom,
+      RIGHT,
+      BOTTOM,
+      ar
+    ),
+    // Starts below all the text: only the footer constrains the width.
+    fitBox(
+      bounds.footerRight + GAP,
+      bounds.contentBottom + GAP,
+      RIGHT,
+      BOTTOM,
+      ar
+    ),
+  ];
+
+  const box = candidates.reduce((best, c) =>
+    c.w * c.h > best.w * best.h ? c : best
+  );
+  if (box.w <= 0 || box.h <= 0) return;
+
+  ctx.drawImage(img, box.x, box.y, box.w, box.h);
+}
+
+// Contain-fit an aspect ratio into a rectangle: centred horizontally in any
+// leftover slack, bottom-anchored vertically so mascots of differing shapes all
 // stand on the same ground line.
-function drawMascot(ctx: CanvasRenderingContext2D, img: HTMLImageElement) {
-  // Left edge clears the widest the numeric column realistically gets — a big
-  // PnL plus the ROI chip beside it in "both" mode — so the mascot never sits
-  // under the figures it's celebrating.
-  const boxX = 1010;
-  const boxY = 200;
-  const boxW = CARD_W - 40 - boxX;
-  // Bottom stops 30px above the QR's white plate (QR top = CARD_H - PAD - 176 - 14).
-  const boxH = CARD_H - 80 - 176 - 14 - 30 - boxY;
-
-  const scale = Math.min(boxW / img.naturalWidth, boxH / img.naturalHeight);
-  const w = img.naturalWidth * scale;
-  const h = img.naturalHeight * scale;
-  const x = boxX + (boxW - w) / 2;
-  const y = boxY + (boxH - h); // bottom-anchored within the box
-
-  ctx.drawImage(img, x, y, w, h);
+function fitBox(
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+  ar: number
+): { x: number; y: number; w: number; h: number } {
+  const boxW = x1 - x0;
+  const boxH = y1 - y0;
+  if (boxW <= 0 || boxH <= 0) return { x: x0, y: y0, w: 0, h: 0 };
+  // Width-bound vs height-bound — the smaller result is the one that fits.
+  let w = boxW;
+  let h = w / ar;
+  if (h > boxH) {
+    h = boxH;
+    w = h * ar;
+  }
+  return { x: x0 + (boxW - w) / 2, y: y1 - h, w, h };
 }
 
 function roundRect(
@@ -295,10 +384,8 @@ export function drawPnlCard(
   drawDotGrid(ctx);
   // drawProgressCurve(ctx, profit);
   // drawCandle(ctx, profit);
-  // Mascot fills the right half, under the text layer so nothing can occlude it.
-  if (assets.mascot) drawMascot(ctx, assets.mascot);
 
-  const PAD = 80;
+  const PAD = PAD_OUTER;
   let y = PAD;
 
   // --- Market identity (top): icon + name + symbol. ---
@@ -343,6 +430,12 @@ export function drawPnlCard(
   // --- Big PnL / ROI. ---
   // In "both" mode: big PnL with the ROI as a small glass chip to its right.
   // In single modes: just the one metric, large.
+  // How far right each band of the left-hand text column reaches. The big PnL
+  // row is far wider than the price rows beneath it, so the mascot tracks them
+  // separately and can tuck into the space beside the narrower rows.
+  let pnlRowRight = 0;
+  let priceRowsRight = 0;
+
   if (metric === "pnl" || metric === "both") {
     ctx.fillStyle = accent;
     ctx.font = `800 120px ${MONO}`;
@@ -350,33 +443,67 @@ export function drawPnlCard(
     const pnlText = fmtUsd(data.pnl);
     ctx.fillText(pnlText, PAD, y);
 
+    const pnlW = ctx.measureText(pnlText).width;
+    pnlRowRight = PAD + pnlW;
+
     if (metric === "both") {
       // Small ROI chip to the right of the PnL, glass bg green/red, filled arrow.
-      const pnlW = ctx.measureText(pnlText).width;
-      drawRoiChip(ctx, PAD + pnlW + 40, y - 82, data.roiPct, profit);
+      pnlRowRight = drawRoiChip(
+        ctx,
+        PAD + pnlW + 40,
+        y - 82,
+        data.roiPct,
+        profit
+      );
     }
   } else {
     // ROI only, large.
     ctx.fillStyle = accent;
     ctx.font = `800 120px ${MONO}`;
-    ctx.fillText(fmtPct(data.roiPct), PAD, y);
+    const roiText = fmtPct(data.roiPct);
+    ctx.fillText(roiText, PAD, y);
+    pnlRowRight = PAD + ctx.measureText(roiText).width;
   }
+
+  // Baseline of the PnL row: below this line only the narrow price rows sit.
+  const pnlRowBottom = y;
 
   y += 110;
 
   // --- Entry / Mark(or Exit) price rows. ---
-  drawPriceRow(ctx, PAD, y, "Entry Price", `$${formatPrice(data.entryPrice)}`);
-  y += 74;
-  drawPriceRow(
-    ctx,
-    PAD,
-    y,
-    data.closed ? "Exit Price" : "Mark Price",
-    `$${formatPrice(data.markPrice)}`
+  priceRowsRight = Math.max(
+    priceRowsRight,
+    drawPriceRow(ctx, PAD, y, "Entry Price", `$${formatPrice(data.entryPrice)}`)
   );
+  y += 74;
+  priceRowsRight = Math.max(
+    priceRowsRight,
+    drawPriceRow(
+      ctx,
+      PAD,
+      y,
+      data.closed ? "Exit Price" : "Mark Price",
+      `$${formatPrice(data.markPrice)}`
+    )
+  );
+  // Baseline of the lowest text row.
+  const contentBottom = y;
 
-  // --- Footer: [ ref text + link + logo ]  [ QR ]  in a flex row. ---
-  drawFooter(ctx, data, assets, PAD);
+  // --- Footer: [ QR ]  [ ref text + link + logo ]  flexed as one left-aligned
+  // row. It reports how far right it reaches so the mascot can claim the rest. ---
+  const footerRight = drawFooter(ctx, data, assets, PAD);
+
+  // Mascot last: it needs the footer's measured extent to size itself, and it's
+  // drawn over the (empty) background on the right, never over any text.
+  if (assets.mascot) {
+    drawMascot(ctx, assets.mascot, {
+      pnlRowRight,
+      pnlRowBottom,
+      priceRowsRight,
+      contentBottom,
+      footerRight,
+    });
+  }
 }
 
 // Small ROI chip: glass rounded bg (green/red), filled up/down arrow + ROI%.
@@ -386,7 +513,7 @@ function drawRoiChip(
   y: number,
   roiPct: number,
   profit: boolean
-) {
+): number {
   const color = profit ? UP : DOWN;
   const label = `${Math.abs(roiPct).toFixed(2)}%`;
   ctx.font = `700 40px ${MONO}`;
@@ -402,6 +529,7 @@ function drawRoiChip(
   ctx.textBaseline = "middle";
   ctx.fillText(label, x + arrowGap + 8, y + chipH / 2 + 2);
   ctx.textBaseline = "alphabetic";
+  return x + chipW;
 }
 
 function drawPriceRow(
@@ -410,7 +538,7 @@ function drawPriceRow(
   y: number,
   label: string,
   value: string
-) {
+): number {
   ctx.fillStyle = MUTED;
   ctx.font = `500 40px ${SANS}`;
   ctx.textBaseline = "alphabetic";
@@ -418,6 +546,7 @@ function drawPriceRow(
   ctx.fillStyle = TEXT;
   ctx.font = `700 40px ${MONO}`;
   ctx.fillText(value, x + 320, y);
+  return x + 320 + ctx.measureText(value).width;
 }
 
 // Footer laid out as two columns in a flex row: the referral block on the left
@@ -427,24 +556,28 @@ function drawFooter(
   data: PnlCardData,
   assets: CardAssets,
   PAD: number
-) {
+): number {
   const qrSize = 176;
-  const qrX = CARD_W - PAD - qrSize;
+  const plate = 14; // white padding around the QR bitmap
+  const qrX = PAD + plate;
   const qrY = CARD_H - PAD - qrSize;
 
-  // QR (right column).
+  // QR (left), with the referral block flexed to its right.
   if (assets.qr) {
     ctx.fillStyle = "#ffffff";
-    roundRect(ctx, qrX - 14, qrY - 14, qrSize + 28, qrSize + 28, 20);
+    roundRect(ctx, qrX - plate, qrY - plate, qrSize + plate * 2, qrSize + plate * 2, 20);
     ctx.fill();
     ctx.drawImage(assets.qr, qrX, qrY, qrSize, qrSize);
   }
 
-  // Referral block (left column), vertically anchored to the QR band.
-  const leftX = PAD;
-  let ly = qrY + 10;
+  // Referral column, sitting to the right of the QR plate.
+  const leftX = qrX + qrSize + plate + 20;
+  let ly = qrY + 6;
+  let widest = 0;
 
-  // Tradash logo UNDER the link (logo mark + wordmark).
+
+
+  // Tradash logo + wordmark UNDER the link.
   const logoSize = 50;
   if (assets.logo) {
     ctx.save();
@@ -462,19 +595,24 @@ function drawFooter(
   ctx.textBaseline = "middle";
   ctx.fillText("Tradash", leftX + logoSize + 20, ly + logoSize / 2 + 2);
   ctx.textBaseline = "alphabetic";
+  widest = Math.max(widest, logoSize + 20 + ctx.measureText("Tradash").width);
 
-  // Referral text + link above the logo.
-  ly += 115;
-
+  ly += 110;
   ctx.fillStyle = MUTED;
   ctx.font = `500 32px ${SANS}`;
   ctx.textBaseline = "alphabetic";
   ctx.fillText("Trade & share your own", leftX, ly);
+  widest = Math.max(widest, ctx.measureText("Trade & share your own").width);
 
-  ly += 60;
+  ly += 58;
   ctx.fillStyle = TEXT;
   ctx.font = `700 38px ${SANS}`;
-  ctx.fillText(prettyUrl(data.referralUrl), leftX, ly);
+  const link = prettyUrl(data.referralUrl);
+  ctx.fillText(link, leftX, ly);
+  widest = Math.max(widest, ctx.measureText(link).width);
+
+  // Right edge of everything the footer occupies — the mascot must clear it.
+  return leftX + widest;
 }
 
 function hexA(hex: string, a: number): string {

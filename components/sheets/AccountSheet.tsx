@@ -13,7 +13,6 @@ import {
   Settings02Icon,
   Clock01Icon,
   ArrowRight01Icon,
-  ArrowLeft01Icon,
   ArrowDataTransferVerticalIcon,
   ArrowDataTransferHorizontalIcon,
   HelpCircleIcon,
@@ -27,6 +26,7 @@ import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { resetDemo } from "@/store/slices/tradingModeSlice";
 import { formatUsd } from "@/lib/format";
 import { MenuSection } from "@/components/ui/MenuSection";
+import { Sheet } from "@/components/ui/Sheet";
 import { SettingsPanel } from "./panels/SettingsPanel";
 import { HistoryPanel } from "./panels/HistoryPanel";
 import type { ShareSubject } from "@/components/share/ShareCardModal";
@@ -117,99 +117,63 @@ export function AccountSheet({
   };
 
   return (
-    <AnimatePresence>
-      {open && (
-        <>
-          <motion.div
-            className="fixed inset-0 z-40 bg-black/50"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-          />
-          <motion.div
-            className="bg-[#08090C] fixed inset-x-0 bottom-0 z-50 flex max-h-[85dvh] flex-col rounded-t-[50px] p-4 pb-8"
-            initial={{ y: "100%" }}
-            animate={{ y: 0 }}
-            exit={{ y: "100%" }}
-            transition={{ type: "spring", damping: 30, stiffness: 300 }}
-          >
-            <div className="mx-auto mb-3 h-1 w-10 shrink-0 rounded-full bg-up" />
-
-            {/* Header: sub-views get a back button + title. The menu view has
-                no title bar — its profile header (avatar + handle) leads. */}
-            {view !== "menu" && (
-              <div className="relative mb-3 flex h-6 shrink-0 items-center justify-center">
-                <button
-                  type="button"
-                  onClick={() => go("menu")}
-                  aria-label="Back"
-                  className="absolute left-0 flex h-8 w-8 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-white/10 hover:text-text active:scale-90"
-                >
-                  <HugeiconsIcon icon={ArrowLeft01Icon} size={20} />
-                </button>
-                <span className="text-sm font-medium text-text-muted">
-                  {TITLES[view]}
-                </span>
-              </div>
-            )}
-
-            {/* Animated sub-views */}
-            <div className="min-h-0 flex-1 overflow-y-auto">
-              <AnimatePresence mode="wait" initial={false}>
-                <motion.div
-                  key={view}
-                  initial={{ opacity: 0, x: view === "menu" ? -20 : 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: view === "menu" ? 20 : -20 }}
-                  transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-                >
-                  {view === "menu" && (
-                    <Menu
-                      mode={mode}
-                      demoBalance={demoBalance}
-                      liveEquity={liveEquity}
-                      bulkUnrealized={bulkUnrealized}
-                      totalPnl={totalPnl}
-                      realizedToday={realizedToday}
-                      collateral={collateral}
-                      authenticated={authenticated}
-                      agent={agent}
-                      agentAuthorized={agentAuthorized}
-                      builderApproved={builderApproved}
-                      onResetDemo={() => dispatch(resetDemo())}
-                      onLogin={login}
-                      onLogout={logout}
-                      onSettings={() => go("settings")}
-                      onHistory={() => go("history")}
-                      onTransfer={(dir) => {
-                        setTransferDir(dir);
-                        go("transfer");
-                      }}
-                      onTutorial={onOpenTutorial}
-                      onInstall={onOpenInstall}
-                    />
-                  )}
-                  {view === "settings" && <SettingsPanel />}
-                  {view === "history" && (
-                    <HistoryPanel
-                      onShare={(trade) => onShare({ kind: "trade", trade })}
-                    />
-                  )}
-                  {view === "transfer" && (
-                    <TransferPanel
-                      collateral={collateral}
-                      masterAddress={agent.masterAddress}
-                      initialDir={transferDir}
-                    />
-                  )}
-                </motion.div>
-              </AnimatePresence>
-            </div>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
+    <Sheet
+      open={open}
+      onClose={onClose}
+      // The menu leads with its own profile header, so only sub-views get a
+      // title bar (and the back chevron that returns to the menu).
+      title={view === "menu" ? undefined : TITLES[view]}
+      onBack={view === "menu" ? undefined : () => go("menu")}
+    >
+      {/* Animated sub-views */}
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.div
+          key={view}
+          initial={{ opacity: 0, x: view === "menu" ? -20 : 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: view === "menu" ? 20 : -20 }}
+          transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+        >
+          {view === "menu" && (
+            <Menu
+              mode={mode}
+              demoBalance={demoBalance}
+              liveEquity={liveEquity}
+              bulkUnrealized={bulkUnrealized}
+              totalPnl={totalPnl}
+              realizedToday={realizedToday}
+              collateral={collateral}
+              authenticated={authenticated}
+              agent={agent}
+              agentAuthorized={agentAuthorized}
+              builderApproved={builderApproved}
+              onResetDemo={() => dispatch(resetDemo())}
+              onLogin={login}
+              onLogout={logout}
+              onSettings={() => go("settings")}
+              onHistory={() => go("history")}
+              onTransfer={(dir) => {
+                setTransferDir(dir);
+                go("transfer");
+              }}
+              onTutorial={onOpenTutorial}
+              onInstall={onOpenInstall}
+            />
+          )}
+          {view === "settings" && <SettingsPanel />}
+          {view === "history" && (
+            <HistoryPanel onShare={(trade) => onShare({ kind: "trade", trade })} />
+          )}
+          {view === "transfer" && (
+            <TransferPanel
+              collateral={collateral}
+              masterAddress={agent.masterAddress}
+              initialDir={transferDir}
+            />
+          )}
+        </motion.div>
+      </AnimatePresence>
+    </Sheet>
   );
 }
 

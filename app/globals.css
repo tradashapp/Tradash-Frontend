@@ -20,6 +20,14 @@ body {
   padding-bottom: env(safe-area-inset-bottom);
 }
 
+/* The landing page is one full-height hero whose inner column scrolls when the
+   viewport is too short for the phone mockup. The body stays non-scrolling (the
+   fixed header/footer depend on that); this just removes the safe-area padding
+   that would otherwise push the fixed footer's spacing off. */
+body:has(.landing-root) {
+  padding-bottom: 0;
+}
+
 /* Tabular figures so live price / PnL digits don't jitter width as they count. */
 .tabular {
   font-variant-numeric: tabular-nums;

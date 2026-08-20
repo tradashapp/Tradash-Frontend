@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
+import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { markSplashDone } from "@/lib/splash";
 
@@ -10,9 +11,21 @@ import { markSplashDone } from "@/lib/splash";
 // Self-dismisses after a short beat (or once the window fires `load`), then
 // fades out and never returns for the session.
 export function SplashScreen() {
-  const [show, setShow] = useState(true);
+  // The marketing landing page ("/") is not the app booting — it should paint
+  // immediately, with no splash in front of it. The splash still runs for every
+  // app route. Its components ignore the splash gate directly (ignoreSplash),
+  // so nothing there waits on the flag this component would otherwise set.
+  const pathname = usePathname();
+  const isLanding = pathname === "/";
+  const [show, setShow] = useState(!isLanding);
 
   useEffect(() => {
+    if (isLanding) {
+      // Nothing is covering the screen here — release the gate so any splash-
+      // aware component on this route runs straight away.
+      markSplashDone();
+      return;
+    }
     // Minimum on-screen time so it reads as an intentional splash, not a flash.
     const MIN_MS = 1400;
     const started = performance.now();
@@ -45,7 +58,7 @@ export function SplashScreen() {
       window.clearTimeout(cap);
       window.clearTimeout(release);
     };
-  }, []);
+  }, [isLanding]);
 
   return (
     <AnimatePresence onExitComplete={markSplashDone}>

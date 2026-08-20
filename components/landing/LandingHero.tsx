@@ -67,7 +67,7 @@ export function LandingHero() {
         };
 
   return (
-    <main className="relative h-dvh w-full overflow-hidden bg-bg">
+    <main className="landing-root relative h-dvh w-full overflow-hidden bg-bg">
       {/* Same dot grid as the chart background. */}
       <div className="pointer-events-none absolute inset-0 z-0">
         <DotGrid ref={gridRef} ignoreSplash />

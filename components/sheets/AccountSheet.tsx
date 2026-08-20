@@ -128,7 +128,7 @@ export function AccountSheet({
             onClick={onClose}
           />
           <motion.div
-            className="glass fixed inset-x-0 bottom-0 z-50 flex max-h-[85dvh] flex-col rounded-t-[50px] p-4 pb-8"
+            className="bg-[#08090C] fixed inset-x-0 bottom-0 z-50 flex max-h-[85dvh] flex-col rounded-t-[50px] p-4 pb-8"
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
@@ -338,32 +338,33 @@ function Menu({
           <BalanceCell label="Funding" value={fundingBalance} />
           <BalanceCell label="Trading" value={tradingBalance} />
         </div>
-      </div>
 
-      {/* Money actions. Deposit leads in brand green; the rest are glass. */}
-      <div className="mb-5 grid grid-cols-4 gap-2">
-        <ActionButton
-          icon={Download04Icon}
-          label="Deposit"
-          primary
-          onClick={onFundWallet}
-        />
-        <ActionButton
-          icon={Upload04Icon}
-          label="Withdraw"
-          onClick={() => onTransfer("out")}
-        />
-        <ActionButton
-          icon={ArrowDataTransferHorizontalIcon}
-          label="Transfer"
-          onClick={() => onTransfer("in")}
-        />
-        <ActionButton
-          icon={Plant02Icon}
-          label="Earn"
-          disabled
-          onClick={() => {}}
-        />
+
+        {/* Money actions. Deposit leads in brand green; the rest are glass. */}
+        <div className="mt-5 grid grid-cols-4 gap-2">
+          <ActionButton
+            icon={Download04Icon}
+            label="Deposit"
+            // primary
+            onClick={onFundWallet}
+          />
+          <ActionButton
+            icon={Upload04Icon}
+            label="Withdraw"
+            onClick={() => onTransfer("out")}
+          />
+          <ActionButton
+            icon={ArrowDataTransferHorizontalIcon}
+            label="Transfer"
+            onClick={() => onTransfer("in")}
+          />
+          <ActionButton
+            icon={Plant02Icon}
+            label="Earn"
+            disabled
+            onClick={() => { }}
+          />
+        </div>
       </div>
 
       {/* Trading — what you reach for mid-session. */}
@@ -467,7 +468,7 @@ function BalanceCell({
   value: number | null | undefined;
 }) {
   return (
-    <div className="flex-1 rounded-xl bg-white/[0.03] px-3 py-2">
+    <div className="flex-1 rounded-xl bg-[#08090C] px-3 py-2">
       <div className="text-[11px] text-text-muted">{label}</div>
       <div className="tabular text-sm font-semibold">
         {value != null ? formatUsd(value) : "—"}
@@ -504,9 +505,8 @@ function ActionButton({
       className="flex flex-col items-center gap-1.5 transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
     >
       <span
-        className={`flex h-12 w-12 items-center justify-center rounded-full ${
-          primary ? "bg-up text-black" : "glass text-text"
-        }`}
+        className={`flex h-12 w-12 items-center justify-center rounded-full ${primary ? "bg-up text-black" : "glass text-text"
+          }`}
       >
         <HugeiconsIcon icon={icon} size={20} />
       </span>

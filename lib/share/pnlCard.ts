@@ -217,7 +217,10 @@ function drawCandle(ctx: CanvasRenderingContext2D, profit: boolean) {
 // footer below, and bottom-anchored so mascots of different aspect ratios all
 // stand on the same ground line.
 function drawMascot(ctx: CanvasRenderingContext2D, img: HTMLImageElement) {
-  const boxX = CARD_W / 2 - 20;
+  // Left edge clears the widest the numeric column realistically gets — a big
+  // PnL plus the ROI chip beside it in "both" mode — so the mascot never sits
+  // under the figures it's celebrating.
+  const boxX = 1010;
   const boxY = 200;
   const boxW = CARD_W - 40 - boxX;
   // Bottom stops 30px above the QR's white plate (QR top = CARD_H - PAD - 176 - 14).

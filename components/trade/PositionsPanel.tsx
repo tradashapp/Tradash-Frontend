@@ -8,7 +8,7 @@ import {
   ArrowUpRight01Icon,
   ArrowDownRight01Icon,
   ArrowDown01Icon,
-  Share08Icon,
+  Share05Icon,
   ChartCandlestickIcon,
   Loading03Icon,
 } from "@hugeicons/core-free-icons";
@@ -235,7 +235,7 @@ function PositionRow({
           className="rounded-full p-1.5 text-text-muted transition-colors hover:bg-white/10 hover:text-text"
           aria-label={`Share ${pos.symbol} position`}
         >
-          <HugeiconsIcon icon={Share08Icon} size={18} />
+          <HugeiconsIcon icon={Share05Icon} size={18} />
         </button>
       </div>
 

@@ -5,7 +5,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import {
   ArrowUpRight01Icon,
   ArrowDownRight01Icon,
-  Share08Icon,
+  Share05Icon,
 } from "@hugeicons/core-free-icons";
 import { useAppSelector } from "@/store/hooks";
 import { formatUsd } from "@/lib/format";
@@ -128,7 +128,7 @@ function TradeRow({
         className="rounded-full p-1.5 text-text-muted transition-colors hover:bg-white/10 hover:text-text"
         aria-label={`Share ${trade.symbol} trade`}
       >
-        <HugeiconsIcon icon={Share08Icon} size={16} />
+        <HugeiconsIcon icon={Share05Icon} size={16} />
       </button>
     </div>
   );

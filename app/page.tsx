@@ -1,9 +1,8 @@
-import { TradeScreen } from "@/components/screen/TradeScreen";
-import { DEFAULT_MARKET } from "@/lib/markets";
+import { LandingGate } from "@/components/landing/LandingGate";
 
-// The homepage IS the trading screen. Defaults to BTC; the shared TradeScreen
-// syncs the URL to /btc on load and to /eth, /sol as the market changes in-app.
-// Per-market metadata/OG live on the /[market] routes.
+// The marketing landing page. The trading app lives at /trade (and
+// /trade/<MARKET>); logged-in visitors and installed-PWA launches are redirected
+// there by LandingGate.
 export default function Home() {
-  return <TradeScreen initialMarket={DEFAULT_MARKET} />;
+  return <LandingGate />;
 }

@@ -92,78 +92,78 @@ export function MarketSwitcher({ open, onClose }: Props) {
       scrollBody={false}
       header={
         <>
-        {/* Search + close. The field takes the whole line; close sits far right. */}
-        <div className="mb-3 flex shrink-0 items-center gap-2">
-          <div className="glass-inset flex min-w-0 flex-1 items-center gap-2 rounded-full px-3.5 py-2.5">
-            <HugeiconsIcon
-              icon={Search01Icon}
-              size={18}
-              className="shrink-0 text-text-muted"
-            />
-            <input
-              ref={searchRef}
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search markets"
-              autoComplete="off"
-              spellCheck={false}
-              className="min-w-0 flex-1 bg-transparent text-sm text-text outline-none placeholder:text-text-muted"
-            />
-            {query && (
-              <button
-                type="button"
-                onClick={() => {
-                  setQuery("");
-                  searchRef.current?.focus();
-                }}
-                aria-label="Clear search"
-                className="shrink-0 text-text-muted transition-colors hover:text-text"
-              >
-                <HugeiconsIcon icon={Cancel01Icon} size={16} />
-              </button>
-            )}
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="glass-inset flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-white/10 hover:text-text"
-          >
-            <HugeiconsIcon icon={Cancel01Icon} size={18} />
-          </button>
-        </div>
-
-        {/* Category pills — scroll horizontally when they outrun the width. */}
-        <div className="scroll-glass -mx-4 mb-3 shrink-0 overflow-x-auto px-4">
-          <div className="flex w-max items-center gap-2">
-            {MARKET_CATEGORIES.map((c) => {
-              const selected = c.id === category;
-              return (
+          {/* Search + close. The field takes the whole line; close sits far right. */}
+          <div className="mb-3 flex shrink-0 items-center gap-2">
+            <div className="glass-inset flex min-w-0 flex-1 items-center gap-2 rounded-full px-3.5 py-2.5">
+              <HugeiconsIcon
+                icon={Search01Icon}
+                size={18}
+                className="shrink-0 text-text-muted"
+              />
+              <input
+                ref={searchRef}
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search markets"
+                autoComplete="off"
+                spellCheck={false}
+                className="min-w-0 flex-1 bg-transparent text-sm text-text outline-none placeholder:text-text-muted"
+              />
+              {query && (
                 <button
-                  key={c.id}
                   type="button"
-                  onClick={() => setCategory(c.id)}
-                  className={`whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors ${
-                    selected
-                      ? "bg-up text-black"
-                      : "glass-inset text-text-muted hover:text-text"
-                  }`}
+                  onClick={() => {
+                    setQuery("");
+                    searchRef.current?.focus();
+                  }}
+                  aria-label="Clear search"
+                  className="shrink-0 text-text-muted transition-colors hover:text-text"
                 >
-                  {c.label}
+                  <HugeiconsIcon icon={Cancel01Icon} size={16} />
                 </button>
-              );
-            })}
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close"
+              className="glass-inset flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-white/10 hover:text-text"
+            >
+              <HugeiconsIcon icon={Cancel01Icon} size={18} />
+            </button>
           </div>
-        </div>
 
-        {/* Column headings for the list below. */}
-        <div className="mb-2 flex shrink-0 items-center gap-3 px-3 text-[11px] tracking-wide text-text-muted">
-          {/* Spacer matches the star + logo so "Market" sits over the name. */}
-          {/* <div className="w-[52px] shrink-0" /> */}
-          <div className="flex-1">Market</div>
-          <div>Last price</div>
-        </div>
+          {/* Category pills — scroll horizontally when they outrun the width. */}
+          <div className="scroll-glass -mx-4 mb-3 shrink-0 overflow-x-auto px-4">
+            <div className="flex w-max items-center gap-2">
+              {MARKET_CATEGORIES.map((c) => {
+                const selected = c.id === category;
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => setCategory(c.id)}
+                    className={`whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors ${
+                      selected
+                        ? "bg-up text-black"
+                        : "glass-inset text-text-muted hover:text-text"
+                    }`}
+                  >
+                    {c.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Column headings for the list below. */}
+          <div className="mb-2 flex shrink-0 items-center gap-3 px-3 text-[11px] tracking-wide text-text-muted">
+            {/* Spacer matches the star + logo so "Market" sits over the name. */}
+            {/* <div className="w-[52px] shrink-0" /> */}
+            <div className="flex-1">Market</div>
+            <div>Last price</div>
+          </div>
         </>
       }
     >

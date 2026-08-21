@@ -66,13 +66,23 @@ const fmtUsd = (n: number) =>
 // builder code was never approved. Since Bulk exposes no readable approval
 // state, that rejection is the only authoritative correction signal — the
 // caller uses it to drop the optimistic cache and re-surface the setup button.
+//
+// `opts.onNeedsSetup` turns a blocked live trade into the setup flow instead of
+// a dead-end toast: the tap IS the intent, so that's the moment to ask for the
+// two master signatures rather than up front, before the user has decided.
 export function useTrade(
   signer: AgentSigner | null,
-  onBuilderNotApproved?: () => void
+  onBuilderNotApproved?: () => void,
+  opts?: { authenticated?: boolean; onNeedsSetup?: () => void }
 ) {
+  const { authenticated = false, onNeedsSetup } = opts ?? {};
   const dispatch = useAppDispatch();
   const { toast } = useToast();
   const mode = useAppSelector((s) => s.tradingMode.mode);
+  // Optimistic (Bulk exposes no readable builder-approval state), so a stale
+  // `true` is still possible on a new device — `onBuilderNotApproved` remains
+  // the authoritative correction after a rejection.
+  const builderApproved = useAppSelector((s) => s.trading.builderApproved);
   const activeSymbol = useAppSelector((s) => s.market.active);
   const settings = useAppSelector((s) => s.settings);
   // Positions are keyed by market; read the ACTIVE market's position for each
@@ -106,6 +116,49 @@ export function useTrade(
         }
       : rawPosition;
 
+  // --- Live-trade setup gate ---------------------------------------------
+  // Replaces the five copies of `if (!signer) toast("Connect wallet…")`, which
+  // misreported an onboarded-but-not-set-up user as disconnected, and never
+  // checked the builder code at all (so those orders failed only once Bulk
+  // rejected them, after the user had already committed).
+  //
+  // Returns true when the caller must STOP. Ordered by what the user has to do
+  // next: connect → set up → approve.
+  const blockedFromLiveTrade = useCallback((): boolean => {
+    if (signer && builderApproved) return false;
+
+    // Genuinely not connected — the original message is correct here.
+    if (!authenticated) {
+      dispatch(setOrderError("Connect wallet to trade live"));
+      toast("Connect wallet to trade live", { type: "error" });
+      return true;
+    }
+
+    // Connected, but one-tap trading isn't set up (no authorized agent key).
+    if (!signer) {
+      const msg = "Enable one-tap trading to place live orders";
+      dispatch(setOrderError(msg));
+      toast("One-tap trading required", {
+        type: "error",
+        description: "Two quick signatures and you're set.",
+      });
+      onNeedsSetup?.();
+      return true;
+    }
+
+    // Agent is ready but the builder code isn't approved. Every order carries
+    // it, so Bulk would reject this — fail here with a reason the user can act
+    // on rather than after the round-trip.
+    const msg = "Approve the builder code to place live orders";
+    dispatch(setOrderError(msg));
+    toast("Approval required", {
+      type: "error",
+      description: "One signature to finish setup.",
+    });
+    onNeedsSetup?.();
+    return true;
+  }, [signer, builderApproved, authenticated, onNeedsSetup, dispatch, toast]);
+
   const open = useCallback(
     async (direction: Direction) => {
       if (price == null) return;
@@ -134,11 +187,7 @@ export function useTrade(
       }
 
       // Live: one-tap market order via the agent signer.
-      if (!signer) {
-        dispatch(setOrderError("Connect wallet to trade live"));
-        toast("Connect wallet to trade live", { type: "error" });
-        return;
-      }
+      if (blockedFromLiveTrade()) return;
       // Snapshot the MagicBlock price at THIS instant (the tap) so the chart's
       // entry line lands exactly where the user clicked. Consumed when the
       // position appears via the WS. Purely visual — PnL stays Bulk-anchored.
@@ -222,11 +271,7 @@ export function useTrade(
       return;
     }
 
-    if (!signer) {
-      dispatch(setOrderError("Connect wallet to trade live"));
-      toast("Connect wallet to trade live", { type: "error" });
-      return;
-    }
+    if (blockedFromLiveTrade()) return;
     dispatch(setOrderStatus("submitting"));
     toast(`Closing ${position.symbol}…`, {
       type: "loading",
@@ -253,7 +298,7 @@ export function useTrade(
         description: msg.replace(/^Bulk order error:\s*/, ""),
       });
     }
-  }, [mode, position, price, signer, dispatch, toast]);
+  }, [mode, position, price, signer, blockedFromLiveTrade, dispatch, toast]);
 
   // Close EVERY open position, across all markets. Fired from the aggregated
   // PnL card when more than one position is open.
@@ -286,11 +331,7 @@ export function useTrade(
       return;
     }
 
-    if (!signer) {
-      dispatch(setOrderError("Connect wallet to trade live"));
-      toast("Connect wallet to trade live", { type: "error" });
-      return;
-    }
+    if (blockedFromLiveTrade()) return;
 
     dispatch(setOrderStatus("submitting"));
     for (const pos of open) {
@@ -351,6 +392,7 @@ export function useTrade(
     allLivePositions,
     allPrices,
     signer,
+    blockedFromLiveTrade,
     dispatch,
     toast,
   ]);
@@ -405,10 +447,7 @@ export function useTrade(
         return;
       }
 
-      if (!signer) {
-        toast("Connect wallet to trade live", { type: "error" });
-        return;
-      }
+      if (blockedFromLiveTrade()) return;
       dispatch(setOrderStatus("submitting"));
       // Fallback duration so a 504-that-never-fills can't spin forever; the WS
       // normally upgrades this to success/info well before it elapses.
@@ -441,7 +480,7 @@ export function useTrade(
         }
       }
     },
-    [mode, position, price, signer, dispatch, toast]
+    [mode, position, price, signer, blockedFromLiveTrade, dispatch, toast]
   );
 
   // Reduce SIZE of the open position — a reduce-only market order for part of the
@@ -492,10 +531,7 @@ export function useTrade(
         return;
       }
 
-      if (!signer) {
-        toast("Connect wallet to trade live", { type: "error" });
-        return;
-      }
+      if (blockedFromLiveTrade()) return;
       dispatch(setOrderStatus("submitting"));
       toast(`Reducing ${position.symbol}…`, {
         type: "loading",
@@ -525,7 +561,7 @@ export function useTrade(
         }
       }
     },
-    [mode, position, price, signer, dispatch, toast]
+    [mode, position, price, signer, blockedFromLiveTrade, dispatch, toast]
   );
 
   // Can a trail be armed right now? Only when in enough profit that the clamped

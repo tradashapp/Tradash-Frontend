@@ -302,10 +302,11 @@ function Menu({
           <BalanceCell label="Funding" value={fundingBalance} />
           <BalanceCell label="Trading" value={tradingBalance} />
         </div>
+      </div>
 
 
         {/* Money actions. Deposit leads in brand green; the rest are glass. */}
-        <div className="mt-5 grid grid-cols-4 gap-2">
+        <div className="my-3 grid grid-cols-4 gap-2">
           <ActionButton
             icon={Download04Icon}
             label="Deposit"
@@ -329,7 +330,6 @@ function Menu({
             onClick={() => { }}
           />
         </div>
-      </div>
 
       {/* Trading — what you reach for mid-session. */}
       <MenuSection title="Trading" className="mb-4">
@@ -432,7 +432,7 @@ function BalanceCell({
   value: number | null | undefined;
 }) {
   return (
-    <div className="flex-1 rounded-xl bg-[#08090C] px-3 py-2">
+    <div className="flex-1 rounded-xl bg-white/[0.02] px-3 py-2">
       <div className="text-[11px] text-text-muted">{label}</div>
       <div className="tabular text-sm font-semibold">
         {value != null ? formatUsd(value) : "—"}

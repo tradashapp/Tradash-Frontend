@@ -73,11 +73,19 @@ function ShareCardInner({
   // Mascots available for THIS result (win vs loss), plus the picked one. The
   // picked id is remembered per outcome so flipping between a winning and a
   // losing subject doesn't reset the other side's choice.
-  const [mascots, setMascots] = useState<Mascot[]>([]);
+  // `null` = discovery hasn't resolved yet; `[]` = it resolved and found none.
+  // The distinction matters: an empty array must open the reveal gate, but a
+  // pending discovery must hold it shut.
+  const [mascots, setMascots] = useState<Mascot[] | null>(null);
   const [mascotId, setMascotId] = useState<string | null>(null);
-  // Only reveal the card / enable download once EVERY asset has resolved, so a
-  // partial (missing logo/icon/QR) card can never be shown or exported.
-  const [ready, setReady] = useState(false);
+  // Reveal is gated on TWO independent chains, tracked separately because they
+  // resolve at very different speeds: the static assets load in parallel, while
+  // the mascot needs a sequential folder probe *then* its bitmap. Deriving
+  // `ready` from both is what stops the card appearing mascot-less and having
+  // the artwork pop in a moment later.
+  const [staticReady, setStaticReady] = useState(false);
+  const [mascotReady, setMascotReady] = useState(false);
+  const ready = staticReady && mascotReady;
 
   const symbol: MarketSymbol =
     subject.kind === "position" ? subject.position.symbol : subject.trade.symbol;
@@ -95,10 +103,10 @@ function ShareCardInner({
   const outcome: MascotOutcome = pnlNow >= 0 ? "win" : "lose";
 
   // Load the (static) assets once: brand logo, market icon, QR of the ref link.
-  // Mark ready ONLY after all three settle, so we never draw/export a partial card.
+  // This opens only half the gate — the mascot chain below opens the other half.
   useEffect(() => {
     let alive = true;
-    setReady(false);
+    setStaticReady(false);
     (async () => {
       const [logo, marketIcon, qrUrl] = await Promise.all([
         loadImage("/icon-512.png"),
@@ -117,7 +125,7 @@ function ShareCardInner({
       setAssets((prev) => ({ ...prev, logo, marketIcon, qr }));
       // One more frame so the freshly-loaded fonts are ready to paint, then reveal.
       requestAnimationFrame(() => {
-        if (alive) setReady(true);
+        if (alive) setStaticReady(true);
       });
     })();
     return () => {
@@ -129,6 +137,10 @@ function ShareCardInner({
   // are probed once per outcome and cached, so reopening the modal is instant.
   useEffect(() => {
     let alive = true;
+    // A new outcome means a different mascot set — drop back to "pending" and
+    // close the gate until the replacement artwork is actually decoded.
+    setMascots(null);
+    setMascotReady(false);
     listMascots(outcome).then((list) => {
       if (!alive) return;
       setMascots(list);
@@ -146,13 +158,32 @@ function ShareCardInner({
   // Load the picked mascot's bitmap for the canvas.
   useEffect(() => {
     let alive = true;
-    const picked = mascots.find((m) => m.id === mascotId);
+    const picked = mascots?.find((m) => m.id === mascotId);
     if (!picked) {
       setAssets((prev) => (prev.mascot ? { ...prev, mascot: null } : prev));
+      // Open the gate only once discovery has actually finished and come back
+      // empty — otherwise there is genuinely nothing to wait for. While it's
+      // still pending (null), hold, or we'd reveal a mascot-less card again.
+      setMascotReady(mascots !== null && mascots.length === 0);
       return;
     }
+    // Swapping mascots re-closes the gate so the canvas never shows a stale
+    // pick next to the new selection.
+    setMascotReady(false);
     loadImage(picked.src).then((mascot) => {
-      if (alive) setAssets((prev) => ({ ...prev, mascot }));
+      if (!alive) return;
+      setAssets((prev) => ({ ...prev, mascot }));
+      // `decode()` guarantees the bitmap is paint-ready, not merely fetched;
+      // without it the first drawImage can still land on an undecoded frame.
+      const reveal = () => {
+        if (alive) setMascotReady(true);
+      };
+      if (mascot) {
+        mascot.decode().then(reveal, reveal);
+      } else {
+        // Load failed — don't strand the user on a spinner over artwork.
+        reveal();
+      }
     });
     return () => {
       alive = false;
@@ -286,7 +317,7 @@ function ShareCardInner({
             the strip stays one row no matter how many artworks get dropped into
             /public/images/pnl-card. Hidden entirely if there's only one (or
             none) to choose from. */}
-        {mascots.length > 1 && (
+        {mascots && mascots.length > 1 && (
           <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
             {mascots.map((m) => {
               const active = m.id === mascotId;

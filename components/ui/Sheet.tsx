@@ -85,7 +85,7 @@ export function Sheet({
             transition={{ type: "spring", damping: 30, stiffness: 300 }}
           >
             {/* Grabber */}
-            <div className="mx-auto mb-3 h-1 w-10 shrink-0 rounded-full bg-up" />
+            <div className="mx-auto mb-2 h-1 w-10 shrink-0 rounded-full bg-up" />
 
             {/* Title bar. Always rendered (even with no title) so the close
                 button has a home — it sits far right on every sheet. */}

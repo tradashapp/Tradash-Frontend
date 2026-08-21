@@ -265,6 +265,47 @@ function Menu({
       {/* Avatar + handle / login */}
       <ProfileHeader onLogin={onLogin} />
 
+      {/* Setup — directly under the handle, because these two signatures are
+          what stand between the user and a live trade. Both steps are shown
+          side by side rather than one at a time: they fail independently, and
+          burying the second one meant a user could finish step 1 and still have
+          every order rejected with nothing on screen explaining why. */}
+      {mode === "live" && authenticated && (!agent.isReady || !builderApproved) && (
+        <div className="glass-inset mb-3 rounded-2xl p-4">
+          <div className="mb-3 flex items-start gap-2.5">
+            <HugeiconsIcon
+              icon={ShieldKeyIcon}
+              size={18}
+              className="mt-0.5 shrink-0 text-up"
+            />
+            <div>
+              <div className="text-sm font-semibold">Finish setup to trade</div>
+              <p className="mt-0.5 text-xs leading-relaxed text-text-muted">
+                Two one-time signatures. Live orders stay blocked until both are
+                done.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <SetupAction
+              step={1}
+              label="Enable one-tap trading"
+              done={agent.isReady}
+              busy={agent.onboarding}
+              onClick={agent.onboard}
+            />
+            <SetupAction
+              step={2}
+              label="Approve builder code"
+              done={builderApproved}
+              busy={agent.onboarding}
+              onClick={agent.approveBuilder}
+            />
+          </div>
+        </div>
+      )}
+
       {/* Balance card: total on top, today's P&L beneath it, then the funding /
           trading split that adds up to the total. */}
       <div className="glass-inset mb-3 rounded-2xl p-4">
@@ -424,6 +465,63 @@ function Menu({
 }
 
 // One half of the funding / trading split inside the balance card.
+// One step of the live-trading setup. Renders as a completed row once done
+// (not hidden) so the user can see both steps and which one is outstanding —
+// the pair only makes sense read together.
+function SetupAction({
+  step,
+  label,
+  done,
+  busy,
+  onClick,
+}: {
+  step: number;
+  label: string;
+  done: boolean;
+  busy: boolean;
+  onClick: () => void;
+}) {
+  if (done) {
+    return (
+      <div className="flex items-center gap-2.5 rounded-xl bg-white/[0.03] px-3 py-2.5">
+        <HugeiconsIcon
+          icon={CheckmarkCircle02Icon}
+          size={18}
+          className="shrink-0 text-up"
+        />
+        <span className="text-sm font-medium text-text-muted line-through">
+          {label}
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        playSound("tap");
+        haptic("tap");
+        onClick();
+      }}
+      disabled={busy}
+      className="flex w-full items-center justify-between gap-2 rounded-xl bg-up px-3 py-2.5 text-sm font-semibold text-black transition-transform active:scale-95 disabled:opacity-60"
+    >
+      <span className="flex items-center gap-2">
+        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-black/20 text-[11px] font-bold">
+          {step}
+        </span>
+        {busy ? "Approve in wallet…" : label}
+      </span>
+      {busy ? (
+        <HugeiconsIcon icon={Loading03Icon} size={16} className="animate-spin" />
+      ) : (
+        <HugeiconsIcon icon={ArrowRight01Icon} size={16} />
+      )}
+    </button>
+  );
+}
+
 function BalanceCell({
   label,
   value,

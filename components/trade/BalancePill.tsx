@@ -18,14 +18,6 @@ interface Props {
 // modes (recomputed from the live MagicBlock price), so it tracks the chart.
 export function BalancePill({ onOpen }: Props) {
   const mode = useAppSelector((s) => s.tradingMode.mode);
-  // Live-trading setup state. Shown as a quiet dot rather than a blocking
-  // modal: the real gate is the trade tap (which opens this same sheet), so
-  // this only has to make the unfinished step *visible* while demo stays usable.
-  const agentAuthorized = useAppSelector((s) => s.trading.agentAuthorized);
-  const builderApproved = useAppSelector((s) => s.trading.builderApproved);
-  const wallet = useAppSelector((s) => s.user.walletAddress);
-  const needsSetup =
-    mode === "live" && wallet != null && (!agentAuthorized || !builderApproved);
 
   const demoBalance = useAppSelector((s) => s.tradingMode.demo.balance);
   const demoPositions = useAppSelector((s) => s.tradingMode.demo.positions);
@@ -67,16 +59,11 @@ export function BalancePill({ onOpen }: Props) {
       }}
       className="group flex items-center gap-2 rounded-full bg-bg-overlay/60 px-4 py-2 backdrop-blur-sm transition-colors hover:bg-bg-overlay"
     >
-      <span className="relative">
-        <HugeiconsIcon
-          icon={Wallet01Icon}
-          size={20}
-          className={needsSetup ? "text-warn" : "text-text-muted"}
-        />
-        {needsSetup && (
-          <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-warn ring-2 ring-bg-overlay" />
-        )}
-      </span>
+      <HugeiconsIcon
+        icon={Wallet01Icon}
+        size={20}
+        className="text-text-muted"
+      />
       <div className="text-right leading-tight">
         <div className="text-base font-semibold">
           {balance != null ? (
@@ -87,14 +74,10 @@ export function BalancePill({ onOpen }: Props) {
         </div>
         <div
           className={`text-[10px] font-medium tracking-wide ${
-            needsSetup
-              ? "text-warn"
-              : mode === "demo"
-                ? "text-text-muted"
-                : "text-up"
+            mode === "demo" ? "text-text-muted" : "text-up"
           }`}
         >
-          {needsSetup ? "SETUP" : mode === "demo" ? "DEMO" : ""}
+          {mode === "demo" ? "DEMO" : ""}
         </div>
       </div>
     </button>

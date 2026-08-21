@@ -23,7 +23,7 @@ export function BalancePill({ onOpen }: Props) {
   // this only has to make the unfinished step *visible* while demo stays usable.
   const agentAuthorized = useAppSelector((s) => s.trading.agentAuthorized);
   const builderApproved = useAppSelector((s) => s.trading.builderApproved);
-  const wallet = useAppSelector((s) => s.user.wallet);
+  const wallet = useAppSelector((s) => s.user.walletAddress);
   const needsSetup =
     mode === "live" && wallet != null && (!agentAuthorized || !builderApproved);
 

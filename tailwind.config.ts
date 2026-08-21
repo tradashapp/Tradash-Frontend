@@ -28,6 +28,12 @@ const config: Config = {
           DEFAULT: "#E6432D",
           soft: "rgba(230, 67, 45, 0.12)",
         },
+        // Action-needed / incomplete setup. Deliberately NOT `down` — red reads
+        // as a loss on a trading screen, not as "finish this step".
+        warn: {
+          DEFAULT: "#F5A524",
+          soft: "rgba(245, 165, 36, 0.12)",
+        },
         text: {
           DEFAULT: "#e8eaed",
           muted: "#8b90a0",

@@ -122,16 +122,18 @@ export function useTrade(
   // checked the builder code at all (so those orders failed only once Bulk
   // rejected them, after the user had already committed).
   //
-  // Returns true when the caller must STOP. Ordered by what the user has to do
+  // Returns the ready signer, or null when the caller must STOP — returning it
+  // (rather than a boolean) is what lets `const s = requireLiveSetup()` narrow
+  // away the null for the order calls below. Ordered by what the user has to do
   // next: connect → set up → approve.
-  const blockedFromLiveTrade = useCallback((): boolean => {
-    if (signer && builderApproved) return false;
+  const requireLiveSetup = useCallback((): AgentSigner | null => {
+    if (signer && builderApproved) return signer;
 
     // Genuinely not connected — the original message is correct here.
     if (!authenticated) {
       dispatch(setOrderError("Connect wallet to trade live"));
       toast("Connect wallet to trade live", { type: "error" });
-      return true;
+      return null;
     }
 
     // Connected, but one-tap trading isn't set up (no authorized agent key).
@@ -143,7 +145,7 @@ export function useTrade(
         description: "Two quick signatures and you're set.",
       });
       onNeedsSetup?.();
-      return true;
+      return null;
     }
 
     // Agent is ready but the builder code isn't approved. Every order carries
@@ -156,7 +158,7 @@ export function useTrade(
       description: "One signature to finish setup.",
     });
     onNeedsSetup?.();
-    return true;
+    return null;
   }, [signer, builderApproved, authenticated, onNeedsSetup, dispatch, toast]);
 
   const open = useCallback(
@@ -187,7 +189,8 @@ export function useTrade(
       }
 
       // Live: one-tap market order via the agent signer.
-      if (blockedFromLiveTrade()) return;
+      const liveSigner = requireLiveSetup();
+      if (!liveSigner) return;
       // Snapshot the MagicBlock price at THIS instant (the tap) so the chart's
       // entry line lands exactly where the user clicked. Consumed when the
       // position appears via the WS. Purely visual — PnL stays Bulk-anchored.
@@ -207,7 +210,7 @@ export function useTrade(
           settings.defaultLeverage,
           price
         );
-        await openMarket(signer, {
+        await openMarket(liveSigner, {
           bulkSymbol: market.bulkSymbol,
           isLong: direction === "long",
           size,
@@ -271,14 +274,15 @@ export function useTrade(
       return;
     }
 
-    if (blockedFromLiveTrade()) return;
+    const liveSigner = requireLiveSetup();
+    if (!liveSigner) return;
     dispatch(setOrderStatus("submitting"));
     toast(`Closing ${position.symbol}…`, {
       type: "loading",
       id: `close-${position.symbol}`,
     });
     try {
-      await reduceMarket(signer, {
+      await reduceMarket(liveSigner, {
         bulkSymbol: market.bulkSymbol,
         positionIsLong: position.direction === "long",
         size: position.size,
@@ -298,7 +302,7 @@ export function useTrade(
         description: msg.replace(/^Bulk order error:\s*/, ""),
       });
     }
-  }, [mode, position, price, signer, blockedFromLiveTrade, dispatch, toast]);
+  }, [mode, position, price, signer, requireLiveSetup, dispatch, toast]);
 
   // Close EVERY open position, across all markets. Fired from the aggregated
   // PnL card when more than one position is open.
@@ -331,7 +335,8 @@ export function useTrade(
       return;
     }
 
-    if (blockedFromLiveTrade()) return;
+    const liveSigner = requireLiveSetup();
+    if (!liveSigner) return;
 
     dispatch(setOrderStatus("submitting"));
     for (const pos of open) {
@@ -343,7 +348,7 @@ export function useTrade(
 
     const results = await Promise.allSettled(
       open.map((pos) =>
-        reduceMarket(signer, {
+        reduceMarket(liveSigner, {
           bulkSymbol: MARKETS[pos.symbol].bulkSymbol,
           positionIsLong: pos.direction === "long",
           size: pos.size,
@@ -392,7 +397,7 @@ export function useTrade(
     allLivePositions,
     allPrices,
     signer,
-    blockedFromLiveTrade,
+    requireLiveSetup,
     dispatch,
     toast,
   ]);
@@ -447,7 +452,8 @@ export function useTrade(
         return;
       }
 
-      if (blockedFromLiveTrade()) return;
+      const liveSigner = requireLiveSetup();
+      if (!liveSigner) return;
       dispatch(setOrderStatus("submitting"));
       // Fallback duration so a 504-that-never-fills can't spin forever; the WS
       // normally upgrades this to success/info well before it elapses.
@@ -457,7 +463,7 @@ export function useTrade(
         duration: 90_000,
       });
       try {
-        await openMarket(signer, {
+        await openMarket(liveSigner, {
           bulkSymbol: market.bulkSymbol,
           isLong: position.direction === "long",
           size: addSize,
@@ -480,7 +486,7 @@ export function useTrade(
         }
       }
     },
-    [mode, position, price, signer, blockedFromLiveTrade, dispatch, toast]
+    [mode, position, price, signer, requireLiveSetup, dispatch, toast]
   );
 
   // Reduce SIZE of the open position — a reduce-only market order for part of the
@@ -531,14 +537,15 @@ export function useTrade(
         return;
       }
 
-      if (blockedFromLiveTrade()) return;
+      const liveSigner = requireLiveSetup();
+      if (!liveSigner) return;
       dispatch(setOrderStatus("submitting"));
       toast(`Reducing ${position.symbol}…`, {
         type: "loading",
         id: `adjust-${position.symbol}`,
       });
       try {
-        await reduceMarket(signer, {
+        await reduceMarket(liveSigner, {
           bulkSymbol: market.bulkSymbol,
           positionIsLong: position.direction === "long",
           size: cutSize,
@@ -561,7 +568,7 @@ export function useTrade(
         }
       }
     },
-    [mode, position, price, signer, blockedFromLiveTrade, dispatch, toast]
+    [mode, position, price, signer, requireLiveSetup, dispatch, toast]
   );
 
   // Can a trail be armed right now? Only when in enough profit that the clamped

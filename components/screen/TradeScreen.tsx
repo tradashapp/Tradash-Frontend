@@ -76,7 +76,13 @@ export function TradeScreen({ initialMarket }: Props) {
   // A rejected-for-unapproved-builder-code order is the only reliable signal
   // that our cached approval is stale — feed it back so the Account sheet shows
   // the step as incomplete and offers the re-approve button.
-  const trade = useTrade(agent.signer, agent.invalidateBuilderApproval);
+  // A blocked live trade opens the Account sheet, where both setup steps live.
+  // Declared before `accountOpen` below — `setAccountOpen` is a stable setter,
+  // so referencing it here is safe.
+  const trade = useTrade(agent.signer, agent.invalidateBuilderApproval, {
+    authenticated: agent.authenticated,
+    onNeedsSetup: () => setAccountOpen(true),
+  });
 
   // Position overlay for the chart. The entry LINE is drawn at the BREAK-EVEN
   // MagicBlock price — the exact level where the displayed PnL reads 0.00 and the

@@ -4,6 +4,7 @@ import "./globals.css";
 import { Providers } from "./providers";
 import { SplashScreen } from "@/components/splash/SplashScreen";
 import { config } from "@/lib/config";
+import { Analytics } from "@vercel/analytics/next";
 
 // Space Grotesk is the main UI typeface; JetBrains Mono backs tabular figures.
 const sans = Space_Grotesk({
@@ -75,6 +76,10 @@ export default function RootLayout({
       <body>
         <SplashScreen />
         <Providers>{children}</Providers>
+        {/* Vercel Web Analytics. Inert until Analytics is enabled for the
+            project on the Vercel dashboard, and a no-op outside Vercel (local
+            dev / self-hosted), so it costs nothing here. */}
+        <Analytics />
       </body>
     </html>
   );

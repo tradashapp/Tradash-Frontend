@@ -293,6 +293,7 @@ function Menu({
               label="Enable one-tap trading"
               done={agent.isReady}
               busy={agent.onboarding}
+              primary={!agent.isReady}
               onClick={agent.onboard}
             />
             <SetupAction
@@ -300,6 +301,7 @@ function Menu({
               label="Approve builder code"
               done={builderApproved}
               busy={agent.onboarding}
+              primary={agent.isReady}
               onClick={agent.approveBuilder}
             />
           </div>
@@ -421,24 +423,20 @@ function Menu({
           Reset demo balance
         </button>
       ) : !authenticated ? null : (
-        <div className="flex flex-col gap-2">
-          {/* The setup actions used to live here, at the very bottom of the
-              sheet. They now sit under the profile header — see SetupAction. */}
-          <button
-            type="button"
-            onClick={onLogout}
-            className="glass-inset mt-1 flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-sm font-medium text-text-muted transition-colors hover:text-down"
-          >
-            <HugeiconsIcon icon={Logout01Icon} size={18} />
-            Log out
-          </button>
-        </div>
+        /* Setup actions live in the card under the profile header. */
+        <button
+          type="button"
+          onClick={onLogout}
+          className="glass-inset mt-1 flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-sm font-medium text-text-muted transition-colors hover:text-down"
+        >
+          <HugeiconsIcon icon={Logout01Icon} size={18} />
+          Log out
+        </button>
       )}
     </div>
   );
 }
 
-// One half of the funding / trading split inside the balance card.
 // One step of the live-trading setup. Renders as a completed row once done
 // (not hidden) so the user can see both steps and which one is outstanding —
 // the pair only makes sense read together.
@@ -447,12 +445,16 @@ function SetupAction({
   label,
   done,
   busy,
+  primary,
   onClick,
 }: {
   step: number;
   label: string;
   done: boolean;
   busy: boolean;
+  /** Only the step the user should act on NOW gets the solid green treatment —
+      two competing CTAs read as a choice, when really step 1 does both. */
+  primary: boolean;
   onClick: () => void;
 }) {
   if (done) {
@@ -479,10 +481,18 @@ function SetupAction({
         onClick();
       }}
       disabled={busy}
-      className="flex w-full items-center justify-between gap-2 rounded-xl bg-up px-3 py-2.5 text-sm font-semibold text-black transition-transform active:scale-95 disabled:opacity-60"
+      className={`flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold transition-transform active:scale-95 disabled:opacity-60 ${
+        primary
+          ? "bg-up text-black"
+          : "bg-white/[0.06] text-text-muted hover:text-text"
+      }`}
     >
       <span className="flex items-center gap-2">
-        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-black/20 text-[11px] font-bold">
+        <span
+          className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${
+            primary ? "bg-black/20" : "bg-white/10"
+          }`}
+        >
           {step}
         </span>
         {busy ? "Approve in wallet…" : label}
@@ -496,6 +506,7 @@ function SetupAction({
   );
 }
 
+// One half of the funding / trading split inside the balance card.
 function BalanceCell({
   label,
   value,

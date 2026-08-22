@@ -1,6 +1,7 @@
 import { config } from "@/lib/config";
 import { MARKETS, MARKET_ORDER } from "@/lib/markets";
 import type { MarketSymbol, Balance, Position, Direction } from "@/types";
+import { readMargin, type BulkMargin } from "./types";
 
 // Subscribes to the Bulk account WebSocket (no signature required). Pushes live
 // margin (balance/equity) and position deltas (entry, size, leverage, liq price,
@@ -28,12 +29,10 @@ export interface AccountEvents {
 
 // Real WS shapes (verified live 2026-07-26). Account messages arrive as
 // { type:"account", data:{ type:"accountSnapshot"|<delta>, margin:{...}, positions:[...] } }
-interface RawMargin {
-  totalBalance?: number;
-  availableBalance?: number;
-  marginUsed?: number;
-  unrealizedPnl?: number;
-}
+// Margin arrives under Bulk's CURRENT field names (`totalMargin` /
+// `availableMargin`) — the old `totalBalance` / `availableBalance` spellings
+// were retired. `readMargin` accepts either, so both shapes work.
+type RawMargin = BulkMargin;
 
 interface RawPosition {
   symbol?: string;
@@ -74,38 +73,24 @@ export function subscribeAccount(
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
   // Last known margin, so PARTIAL deltas can be merged rather than replacing.
-  // A `marginUpdate` only carries the fields that changed — most commonly just
-  // `unrealizedPnl` while a position is open. Defaulting the missing ones to 0
-  // (as this used to) wiped `equity` on the first delta after the snapshot, so
-  // the balance pill fell to 0 and then displayed only the PnL accrued since
-  // page load — going negative whenever that PnL was negative.
-  let lastMargin: Required<RawMargin> | null = null;
+  // A `marginUpdate` delta carries only the fields that changed, so defaulting
+  // the missing ones to 0 would blank out equity.
+  let lastMargin: Balance | null = null;
 
   const emitBalance = (m: RawMargin, replace = false) => {
-    // A delta that lands before any snapshot has nothing to merge into. Filling
-    // the gaps with 0 would publish an equity the server never sent, so skip it
-    // — the snapshot that follows carries the real figures.
-    if (!replace && !lastMargin && m.totalBalance == null) return;
-    const base: Required<RawMargin> =
-      replace || !lastMargin
-        ? { totalBalance: 0, availableBalance: 0, marginUsed: 0, unrealizedPnl: 0 }
-        : lastMargin;
-    const next: Required<RawMargin> = {
-      totalBalance: m.totalBalance ?? base.totalBalance,
-      availableBalance: m.availableBalance ?? base.availableBalance,
-      marginUsed: m.marginUsed ?? base.marginUsed,
-      unrealizedPnl: m.unrealizedPnl ?? base.unrealizedPnl,
+    const r = readMargin(m);
+    // Nothing to merge into yet and no equity in this message → publishing it
+    // would invent an equity the server never sent. Wait for the snapshot.
+    if (!replace && !lastMargin && r.equity == null) return;
+    const base = replace ? null : lastMargin;
+    const next: Balance = {
+      equity: r.equity ?? base?.equity ?? 0,
+      available: r.available ?? base?.available ?? 0,
+      marginUsed: r.marginUsed ?? base?.marginUsed ?? 0,
+      unrealizedPnl: r.unrealizedPnl ?? base?.unrealizedPnl ?? 0,
     };
     lastMargin = next;
-    events.onBalance?.(
-      {
-        equity: next.totalBalance,
-        available: next.availableBalance,
-        marginUsed: next.marginUsed,
-        unrealizedPnl: next.unrealizedPnl,
-      },
-      replace
-    );
+    events.onBalance?.(next, replace);
   };
 
   const handleMessage = (raw: string) => {

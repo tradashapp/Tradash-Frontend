@@ -92,15 +92,61 @@ export interface AccountQuery {
 // POST /account returns an ARRAY: [{ fullAccount: {...} }]. The account nests
 // margin + positions with these exact field names.
 
+/**
+ * Account margin. Bulk RENAMED these fields (observed live 2026-08-22): what was
+ * `totalBalance` / `availableBalance` is now `totalMargin` / `availableMargin`.
+ * The old names are gone from both REST and the WS, so reading them yielded
+ * `undefined` → equity 0 and a total balance that showed collateral only, with
+ * unrealized PnL never added in. Both spellings are kept optional so we tolerate
+ * either shape; use `readMargin()` to normalize.
+ */
 export interface BulkMargin {
-  totalBalance: number;
-  availableBalance: number;
+  /** Current name for total account equity (includes unrealized PnL). */
+  totalMargin?: number;
+  /** Current name for free balance available as new margin. */
+  availableMargin?: number;
+  /** Legacy names, pre-2026-08-22. */
+  totalBalance?: number;
+  availableBalance?: number;
+  /** Free collateral that can actually be moved out. */
+  transferableBalance?: number;
+  marginUsed?: number;
+  notional?: number;
+  realizedPnl?: number;
+  unrealizedPnl?: number;
+  fees?: number;
+  funding?: number;
+}
+
+/** Normalized margin figures, independent of which field spelling Bulk sent. */
+export interface NormalizedMargin {
+  equity: number;
+  available: number;
   marginUsed: number;
-  notional: number;
-  realizedPnl: number;
   unrealizedPnl: number;
-  fees: number;
-  funding: number;
+}
+
+/**
+ * Read Bulk's margin under either field spelling. Returns `null` for any figure
+ * the payload did not carry, so callers can distinguish "absent" from a real 0
+ * (defaulting to 0 is exactly what blanked the balance).
+ */
+export function readMargin(m: BulkMargin | undefined | null): {
+  equity: number | null;
+  available: number | null;
+  marginUsed: number | null;
+  unrealizedPnl: number | null;
+} {
+  const pick = (...vals: (number | undefined)[]) => {
+    for (const v of vals) if (typeof v === "number" && Number.isFinite(v)) return v;
+    return null;
+  };
+  return {
+    equity: pick(m?.totalMargin, m?.totalBalance),
+    available: pick(m?.availableMargin, m?.availableBalance),
+    marginUsed: pick(m?.marginUsed),
+    unrealizedPnl: pick(m?.unrealizedPnl),
+  };
 }
 
 export interface BulkPosition {

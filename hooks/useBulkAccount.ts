@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { subscribeAccount } from "@/lib/bulk/accountWs";
 import { fetchAccount } from "@/lib/bulk/client";
+import { readMargin } from "@/lib/bulk/types";
 import type { BulkPosition } from "@/lib/bulk/types";
 import { MARKETS } from "@/lib/markets";
 import { api } from "@/lib/api";
@@ -74,12 +75,16 @@ export function useBulkAccount(
           lastOpen.current = {};
           return;
         }
+        // Bulk renamed these (totalBalance→totalMargin, availableBalance→
+        // availableMargin), so read them through the normalizer rather than by
+        // a single hard-coded spelling.
+        const m = readMargin(acct.margin);
         dispatch(
           setBalance({
-            equity: acct.margin.totalBalance,
-            available: acct.margin.availableBalance,
-            marginUsed: acct.margin.marginUsed,
-            unrealizedPnl: acct.margin.unrealizedPnl,
+            equity: m.equity ?? 0,
+            available: m.available ?? 0,
+            marginUsed: m.marginUsed ?? 0,
+            unrealizedPnl: m.unrealizedPnl ?? 0,
           })
         );
         const open = acct.positions

@@ -82,6 +82,10 @@ export function subscribeAccount(
   let lastMargin: Required<RawMargin> | null = null;
 
   const emitBalance = (m: RawMargin, replace = false) => {
+    // A delta that lands before any snapshot has nothing to merge into. Filling
+    // the gaps with 0 would publish an equity the server never sent, so skip it
+    // — the snapshot that follows carries the real figures.
+    if (!replace && !lastMargin && m.totalBalance == null) return;
     const base: Required<RawMargin> =
       replace || !lastMargin
         ? { totalBalance: 0, availableBalance: 0, marginUsed: 0, unrealizedPnl: 0 }

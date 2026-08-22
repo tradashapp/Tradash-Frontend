@@ -7,7 +7,7 @@ import type { BulkPosition } from "@/lib/bulk/types";
 import { MARKETS } from "@/lib/markets";
 import { api } from "@/lib/api";
 import { useAppDispatch, useAppStore } from "@/store/hooks";
-import { setBalance } from "@/store/slices/userSlice";
+import { setBalance, mergeBalance } from "@/store/slices/userSlice";
 import {
   setPosition,
   reconcilePositions,
@@ -95,7 +95,11 @@ export function useBulkAccount(
       .catch(() => {});
 
     const unsub = subscribeAccount(walletAddress, {
-      onBalance: (b) => dispatch(setBalance(b)),
+      // A snapshot is authoritative and replaces the balance; a delta is
+      // partial and must be MERGED. Replacing on a delta is what previously
+      // zeroed `equity` and left the pill showing PnL-since-load only.
+      onBalance: (b, snapshot) =>
+        dispatch(snapshot ? setBalance(b) : mergeBalance(b)),
 
       // Full snapshot: reconcile ALL markets. Any previously-open market absent
       // from the incoming set has closed → record it.

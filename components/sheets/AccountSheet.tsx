@@ -243,13 +243,18 @@ function Menu({
 
   // Total = funding wallet + trading. In demo there's no wallet, so it's just
   // the simulated balance.
+  //
+  // `walletUsdc` is null while the first RPC read is in flight and whenever a
+  // read fails, which is NOT the same as "zero USDC". Treating it as 0 made the
+  // total silently drop the funding leg; we only add a leg once it is known,
+  // and fall back to the trading balance alone rather than showing nothing.
   const fundingBalance = mode === "demo" ? null : collateral.walletUsdc;
   const totalBalance =
     mode === "demo"
       ? demoBalance
-      : tradingBalance != null || fundingBalance != null
-        ? (tradingBalance ?? 0) + (fundingBalance ?? 0)
-        : null;
+      : tradingBalance == null && fundingBalance == null
+        ? null
+        : (tradingBalance ?? 0) + (fundingBalance ?? 0);
 
   // Today's P&L = everything realized since local midnight + what's currently
   // floating on open positions. The percentage is against the day's opening

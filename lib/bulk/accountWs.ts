@@ -14,7 +14,12 @@ const bulkToSymbol: Record<string, MarketSymbol> = Object.fromEntries(
 );
 
 export interface AccountEvents {
-  onBalance?: (b: Balance) => void;
+  /**
+   * Margin update. `snapshot` = authoritative full margin (replace); otherwise
+   * it's a merged delta — see `emitBalance` for why deltas must not be treated
+   * as complete.
+   */
+  onBalance?: (b: Balance, snapshot: boolean) => void;
   /** Full set of open positions (from a snapshot) — reconcile all markets. */
   onSnapshot?: (positions: Position[]) => void;
   /** A single market's position changed (delta). null = that market closed. */
@@ -68,13 +73,35 @@ export function subscribeAccount(
   let closed = false;
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
-  const emitBalance = (m: RawMargin) => {
-    events.onBalance?.({
-      equity: m.totalBalance ?? 0,
-      available: m.availableBalance ?? 0,
-      marginUsed: m.marginUsed ?? 0,
-      unrealizedPnl: m.unrealizedPnl ?? 0,
-    });
+  // Last known margin, so PARTIAL deltas can be merged rather than replacing.
+  // A `marginUpdate` only carries the fields that changed — most commonly just
+  // `unrealizedPnl` while a position is open. Defaulting the missing ones to 0
+  // (as this used to) wiped `equity` on the first delta after the snapshot, so
+  // the balance pill fell to 0 and then displayed only the PnL accrued since
+  // page load — going negative whenever that PnL was negative.
+  let lastMargin: Required<RawMargin> | null = null;
+
+  const emitBalance = (m: RawMargin, replace = false) => {
+    const base: Required<RawMargin> =
+      replace || !lastMargin
+        ? { totalBalance: 0, availableBalance: 0, marginUsed: 0, unrealizedPnl: 0 }
+        : lastMargin;
+    const next: Required<RawMargin> = {
+      totalBalance: m.totalBalance ?? base.totalBalance,
+      availableBalance: m.availableBalance ?? base.availableBalance,
+      marginUsed: m.marginUsed ?? base.marginUsed,
+      unrealizedPnl: m.unrealizedPnl ?? base.unrealizedPnl,
+    };
+    lastMargin = next;
+    events.onBalance?.(
+      {
+        equity: next.totalBalance,
+        available: next.availableBalance,
+        marginUsed: next.marginUsed,
+        unrealizedPnl: next.unrealizedPnl,
+      },
+      replace
+    );
   };
 
   const handleMessage = (raw: string) => {
@@ -94,7 +121,7 @@ export function subscribeAccount(
       // Full snapshot: margin nested + positions array → reconcile ALL markets.
       case "accountSnapshot": {
         const margin = data.margin as RawMargin | undefined;
-        if (margin) emitBalance(margin);
+        if (margin) emitBalance(margin, true); // authoritative → replace
         const positions = data.positions as RawPosition[] | undefined;
         if (positions && events.onSnapshot) {
           const open = positions
@@ -130,6 +157,9 @@ export function subscribeAccount(
 
   const connect = () => {
     if (closed) return;
+    // A new socket re-sends a snapshot; drop the old merge base so a stale
+    // margin can never leak across a reconnect.
+    lastMargin = null;
     ws = new WebSocket(config.bulk.accountWsUrl);
 
     ws.onopen = () => {

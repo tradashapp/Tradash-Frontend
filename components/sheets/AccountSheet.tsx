@@ -435,7 +435,7 @@ function Menu({
           className="glass-inset mt-1 flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-sm font-medium text-text-muted transition-colors hover:text-down"
         >
           <HugeiconsIcon icon={Logout01Icon} size={18} />
-          Log out
+          Log out 
         </button>
       )}
     </div>

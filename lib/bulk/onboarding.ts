@@ -1,6 +1,6 @@
 import { ensureKeychain } from "./keychain";
 import { submitSigned } from "./client";
-import { signatureDomain } from "@/lib/config";
+import { nonceNs, signatureDomain } from "@/lib/config";
 import type { BulkNetwork } from "@/lib/config";
 import type { OrderResponse } from "./types";
 
@@ -18,14 +18,15 @@ export type MasterSignBytes = (message: Uint8Array) => Promise<string>;
 //
 //  - nonce: the WASM calls SystemTime::now() when no nonce is given, which
 //    PANICS ("time not implemented") in both the browser and Node. Always pass
-//    an explicit ms-epoch (u64) nonce so it never touches the system clock.
+//    an explicit nonce so it never touches the system clock. See `nonceNs()`
+//    for why it's a nanosecond STRING and not `Date.now()`.
 //  - signatureDomain: Bulk v1.0.17 binds every signature to one network. It is
 //    NOT sent in the payload — the server rebuilds the preimage with its own
 //    domain, so a missing/mismatched one comes back as an opaque `bad
 //    signature` with nothing pointing at the domain as the cause.
 const signOpts = (account: string) => ({
   account,
-  nonce: Date.now(),
+  nonce: nonceNs(),
   signatureDomain: signatureDomain(),
 });
 

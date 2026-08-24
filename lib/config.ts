@@ -101,6 +101,7 @@ export const config = {
  * Bulk v1.0.17 (31 Jul 2026) made every signed transaction network-bound: the
  * signing preimage is
  *   wincode(actions) || nonce_le_u64 || account_pubkey_32 || signature_domain_u8
+ * (the nonce is nanoseconds — see `nonceNs` below)
  * with the domain byte appended last (mainnet 1, testnet 2, devnet 3).
  *
  * CRITICAL: the domain is *trusted client configuration*. It is NOT sent as a
@@ -122,6 +123,29 @@ export function signatureDomain(): BulkNetwork {
     );
   }
   return n;
+}
+
+/**
+ * A fresh nonce for a signed Bulk transaction, in NANOSECONDS, as a string.
+ *
+ * Bulk treats the nonce as a timestamp and rejects anything outside a narrow
+ * freshness window with `transactionRejected: {reason:"expired"}` — an opaque
+ * error that names neither the nonce nor its units. Verified live 2026-08-24
+ * against exchange-api.bulk.trade: ms, seconds and microseconds ALL come back
+ * `expired`; only nanoseconds are accepted (faucet then returns a real
+ * `{deposit:{amount:1000}}`). This is what broke onboarding — every
+ * master-signed action (faucet, agent wallet, builder code) was rejected, the
+ * account was never created, and `/account` 500d for the "$0 balance" the Bulk
+ * team described.
+ *
+ * It MUST be a string: `Date.now() * 1e6` is ~1.79e18, far past
+ * Number.MAX_SAFE_INTEGER, so a JS number silently loses the low digits — and
+ * keychain >= 0.1.24 rejects it outright ("can't be represented as a JavaScript
+ * number"). The keychain's own `nonce` params are typed `string` for this
+ * reason. Build it with BigInt so no precision is lost on the way.
+ */
+export function nonceNs(): string {
+  return (BigInt(Date.now()) * 1_000_000n).toString();
 }
 
 /** The USDC mint for the active Bulk network (devnet today, mainnet when live). */

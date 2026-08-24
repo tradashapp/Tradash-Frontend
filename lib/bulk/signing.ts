@@ -1,6 +1,6 @@
 import { ensureKeychain } from "./keychain";
 import type { Keychain } from "./keychain";
-import { signatureDomain } from "@/lib/config";
+import { nonceNs, signatureDomain } from "@/lib/config";
 
 // One-tap trade signing with the agent session key. The agent signs orders on
 // behalf of the MASTER account (agent-wallet flow): we `prepareOrder` with
@@ -35,13 +35,14 @@ export async function makeAgentSigner(
     signOrderFor(order: unknown) {
       // account = master (whose position), signer = agent (who signs).
       // Pass an explicit nonce — without it the WASM calls SystemTime::now()
-      // which panics ("time not implemented") in the browser.
+      // which panics ("time not implemented") in the browser. It must be a
+      // nanosecond string (see `nonceNs`); a ms nonce is rejected as `expired`.
       // `signatureDomain` binds the signature to this network (Bulk v1.0.17);
       // omitting it signs the old preimage → Bulk rejects with `bad signature`.
       const prepared = kc.prepareOrder(order, {
         account: masterAccount,
         signer: signer.pubkey,
-        nonce: Date.now(),
+        nonce: nonceNs(),
         signatureDomain: signatureDomain(),
       });
       return signer.signPrepared(prepared);

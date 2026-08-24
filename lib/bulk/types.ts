@@ -49,7 +49,7 @@ export type BulkAction =
 /** The canonical part that gets signed. */
 export interface SigningPayload {
   actions: BulkAction[];
-  nonce: number; // u64, use Date.now()
+  nonce: string; // u64 NANOSECONDS as a string — see nonceNs() in lib/config
   account: string; // base58 pubkey being traded
 }
 

@@ -1,5 +1,5 @@
 import { config } from "@/lib/config";
-import type { CompletedTrade } from "@/types";
+import type { CompletedTrade, TradeEpisode } from "@/types";
 
 // Thin client for our own backend (users, onboarding record, trades, stats).
 const BASE = config.apiUrl;
@@ -26,6 +26,53 @@ interface ApiTrade {
   durationMs: number;
   openedAt: string; // ISO
   closedAt: string; // ISO
+  episodeId?: string;
+}
+
+// Backend episode shape. Timestamps are ISO on the wire, ms epoch in the store.
+interface ApiEpisode {
+  id: string;
+  symbol: string;
+  direction: string;
+  openedAt: string;
+  closedAt: string;
+  entryLine: number;
+  liqLine?: number | null;
+  path: TradeEpisode["path"];
+  gaps: TradeEpisode["gaps"];
+  coverage: number;
+}
+
+function toApiEpisode(e: TradeEpisode): ApiEpisode {
+  return {
+    id: e.id,
+    symbol: e.symbol,
+    direction: e.direction,
+    openedAt: new Date(e.openedAt).toISOString(),
+    closedAt: new Date(e.closedAt ?? e.openedAt).toISOString(),
+    entryLine: e.entryLine,
+    liqLine: e.liqLine ?? null,
+    path: e.path,
+    gaps: e.gaps,
+    coverage: e.coverage,
+  };
+}
+
+function fromApiEpisode(e: ApiEpisode): TradeEpisode {
+  return {
+    id: e.id,
+    // The backend only ever stores live episodes.
+    mode: "live",
+    symbol: e.symbol as TradeEpisode["symbol"],
+    direction: e.direction as TradeEpisode["direction"],
+    openedAt: new Date(e.openedAt).getTime(),
+    closedAt: new Date(e.closedAt).getTime(),
+    entryLine: e.entryLine,
+    liqLine: e.liqLine ?? undefined,
+    path: e.path,
+    gaps: e.gaps ?? [],
+    coverage: e.coverage,
+  };
 }
 
 function toApiTrade(t: CompletedTrade): ApiTrade {
@@ -41,6 +88,7 @@ function toApiTrade(t: CompletedTrade): ApiTrade {
     durationMs: t.durationMs,
     openedAt: new Date(t.openedAt).toISOString(),
     closedAt: new Date(t.closedAt).toISOString(),
+    episodeId: t.episodeId,
   };
 }
 
@@ -60,6 +108,7 @@ function fromApiTrade(t: ApiTrade & { id?: string }): CompletedTrade {
     durationMs: t.durationMs,
     openedAt: new Date(t.openedAt).getTime(),
     closedAt: new Date(t.closedAt).getTime(),
+    episodeId: t.episodeId,
   };
 }
 
@@ -94,6 +143,25 @@ export const api = {
       method: "POST",
       body: JSON.stringify(toApiTrade(trade)),
     }),
+
+  /**
+   * Upload a recorded price path. Posted separately from the trade row because
+   * ONE episode backs several rows (open/add/reduce/close) — sending it per row
+   * would store the same samples up to four times.
+   */
+  recordEpisode: (privyId: string, episode: TradeEpisode) =>
+    req(`/users/${encodeURIComponent(privyId)}/episodes`, {
+      method: "POST",
+      body: JSON.stringify(toApiEpisode(episode)),
+    }),
+
+  /** Fetch a user's recorded episodes (newest first). */
+  fetchEpisodes: async (privyId: string): Promise<TradeEpisode[]> => {
+    const rows = await req<ApiEpisode[]>(
+      `/users/${encodeURIComponent(privyId)}/episodes`
+    );
+    return rows.map(fromApiEpisode);
+  },
 
   /** Fetch a user's live trade history (newest first). */
   fetchHistory: async (privyId: string): Promise<CompletedTrade[]> => {

@@ -17,6 +17,7 @@ import {
 import { clearPendingChartEntry } from "@/store/slices/tradingSlice";
 import { hydrateLiveHistory } from "@/store/slices/historySlice";
 import { recordClose } from "@/lib/history";
+import { hydrateLiveEpisodes } from "@/store/slices/replaySlice";
 import { useToast, type ToastOptions } from "@/components/toast/ToastProvider";
 import type { Direction, MarketSymbol, Position } from "@/types";
 import type { AppDispatch, AppStore } from "@/store";
@@ -63,6 +64,13 @@ export function useBulkAccount(
           // so any stale live rows should be cleared while demo trades stay.
           dispatch(hydrateLiveHistory(trades));
         })
+        .catch(() => {});
+
+      // Recorded price paths for replaying those trades. Optional data — a
+      // failure here must never affect the history itself.
+      api
+        .fetchEpisodes(privyId)
+        .then((episodes) => dispatch(hydrateLiveEpisodes(episodes)))
         .catch(() => {});
     }
 
@@ -196,6 +204,13 @@ function recordCloseFor(
   const exit = store.getState().price.prices[prev.symbol] ?? prev.entryPrice;
   const trade = recordClose(dispatch, "live", prev, exit, prev.unrealizedPnl);
   if (privyId) api.recordTrade(privyId, trade).catch(() => {});
+  // recordClose sealed the recording into the store — upload it so the replay
+  // survives a reload and follows the user across devices. Best-effort: a
+  // failed upload costs a replay, never the trade row.
+  if (privyId && trade.episodeId) {
+    const episode = store.getState().replay.byId[trade.episodeId];
+    if (episode) api.recordEpisode(privyId, episode).catch(() => {});
+  }
   // Confirm the close (upgrades the pending close-<sym> loading toast if present).
   toast(`Closed ${prev.symbol}`, {
     type: prev.unrealizedPnl >= 0 ? "success" : "info",

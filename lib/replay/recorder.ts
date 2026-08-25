@@ -34,8 +34,21 @@ const MAX_SAMPLES = 900;
  * A silence longer than this counts as a gap (tab closed/backgrounded, oracle
  * dropped) rather than a slow tick. Generous enough that ordinary jitter or a
  * brief reconnect doesn't fragment an otherwise clean recording.
+ *
+ * This is a FLOOR, not the whole rule: on a long hold the sampling interval
+ * doubles repeatedly, and once it exceeds a fixed threshold every ordinary
+ * sample would be misread as a gap — which silently destroyed coverage and made
+ * long trades unreplayable. The effective threshold therefore scales with the
+ * current interval (see `gapThreshold`).
  */
-const GAP_THRESHOLD_MS = 3_000;
+const GAP_FLOOR_MS = 3_000;
+/** A gap must be this many sampling intervals long to count as a real absence. */
+const GAP_INTERVAL_FACTOR = 4;
+
+/** The silence that counts as a gap at the episode's current sampling rate. */
+function gapThreshold(intervalMs: number): number {
+  return Math.max(GAP_FLOOR_MS, intervalMs * GAP_INTERVAL_FACTOR);
+}
 
 /** An episode still being recorded. Sealed into a TradeEpisode on close. */
 interface LiveEpisode {
@@ -56,6 +69,8 @@ interface LiveEpisode {
   intervalMs: number;
   /** ms epoch we last accepted a sample. */
   lastAt: number;
+  /** ms epoch of the next scheduled sample slot (keeps the grid on wall clock). */
+  nextAt: number;
   gaps: ReplayGap[];
 }
 
@@ -89,6 +104,9 @@ function downsample(ep: LiveEpisode) {
   for (let i = 0; i < ep.samples.length; i += 2) out.push(ep.samples[i]!);
   ep.samples = out;
   ep.intervalMs *= 2;
+  // The grid just got coarser — reschedule from the last accepted sample so the
+  // next slot lands a full (new) interval later.
+  ep.nextAt = ep.lastAt + ep.intervalMs;
 }
 
 /**
@@ -125,6 +143,7 @@ export function startEpisode(opts: {
     t0: now,
     intervalMs: 1000 / BASE_HZ,
     lastAt: now,
+    nextAt: now + 1000 / BASE_HZ,
     gaps: [],
   };
   active.set(opts.symbol, ep);
@@ -141,17 +160,32 @@ export function record(symbol: MarketSymbol, price: number) {
   if (!ep || !Number.isFinite(price) || price <= 0) return;
 
   const now = Date.now();
-  const since = now - ep.lastAt;
-  if (since < ep.intervalMs) return;
 
+  // Samples are stored POSITIONALLY (index i == t0 + i*intervalMs), so they
+  // must land on that grid or the decoded timeline drifts away from wall clock.
+  // `nextAt` is the ideal time of the next slot; we take the first tick at or
+  // after it and advance the schedule by exactly one interval. Comparing
+  // against elapsed-since-last-accepted instead would either drop every other
+  // tick (the 16Hz oracle against a 10Hz gate yields 8Hz) or let the grid
+  // drift, both of which desynchronize the replay from the trade's real clock.
+  if (now < ep.nextAt) return;
+
+  const since = now - ep.lastAt;
   // A long silence is a hole in the recording, not a slow tick. Record it so
   // the player can draw the gap instead of interpolating across it.
-  if (since > GAP_THRESHOLD_MS) {
+  if (since > gapThreshold(ep.intervalMs)) {
     ep.gaps.push({ from: ep.lastAt, to: now });
+    // Re-anchor the grid after an absence: the missing slots are represented by
+    // the gap itself, not by a burst of catch-up samples.
+    ep.nextAt = now;
   }
 
   ep.samples.push(price);
   ep.lastAt = now;
+  ep.nextAt += ep.intervalMs;
+  // If we fell behind by more than a slot (a slow frame), skip ahead rather
+  // than trying to catch up — catching up would compress real time.
+  if (ep.nextAt < now) ep.nextAt = now + ep.intervalMs;
   if (ep.samples.length >= MAX_SAMPLES) downsample(ep);
 }
 

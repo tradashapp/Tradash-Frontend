@@ -17,6 +17,7 @@ import { useAgentWallet } from "@/hooks/useAgentWallet";
 import { useBulkAccount } from "@/hooks/useBulkAccount";
 import { useDemoPnl } from "@/hooks/useDemoPnl";
 import { useLiveTrail } from "@/hooks/useLiveTrail";
+import { useTradeRecorder } from "@/hooks/useTradeRecorder";
 import { useFeedback } from "@/hooks/useFeedback";
 import { useAllPrices } from "@/hooks/useAllPrices";
 import { useTrade } from "@/hooks/useTrade";
@@ -73,6 +74,7 @@ export function TradeScreen({ initialMarket }: Props) {
   useBulkAccount(agent.masterAddress, agent.privyId);
   useDemoPnl();
   useLiveTrail(agent.signer);
+  useTradeRecorder(); // records real price paths for trade replay
   // A rejected-for-unapproved-builder-code order is the only reliable signal
   // that our cached approval is stale — feed it back so the Account sheet shows
   // the step as incomplete and offers the re-approve button.

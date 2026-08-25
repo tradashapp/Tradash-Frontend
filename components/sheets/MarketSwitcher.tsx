@@ -154,7 +154,7 @@ export function MarketSwitcher({ open, onClose }: Props) {
             {/* Spacer matches the star + logo so "Market" sits over the name. */}
             {/* <div className="w-[52px] shrink-0" /> */}
             <div className="flex-1">Market</div>
-            <div>Last price</div>
+            <div>Last price / 24h change</div>
           </div>
         </>
       }

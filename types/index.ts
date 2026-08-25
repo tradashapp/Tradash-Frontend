@@ -98,10 +98,82 @@ export type OrderStatus =
  *  Absent on older rows → treat as `close`. */
 export type TradeEventKind = "close" | "add" | "reduce";
 
+/**
+ * A span of wall-clock time during which we recorded NOTHING — the tab was
+ * closed, backgrounded, or the oracle dropped. Stored explicitly so the player
+ * can draw the hole instead of smoothing a line across it, which would invent
+ * price action the user never saw.
+ */
+export interface ReplayGap {
+  /** ms epoch the gap starts (last sample before it). */
+  from: number;
+  /** ms epoch the gap ends (first sample after it). */
+  to: number;
+  /** True once klines backfill filled this span at 1m granularity. */
+  filled?: boolean;
+}
+
+/**
+ * The recorded price path of ONE position lifecycle, encoded compactly.
+ *
+ * Samples are stored as tick-quantized deltas against `entry` rather than
+ * absolute floats: a 900-sample path serializes to ~1.2-4.3KB instead of ~15KB,
+ * which is what makes storing demo replays in localStorage viable at all.
+ *
+ * Reconstruct sample i as: price = entry + d[i] * tick, at time t0 + i*(1000/hz).
+ */
+export interface TradePath {
+  /** ms epoch of the first sample. */
+  t0: number;
+  /** Samples per second. Halves as the buffer downsamples on long holds. */
+  hz: number;
+  /** Reference price the deltas are relative to (the position's entry). */
+  entry: number;
+  /** Quantization step the deltas are expressed in. */
+  tick: number;
+  /** Tick-quantized deltas from `entry`, one per sample. */
+  d: number[];
+}
+
+/**
+ * One position lifecycle's recording. Keyed by `id`, referenced by every
+ * CompletedTrade row the position produced (open/add/reduce/close) — they all
+ * replay the SAME path and differ only in which moment they seek to.
+ */
+export interface TradeEpisode {
+  id: string;
+  mode: TradingMode;
+  symbol: MarketSymbol;
+  direction: Direction;
+  openedAt: number;
+  /** ms epoch the position went flat. Absent while still open. */
+  closedAt?: number;
+  /**
+   * The price the CHART drew the entry line at — the break-even MagicBlock
+   * price, NOT Bulk's entryPrice. Replay must match what the user actually saw.
+   */
+  entryLine: number;
+  liqLine?: number;
+  path: TradePath;
+  /** Spans with no recorded data. Empty when the app stayed open throughout. */
+  gaps: ReplayGap[];
+  /**
+   * Fraction of the position's wall-clock duration we actually have data for
+   * (0..1). Gates whether the row is tappable — see isReplayable().
+   */
+  coverage: number;
+}
+
 export interface CompletedTrade {
   id: string;
   /** Which account produced it: demo (localStorage) or live (backend). */
   mode: TradingMode;
+  /**
+   * The position lifecycle this row belongs to. Multiple rows (open/add/reduce/
+   * close) share one episode and therefore one replay. Absent on rows recorded
+   * before replay shipped, and whenever recording was unavailable.
+   */
+  episodeId?: string;
   /** The event this row records. Defaults to `close` when absent. */
   kind?: TradeEventKind;
   symbol: MarketSymbol;

@@ -169,16 +169,78 @@ export function isRecording(symbol: MarketSymbol): boolean {
  * Splice backfilled prices into a gap. Klines only reach ~3.2h back at 1m
  * granularity, so this is a best-effort patch for short absences (a lunch
  * break, a backgrounded PWA) rather than an archive — see lib/replay/backfill.
+ *
+ * The recorder stores samples positionally (index -> t0 + i*interval), so a
+ * backfilled span has to be resampled onto that same grid: we walk the gap at
+ * the episode's current interval and linearly interpolate between the 1m
+ * closes. That is honest at this granularity — the endpoint genuinely has no
+ * sub-minute detail — and it keeps the encoded path a flat array.
+ *
+ * Returns true if the gap was filled.
  */
 export function fillGap(
   symbol: MarketSymbol,
   gap: ReplayGap,
   prices: { t: number; p: number }[]
-) {
+): boolean {
   const ep = active.get(symbol);
-  if (!ep || prices.length === 0) return;
+  if (!ep || prices.length === 0) return false;
   const match = ep.gaps.find((g) => g.from === gap.from && g.to === gap.to);
-  if (match) match.filled = true;
+  if (!match || match.filled) return false;
+
+  // How many slots the gap occupies on the episode's sampling grid. The
+  // recorder pushed nothing during the gap, so these have to be inserted.
+  const slots = Math.floor((gap.to - gap.from) / ep.intervalMs);
+  if (slots < 1) {
+    match.filled = true;
+    return true;
+  }
+
+  const sorted = [...prices].sort((a, b) => a.t - b.t);
+  const filled: number[] = [];
+  for (let i = 0; i < slots; i++) {
+    filled.push(sampleAt(sorted, gap.from + i * ep.intervalMs));
+  }
+
+  // Splice at the boundary: everything recorded before the gap, the backfill,
+  // then everything after. `index` is where the post-gap samples begin.
+  const index = Math.max(
+    0,
+    Math.min(ep.samples.length, Math.round((gap.from - ep.t0) / ep.intervalMs) + 1)
+  );
+  ep.samples = [
+    ...ep.samples.slice(0, index),
+    ...filled,
+    ...ep.samples.slice(index),
+  ];
+  match.filled = true;
+
+  while (ep.samples.length >= MAX_SAMPLES) downsample(ep);
+  return true;
+}
+
+/** Linear interpolation of a sparse series at time `t` (clamped at the ends). */
+function sampleAt(series: { t: number; p: number }[], t: number): number {
+  if (t <= series[0]!.t) return series[0]!.p;
+  const last = series[series.length - 1]!;
+  if (t >= last.t) return last.p;
+  for (let i = 1; i < series.length; i++) {
+    const b = series[i]!;
+    if (b.t >= t) {
+      const a = series[i - 1]!;
+      const span = b.t - a.t;
+      if (span <= 0) return b.p;
+      return a.p + ((t - a.t) / span) * (b.p - a.p);
+    }
+  }
+  return last.p;
+}
+
+/** Unfilled gaps of an in-flight recording, for the backfill pass to attempt. */
+export function pendingGaps(symbol: MarketSymbol): ReplayGap[] {
+  const ep = active.get(symbol);
+  if (!ep) return [];
+  return ep.gaps.filter((g) => !g.filled).map((g) => ({ ...g }));
 }
 
 /**

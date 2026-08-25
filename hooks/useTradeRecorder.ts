@@ -4,10 +4,13 @@ import { useEffect, useRef } from "react";
 import { useAppSelector, useAppStore } from "@/store/hooks";
 import {
   abortEpisode,
+  fillGap,
   isRecording,
+  pendingGaps,
   record,
   startEpisode,
 } from "@/lib/replay/recorder";
+import { fetchGapPrices, isBackfillable } from "@/lib/replay/backfill";
 import { breakEvenPrice } from "@/lib/perp";
 import { MARKET_ORDER } from "@/lib/markets";
 import { subscribeToPrice } from "@/lib/oracle/magicblock";
@@ -88,4 +91,30 @@ export function useTradeRecorder() {
       for (const symbol of MARKET_ORDER) abortEpisode(symbol);
     };
   }, [mode]);
+
+  // Backfill gaps as soon as the tab wakes, NOT lazily at replay time. The
+  // klines endpoint only retains ~3h, so a gap left unpatched until the user
+  // opens the replay is usually already expired — patching on wake is what
+  // makes that short window actually useful, and it covers the common cases
+  // (a backgrounded PWA, a closed laptop lid) rather than the rare ones.
+  useEffect(() => {
+    const backfill = () => {
+      if (document.visibilityState !== "visible") return;
+      for (const symbol of MARKET_ORDER) {
+        if (!isRecording(symbol)) continue;
+        for (const gap of pendingGaps(symbol)) {
+          if (!isBackfillable(gap)) continue;
+          void fetchGapPrices(symbol, gap.from, gap.to).then((prices) => {
+            if (prices.length > 0) fillGap(symbol, gap, prices);
+          });
+        }
+      }
+    };
+
+    document.addEventListener("visibilitychange", backfill);
+    // Also run once on mount: a fresh load after the app was closed has the
+    // same hole, and there is no visibility transition to hear.
+    backfill();
+    return () => document.removeEventListener("visibilitychange", backfill);
+  }, []);
 }

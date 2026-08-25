@@ -98,6 +98,15 @@ export class ChartEngine {
   // Active position overlay (null while flat).
   private position: PositionOverlay | null = null;
 
+  /**
+   * Driven mode: the caller supplies samples explicitly instead of the engine
+   * pulling from the oracle interpolator once per animation frame. Used by
+   * trade replay, which has to advance a RECORDED path at its own (variable)
+   * rate and scrub backwards — neither of which the wall-clock live path can do.
+   * Everything else (scale easing, overlays, gradient, glow) is shared.
+   */
+  private driven = false;
+
   constructor(
     canvas: HTMLCanvasElement,
     opts: {
@@ -128,6 +137,59 @@ export class ChartEngine {
   /** Set (or clear) the active position overlay: entry/liq lines + PnL fill. */
   setPosition(overlay: PositionOverlay | null) {
     this.position = overlay;
+  }
+
+  /**
+   * Switch to driven mode: the engine stops pulling oracle prices and renders
+   * only what `seed`/`pushSample` supply. Irreversible for the instance's
+   * lifetime in practice — a replay chart is never reused as a live chart.
+   */
+  setDriven(driven: boolean) {
+    this.driven = driven;
+    if (driven) {
+      this.interp.reset();
+      this.series.clear();
+      this.lastPrice = null;
+      this.seeded = false;
+    }
+  }
+
+  /**
+   * Replace the whole window with an explicit set of samples (a replay seeking
+   * or scrubbing). The scale is snapped rather than eased so a seek lands
+   * immediately instead of gliding in from the previous position.
+   */
+  seed(samples: readonly { t: number; p: number }[]) {
+    this.series.clear();
+    if (samples.length === 0) {
+      this.lastPrice = null;
+      return;
+    }
+    // Keep at most the ring's capacity, preferring the most recent samples.
+    const start = Math.max(0, samples.length - this.series.capacity);
+    for (let i = start; i < samples.length; i++) {
+      const s = samples[i]!;
+      this.series.push(s.t, s.p);
+    }
+    const last = samples[samples.length - 1]!;
+    this.lastPrice = last.p;
+    this.seeded = true;
+
+    // Snap the scale to fit what we just seeded, so a scrub doesn't animate the
+    // zoom on every frame the user drags.
+    const range = this.series.range();
+    if (range) {
+      this.center = last.p;
+      const reach = Math.max(last.p - range.min, range.max - last.p);
+      this.half = Math.max(reach * 1.15, last.p * 0.0005);
+    }
+  }
+
+  /** Append one sample in driven mode. */
+  pushSample(t: number, p: number) {
+    this.series.push(t, p);
+    this.lastPrice = p;
+    this.seeded = true;
   }
 
   /** Clear the window (e.g. on market switch) so the new feed starts fresh. */
@@ -165,9 +227,12 @@ export class ChartEngine {
   }
 
   private frame() {
-    const price = this.interp.tick();
+    // In driven mode the caller owns the series (see pushSample/seed) — pulling
+    // from the interpolator here would overwrite the replayed path with the
+    // live oracle value.
+    const price = this.driven ? this.lastPrice : this.interp.tick();
     const now = performance.now();
-    if (price != null) {
+    if (!this.driven && price != null) {
       if (!this.seeded) {
         this.seeded = true;
         for (let i = 0; i < this.series.capacity; i++) {
@@ -179,7 +244,7 @@ export class ChartEngine {
     }
     const velocity =
       price != null && this.lastPrice != null ? price - this.lastPrice : 0;
-    this.lastPrice = price;
+    if (!this.driven) this.lastPrice = price;
 
     const yNorm = this.draw(price);
     // Samples fill the plot width evenly, so a single new sample shifts the

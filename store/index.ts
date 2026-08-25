@@ -7,6 +7,7 @@ import trading from "./slices/tradingSlice";
 import tradingMode from "./slices/tradingModeSlice";
 import settings from "./slices/settingsSlice";
 import history from "./slices/historySlice";
+import replay from "./slices/replaySlice";
 
 export const makeStore = () =>
   configureStore({
@@ -19,6 +20,7 @@ export const makeStore = () =>
       tradingMode,
       settings,
       history,
+      replay,
     },
     // Live-price commits fire often; leave the default middleware but keep
     // serializable checks lenient in dev-heavy paths later if needed.

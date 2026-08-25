@@ -11,6 +11,7 @@ import { RegisterSW } from "@/components/pwa/RegisterSW";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { DesktopLayout } from "@/components/layout/DesktopLayout";
 import { ShareCardModal, type ShareSubject } from "@/components/share/ShareCardModal";
+import { TradeReplayModal } from "@/components/replay/TradeReplayModal";
 import { breakEvenPrice } from "@/lib/perp";
 import { marketPath, marketMeta } from "@/lib/markets";
 import { useAgentWallet } from "@/hooks/useAgentWallet";
@@ -23,7 +24,7 @@ import { useAllPrices } from "@/hooks/useAllPrices";
 import { useTrade } from "@/hooks/useTrade";
 import { useIsDesktop } from "@/hooks/useIsDesktop";
 import type { PositionOverlay } from "@/lib/chart/engine";
-import type { MarketSymbol } from "@/types";
+import type { CompletedTrade, MarketSymbol, TradeEpisode } from "@/types";
 
 interface Props {
   /**
@@ -107,6 +108,11 @@ export function TradeScreen({ initialMarket }: Props) {
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [installOpen, setInstallOpen] = useState(false);
   const [shareSubject, setShareSubject] = useState<ShareSubject | null>(null);
+  // The trade being replayed, with its recording. Null while the player is shut.
+  const [replaySubject, setReplaySubject] = useState<{
+    episode: TradeEpisode;
+    trade: CompletedTrade;
+  } | null>(null);
 
   // Auto-show the "how it works" walkthrough on first visit (persisted flag).
   const tutorialSeen = useAppSelector((s) => s.settings.tutorialSeen);
@@ -137,6 +143,7 @@ export function TradeScreen({ initialMarket }: Props) {
         onClose={() => setAccountOpen(false)}
         agent={agent}
         onShare={(subject) => setShareSubject(subject)}
+        onReplay={(trade, episode) => setReplaySubject({ trade, episode })}
         onOpenTutorial={() => {
           setAccountOpen(false);
           setTutorialOpen(true);
@@ -154,6 +161,16 @@ export function TradeScreen({ initialMarket }: Props) {
       <ShareCardModal
         subject={shareSubject}
         onClose={() => setShareSubject(null)}
+      />
+      <TradeReplayModal
+        subject={replaySubject}
+        onClose={() => setReplaySubject(null)}
+        onShare={(trade) => {
+          // Hand off to the PnL card, closing the player so the two overlays
+          // never stack.
+          setReplaySubject(null);
+          setShareSubject({ kind: "trade", trade });
+        }}
       />
       <RegisterSW />
     </>

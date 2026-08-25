@@ -6,22 +6,27 @@ import {
   ArrowUpRight01Icon,
   ArrowDownRight01Icon,
   Share05Icon,
+  PlayIcon,
 } from "@hugeicons/core-free-icons";
 import { useAppSelector } from "@/store/hooks";
 import { formatUsd } from "@/lib/format";
-import type { CompletedTrade } from "@/types";
+import { isReplayable } from "@/lib/replay/path";
+import type { CompletedTrade, TradeEpisode } from "@/types";
 
 interface Props {
   /** Open the shareable PnL card for a completed trade. */
   onShare: (trade: CompletedTrade) => void;
+  /** Play the recorded price path for a trade (only for replayable rows). */
+  onReplay: (trade: CompletedTrade, episode: TradeEpisode) => void;
 }
 
 // Trade history + derived stats, rendered inside the AccountSheet as a sub-view.
 // Scoped to the active trading mode so demo (localStorage) and live (backend)
 // trades never mix — demo money and real money keep separate logs + stats.
-export function HistoryPanel({ onShare }: Props) {
+export function HistoryPanel({ onShare, onReplay }: Props) {
   const mode = useAppSelector((s) => s.tradingMode.mode);
   const allTrades = useAppSelector((s) => s.history.trades);
+  const episodes = useAppSelector((s) => s.replay.byId);
   // Memoize so the filtered array keeps a stable identity between renders.
   const trades = useMemo(
     () => allTrades.filter((t) => t.mode === mode),
@@ -52,9 +57,22 @@ export function HistoryPanel({ onShare }: Props) {
         </p>
       ) : (
         <div className="flex flex-col gap-1.5">
-          {trades.map((t) => (
-            <TradeRow key={t.id} trade={t} onShare={() => onShare(t)} />
-          ))}
+          {trades.map((t) => {
+            // A row is replayable only when its recording actually covers the
+            // trade — see isReplayable(). Age is irrelevant; coverage is not.
+            const episode = t.episodeId ? episodes[t.episodeId] : undefined;
+            const canReplay = isReplayable(episode);
+            return (
+              <TradeRow
+                key={t.id}
+                trade={t}
+                onShare={() => onShare(t)}
+                onReplay={
+                  canReplay && episode ? () => onReplay(t, episode) : undefined
+                }
+              />
+            );
+          })}
         </div>
       )}
     </>
@@ -64,9 +82,12 @@ export function HistoryPanel({ onShare }: Props) {
 function TradeRow({
   trade,
   onShare,
+  onReplay,
 }: {
   trade: CompletedTrade;
   onShare: () => void;
+  /** Absent when there's no usable recording — the row then isn't tappable. */
+  onReplay?: () => void;
 }) {
   const kind = trade.kind ?? "close";
   const isAdd = kind === "add"; // informational — no realized PnL
@@ -74,7 +95,27 @@ function TradeRow({
   const up = trade.direction === "long";
   const kindLabel = { close: "Close", add: "Add", reduce: "Reduce" }[kind];
   return (
-    <div className="glass-inset flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm">
+    <div
+      className={`glass-inset flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm ${
+        onReplay
+          ? "cursor-pointer transition-colors hover:bg-white/[0.06]"
+          : ""
+      }`}
+      onClick={onReplay}
+      role={onReplay ? "button" : undefined}
+      tabIndex={onReplay ? 0 : undefined}
+      onKeyDown={
+        onReplay
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onReplay();
+              }
+            }
+          : undefined
+      }
+      aria-label={onReplay ? `Replay ${trade.symbol} trade` : undefined}
+    >
       {/* Direction as an up/down arrow chip (green/red), not long/short. */}
       <span
         className={`flex h-7 w-7 items-center justify-center rounded-md ${
@@ -90,6 +131,14 @@ function TradeRow({
       <div className="flex-1 leading-tight">
         <div className="flex items-center gap-1.5">
           <span className="font-medium">{trade.symbol}</span>
+          {onReplay && (
+            <HugeiconsIcon
+              icon={PlayIcon}
+              size={11}
+              className="text-text-muted"
+              aria-hidden
+            />
+          )}
           {/* Event tag so add/reduce/close are distinguishable in the list. */}
           {kind !== "close" && (
             <span className="rounded bg-white/10 px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-text-muted">
@@ -124,7 +173,10 @@ function TradeRow({
       </div>
       <button
         type="button"
-        onClick={onShare}
+        onClick={(e) => {
+          e.stopPropagation();
+          onShare();
+        }}
         className="rounded-full p-1.5 text-text-muted transition-colors hover:bg-white/10 hover:text-text"
         aria-label={`Share ${trade.symbol} trade`}
       >

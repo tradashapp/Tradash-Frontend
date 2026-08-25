@@ -30,6 +30,7 @@ import { Sheet } from "@/components/ui/Sheet";
 import { SettingsPanel } from "./panels/SettingsPanel";
 import { HistoryPanel } from "./panels/HistoryPanel";
 import type { ShareSubject } from "@/components/share/ShareCardModal";
+import type { CompletedTrade, TradeEpisode } from "@/types";
 import { playSound } from "@/lib/sound";
 import { haptic } from "@/lib/haptics";
 import { useAgentWallet } from "@/hooks/useAgentWallet";
@@ -46,6 +47,8 @@ interface Props {
   onOpenTutorial: () => void;
   onOpenInstall: () => void;
   onShare: (subject: ShareSubject) => void;
+  /** Play a completed trade's recorded price path. */
+  onReplay: (trade: CompletedTrade, episode: TradeEpisode) => void;
 }
 
 // The menu view has no title — it leads with the profile header instead.
@@ -65,6 +68,7 @@ export function AccountSheet({
   onOpenTutorial,
   onOpenInstall,
   onShare,
+  onReplay,
 }: Props) {
   const dispatch = useAppDispatch();
   const { login, logout, authenticated } = usePrivy();
@@ -162,7 +166,10 @@ export function AccountSheet({
           )}
           {view === "settings" && <SettingsPanel />}
           {view === "history" && (
-            <HistoryPanel onShare={(trade) => onShare({ kind: "trade", trade })} />
+            <HistoryPanel
+              onShare={(trade) => onShare({ kind: "trade", trade })}
+              onReplay={onReplay}
+            />
           )}
           {view === "transfer" && (
             <TransferPanel

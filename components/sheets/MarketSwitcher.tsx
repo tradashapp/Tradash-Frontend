@@ -143,7 +143,7 @@ export function MarketSwitcher({ open, onClose }: Props) {
                     }`}
                   >
                     {c.label}
-                  </button>
+                  </button> 
                 );
               })}
             </div>

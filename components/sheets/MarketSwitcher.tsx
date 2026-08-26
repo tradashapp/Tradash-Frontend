@@ -138,7 +138,7 @@ export function MarketSwitcher({ open, onClose }: Props) {
                     onClick={() => setCategory(c.id)}
                     className={`whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors ${
                       selected
-                        ? "bg-up text-black"
+                        ? "bg-up text-black" 
                         : "glass-inset text-text-muted hover:text-text"
                     }`}
                   >

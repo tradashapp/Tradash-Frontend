@@ -7,6 +7,7 @@ import { MarketSwitcher } from "@/components/sheets/MarketSwitcher";
 import { AccountSheet } from "@/components/sheets/AccountSheet";
 import { OnboardingTutorial } from "@/components/onboarding/OnboardingTutorial";
 import { InstallSheet } from "@/components/sheets/InstallSheet";
+import { LeaderboardSheet } from "@/components/sheets/LeaderboardSheet";
 import { RegisterSW } from "@/components/pwa/RegisterSW";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { DesktopLayout } from "@/components/layout/DesktopLayout";
@@ -107,6 +108,7 @@ export function TradeScreen({ initialMarket }: Props) {
   const [accountOpen, setAccountOpen] = useState(false);
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [installOpen, setInstallOpen] = useState(false);
+  const [leaderboardOpen, setLeaderboardOpen] = useState(false);
   const [shareSubject, setShareSubject] = useState<ShareSubject | null>(null);
   // The trade being replayed, with its recording. Null while the player is shut.
   const [replaySubject, setReplaySubject] = useState<{
@@ -152,12 +154,22 @@ export function TradeScreen({ initialMarket }: Props) {
           setAccountOpen(false);
           setInstallOpen(true);
         }}
+        onOpenLeaderboard={() => {
+          // Close the account sheet first — two stacked sheets leave the user
+          // with two grabbers and no clear idea which dismisses what.
+          setAccountOpen(false);
+          setLeaderboardOpen(true);
+        }}
       />
       <OnboardingTutorial
         open={tutorialOpen}
         onClose={() => setTutorialOpen(false)}
       />
       <InstallSheet open={installOpen} onClose={() => setInstallOpen(false)} />
+      <LeaderboardSheet
+        open={leaderboardOpen}
+        onClose={() => setLeaderboardOpen(false)}
+      />
       <ShareCardModal
         subject={shareSubject}
         onClose={() => setShareSubject(null)}

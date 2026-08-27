@@ -162,12 +162,14 @@ function Row({ entry, metric, isMe, floating, onSelect, ref }: RowProps & {
             : "glass-inset"
       }`}
     >
+      {/* Rank 0 means "traded, but doesn't qualify for this board" (see the
+          volume floor in leaderboardService) — show a dash, not a zero. */}
       <span
         className={`tabular w-6 shrink-0 text-xs font-semibold ${
-          entry.rank <= 3 ? "text-up" : "text-text-muted"
+          entry.rank >= 1 && entry.rank <= 3 ? "text-up" : "text-text-muted"
         }`}
       >
-        {entry.rank}
+        {entry.rank >= 1 ? entry.rank : "—"}
       </span>
 
       <button

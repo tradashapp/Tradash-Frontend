@@ -122,7 +122,8 @@ export function TraderProfileModal({ subject, period, onClose }: Props) {
                 @{profile?.username ?? subject.username}
               </span>
               <span className="text-[11px] text-text-muted">
-                Rank #{subject.rank} · {PERIOD_LABEL[period]}
+                {subject.rank >= 1 ? `Rank #${subject.rank}` : "Unranked"} ·{" "}
+                {PERIOD_LABEL[period]}
               </span>
             </div>
 

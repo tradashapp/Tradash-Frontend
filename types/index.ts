@@ -198,7 +198,11 @@ export type LeaderboardMetric = "pnl" | "roi";
 /** The window standings are computed over. */
 export type LeaderboardPeriod = "daily" | "weekly" | "monthly" | "all";
 
-/** One ranked trader. `rank` is 1-based. */
+/**
+ * One ranked trader. `rank` is 1-based; 0 means the user traded in the window
+ * but doesn't qualify for this board (see the ROI volume floor), so the UI
+ * shows their figures without a position.
+ */
 export interface LeaderboardEntry {
   rank: number;
   userId: string;

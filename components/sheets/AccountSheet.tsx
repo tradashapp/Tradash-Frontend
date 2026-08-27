@@ -21,6 +21,7 @@ import {
   Plant02Icon,
   ShieldKeyIcon,
   CodeIcon,
+  ChampionIcon,
 } from "@hugeicons/core-free-icons";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { resetDemo } from "@/store/slices/tradingModeSlice";
@@ -46,6 +47,7 @@ interface Props {
   agent: ReturnType<typeof useAgentWallet>;
   onOpenTutorial: () => void;
   onOpenInstall: () => void;
+  onOpenLeaderboard: () => void;
   onShare: (subject: ShareSubject) => void;
   /** Play a completed trade's recorded price path. */
   onReplay: (trade: CompletedTrade, episode: TradeEpisode) => void;
@@ -67,6 +69,7 @@ export function AccountSheet({
   agent,
   onOpenTutorial,
   onOpenInstall,
+  onOpenLeaderboard,
   onShare,
   onReplay,
 }: Props) {
@@ -162,6 +165,7 @@ export function AccountSheet({
               }}
               onTutorial={onOpenTutorial}
               onInstall={onOpenInstall}
+              onLeaderboard={onOpenLeaderboard}
             />
           )}
           {view === "settings" && <SettingsPanel />}
@@ -204,6 +208,7 @@ function Menu({
   onTransfer,
   onTutorial,
   onInstall,
+  onLeaderboard,
 }: {
   mode: "demo" | "live";
   demoBalance: number;
@@ -227,6 +232,7 @@ function Menu({
   onTransfer: (dir: "in" | "out") => void;
   onTutorial: () => void;
   onInstall: () => void;
+  onLeaderboard: () => void;
 }) {
   const { fundWallet } = useFundWallet();
   // Privy on-ramp: top up the user's OWN Solana wallet with USDC from outside.
@@ -389,6 +395,11 @@ function Menu({
       {/* Trading — what you reach for mid-session. */}
       <MenuSection title="Trading" className="mb-4">
         <NavRow icon={Clock01Icon} label="Trade history" onClick={onHistory} />
+        <NavRow
+          icon={ChampionIcon}
+          label="Leaderboard"
+          onClick={onLeaderboard}
+        />
         <NavRow icon={Settings02Icon} label="Settings" onClick={onSettings} />
       </MenuSection>
 

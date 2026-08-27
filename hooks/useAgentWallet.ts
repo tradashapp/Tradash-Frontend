@@ -6,6 +6,7 @@ import { useSignMessage } from "@privy-io/react-auth/solana";
 import bs58 from "bs58";
 import { config } from "@/lib/config";
 import { api } from "@/lib/api";
+import { suggestedUsername } from "@/lib/username";
 import {
   loadAgent,
   saveAgent,
@@ -106,6 +107,10 @@ export function useAgentWallet() {
           linkedAccounts: user?.linkedAccounts as
             | { type: string }[]
             | undefined,
+          // Seeds an EMPTY handle only, so a leaderboard row shows a real name
+          // from the first trade. The backend never lets this overwrite a
+          // handle the user has since chosen for themselves.
+          username: suggestedUsername(user),
         })
         .catch(() => {});
     }

@@ -189,3 +189,52 @@ export interface CompletedTrade {
   openedAt: number;
   closedAt: number;
 }
+
+// Leaderboard -----------------------------------------------------------------
+
+/** How the leaderboard is ranked. */
+export type LeaderboardMetric = "pnl" | "roi";
+
+/** The window standings are computed over. */
+export type LeaderboardPeriod = "daily" | "weekly" | "monthly" | "all";
+
+/** One ranked trader. `rank` is 1-based. */
+export interface LeaderboardEntry {
+  rank: number;
+  userId: string;
+  /** Display handle WITHOUT the leading "@" — the UI adds it. */
+  username: string;
+  avatarUrl: string | null;
+  pnl: number;
+  /** Capital-weighted return over the window: sum(pnl) / sum(size). */
+  roi: number;
+  volume: number;
+  trades: number;
+  wins: number;
+}
+
+/**
+ * A leaderboard page. `me` is the signed-in user's own standing — present even
+ * when they rank outside the visible top slice, so the table can pin it.
+ */
+export interface Leaderboard {
+  metric: LeaderboardMetric;
+  period: LeaderboardPeriod;
+  entries: LeaderboardEntry[];
+  me: LeaderboardEntry | null;
+}
+
+/** Public profile shown when a leaderboard row is tapped. */
+export interface TraderProfile {
+  userId: string;
+  username: string;
+  avatarUrl: string | null;
+  pnl: number;
+  roi: number;
+  volume: number;
+  trades: number;
+  wins: number;
+  losses: number;
+  winRate: number;
+  recentTrades: CompletedTrade[];
+}

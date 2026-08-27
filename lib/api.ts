@@ -1,5 +1,12 @@
 import { config } from "@/lib/config";
-import type { CompletedTrade, TradeEpisode } from "@/types";
+import type {
+  CompletedTrade,
+  Leaderboard,
+  LeaderboardMetric,
+  LeaderboardPeriod,
+  TradeEpisode,
+  TraderProfile,
+} from "@/types";
 
 // Thin client for our own backend (users, onboarding record, trades, stats).
 const BASE = config.apiUrl;
@@ -120,6 +127,19 @@ export interface UserSync {
   authMethod?: string | null;
   linkedAccounts?: { type: string; [k: string]: unknown }[];
   referralCode?: string | null;
+  /** Seeds an EMPTY handle only — the backend never overwrites a chosen one. */
+  username?: string | null;
+}
+
+/** The public profile fields the backend stores on the user row. */
+export interface ApiUserProfile {
+  username: string | null;
+  avatarUrl: string | null;
+}
+
+/** Raw trade rows come back with ISO timestamps; the UI wants ms epoch. */
+interface ApiTraderProfile extends Omit<TraderProfile, "recentTrades"> {
+  recentTrades: (ApiTrade & { id?: string })[];
 }
 
 export const api = {
@@ -161,6 +181,66 @@ export const api = {
       `/users/${encodeURIComponent(privyId)}/episodes`
     );
     return rows.map(fromApiEpisode);
+  },
+
+  /**
+   * Claim a public handle. Resolves false when it's already taken (409) rather
+   * than throwing — a taken name is an expected outcome, not a failure.
+   */
+  claimUsername: async (privyId: string, username: string): Promise<boolean> => {
+    const res = await fetch(
+      `${BASE}/users/${encodeURIComponent(privyId)}/username`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username }),
+      }
+    );
+    if (res.status === 409) return false;
+    if (!res.ok) throw new Error(`API username ${res.status}`);
+    return true;
+  },
+
+  /** Upload a profile photo (base64 data URL) and get back its public URL. */
+  uploadAvatar: async (privyId: string, dataUrl: string): Promise<string> => {
+    const { avatarUrl } = await req<{ avatarUrl: string }>(
+      `/users/${encodeURIComponent(privyId)}/avatar`,
+      { method: "PUT", body: JSON.stringify({ avatar: dataUrl }) }
+    );
+    return avatarUrl;
+  },
+
+  /** The stored profile (handle + avatar URL) for a user. */
+  fetchProfile: async (privyId: string): Promise<ApiUserProfile> => {
+    const user = await req<ApiUserProfile>(
+      `/users/${encodeURIComponent(privyId)}`
+    );
+    return { username: user.username, avatarUrl: user.avatarUrl };
+  },
+
+  /**
+   * Standings for a metric + period, with the signed-in user's own rank. The
+   * board is public, so `privyId` is optional.
+   */
+  fetchLeaderboard: (
+    metric: LeaderboardMetric,
+    period: LeaderboardPeriod,
+    privyId?: string | null
+  ): Promise<Leaderboard> => {
+    const q = new URLSearchParams({ metric, period });
+    if (privyId) q.set("privyId", privyId);
+    return req<Leaderboard>(`/leaderboard?${q.toString()}`);
+  },
+
+  /** Public profile behind a leaderboard row, scoped to the same window. */
+  fetchTrader: async (
+    userId: string,
+    period: LeaderboardPeriod
+  ): Promise<TraderProfile> => {
+    const p = await req<ApiTraderProfile>(
+      `/traders/${encodeURIComponent(userId)}?period=${period}`
+    );
+    return { ...p, recentTrades: p.recentTrades.map(fromApiTrade) };
   },
 
   /** Fetch a user's live trade history (newest first). */

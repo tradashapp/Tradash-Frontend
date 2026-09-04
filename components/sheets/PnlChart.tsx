@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { formatUsd } from "@/lib/format";
 import { haptic } from "@/lib/haptics";
-import { playSound } from "@/lib/sound";
 import {
   PNL_RANGES,
   usePnlSeries,
@@ -27,7 +26,16 @@ const DOWN = "#E6432D";
 // component stays resolution-independent without measuring the DOM.
 const W = 320;
 const H = 96;
-const PAD_Y = 12; // headroom so the stroke and dot never clip at the edges
+/**
+ * Insets, in viewbox units. The curve is drawn INSIDE this box rather than
+ * edge-to-edge: at x=W the end dot is centred on the boundary and the outer
+ * half of it is cut off by the card, and at the vertical extremes the stroke
+ * itself clips. PAD_X is the larger of the two because the dot (plus its ring
+ * and glow) is wider than the stroke is thick, and because the horizontal
+ * scale is stretched by preserveAspectRatio="none".
+ */
+const PAD_X = 14;
+const PAD_Y = 16;
 
 /**
  * Project the series into viewbox coordinates.
@@ -59,10 +67,13 @@ function project(points: PnlPoint[]): {
   }
   const range = hi - lo;
   const toY = (v: number) => H - PAD_Y - ((v - lo) / range) * (H - PAD_Y * 2);
+  // Both axes map into the padded box, so nothing the user needs to see —
+  // stroke, end dot, baseline — ever lands on a clipping edge.
+  const toX = (ratio: number) => PAD_X + ratio * (W - PAD_X * 2);
 
   return {
     coords: points.map((p, i) => ({
-      x: degenerate ? (i / lastIndex) * W : ((p.t - t0) / span) * W,
+      x: toX(degenerate ? i / lastIndex : (p.t - t0) / span),
       y: toY(p.v),
     })),
     zeroY: toY(0),
@@ -182,7 +193,6 @@ export function PnlChart({
       if (lastHapticIndex.current !== best) {
         lastHapticIndex.current = best;
         haptic("tap");
-        playSound("tap");
       }
     },
     [coords]
@@ -213,7 +223,6 @@ export function PnlChart({
         // The hold itself gets a beat, so the user feels the mode change before
         // the per-node ticks start.
         haptic("open");
-        playSound("open");
         scrubTo(clientX);
       }, 180);
       return;

@@ -38,7 +38,12 @@ function project(points: PnlPoint[]): {
 } {
   const t0 = points[0].t;
   const t1 = points[points.length - 1].t;
-  const span = Math.max(t1 - t0, 1);
+  const span = t1 - t0;
+  // Every point sharing a timestamp (a burst of closes in the same millisecond,
+  // or a single point) collapses the time axis. Fall back to even index
+  // spacing so the curve still spans the width instead of stacking on x=0.
+  const degenerate = span <= 0;
+  const lastIndex = Math.max(points.length - 1, 1);
 
   const values = points.map((p) => p.v);
   let lo = Math.min(...values, 0);
@@ -54,8 +59,8 @@ function project(points: PnlPoint[]): {
     H - PAD_Y - ((v - lo) / range) * (H - PAD_Y * 2);
 
   return {
-    coords: points.map((p) => ({
-      x: ((p.t - t0) / span) * W,
+    coords: points.map((p, i) => ({
+      x: degenerate ? (i / lastIndex) * W : ((p.t - t0) / span) * W,
       y: toY(p.v),
     })),
     zeroY: toY(0),

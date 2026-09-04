@@ -10,7 +10,9 @@ import { ArrowLeft01Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
  * the surface (background, blur, radius, grabber, close button, sizing,
  * animation) is defined
  * in exactly one place — restyling sheets means editing this file, not chasing
- * four call sites that had already drifted apart.
+ * four call sites that had already drifted apart. The surface itself is the
+ * `.glass-sheet` class in globals.css (brand glow at the top edge fading into
+ * near-black); the plainer `.glass` stays for pills, toasts and icon buttons.
  *
  * Sizing: the sheet occupies at least MIN_H of the viewport (short content
  * leaves blank space beneath rather than a stubby sheet) and never exceeds
@@ -77,7 +79,7 @@ export function Sheet({
             onClick={onClose}
           />
           <motion.div
-            className="glass fixed inset-x-0 bottom-0 z-50 flex flex-col rounded-t-[50px] p-4 pb-8"
+            className="glass-sheet fixed inset-x-0 bottom-0 z-50 flex flex-col rounded-t-[50px] p-4 pb-8"
             style={{ maxHeight: MAX_H, minHeight: MIN_H }}
             initial={{ y: "100%" }}
             animate={{ y: 0 }}

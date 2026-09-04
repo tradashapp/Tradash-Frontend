@@ -42,6 +42,43 @@ body:has(.landing-root) {
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
+/* The bottom-sheet surface. Same frosted base as `.glass`, but with a brand
+   glow anchored at the top edge — where the grabber and title bar sit — that
+   falls off fast into near-black so body text, tables and PnL numbers keep full
+   contrast over the lower two thirds. Kept separate from `.glass` on purpose:
+   that class also dresses pills, toasts and round icon buttons, which would
+   read as tinted-green blobs if they inherited this gradient.
+
+   Three stacked layers, painted top-most first:
+     1. a wide radial bloom of brand green centred above the top edge,
+     2. a short vertical wash that fades the tint out by ~40% height,
+     3. the flat near-black base everything else sits on. */
+.glass-sheet {
+  background:
+    radial-gradient(
+      120% 60% at 50% 0%,
+      rgba(114, 233, 18, 0.16) 0%,
+      rgba(114, 233, 18, 0.05) 35%,
+      rgba(114, 233, 18, 0) 70%
+    ),
+    linear-gradient(
+      to bottom,
+      rgba(114, 233, 18, 0.05) 0%,
+      rgba(114, 233, 18, 0.012) 22%,
+      rgba(114, 233, 18, 0) 45%
+    ),
+    linear-gradient(to bottom, #0b0e11 0%, #08090c 55%, #060709 100%);
+  backdrop-filter: blur(24px) saturate(140%);
+  -webkit-backdrop-filter: blur(24px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  /* The lit top rim: a brand hairline along the rounded top edge only, so the
+     50px radius catches the light instead of reading as a flat cut-off. */
+  border-top-color: rgba(114, 233, 18, 0.28);
+  box-shadow:
+    inset 0 1px 0 rgba(114, 233, 18, 0.14),
+    0 -24px 60px -24px rgba(114, 233, 18, 0.18);
+}
+
 /* Slightly lighter inner glass for controls sitting on a glass surface. */
 .glass-inset {
   background: rgba(255, 255, 255, 0.02);

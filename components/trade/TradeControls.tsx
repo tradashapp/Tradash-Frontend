@@ -61,7 +61,7 @@ export function TradeControls({
           <button
             type="button"
             onClick={onLong}
-            className="flex items-center justify-center gap-2 rounded-full bg-up-soft py-5 text-lg font-semibold text-up backdrop-blur-sm transition-transform duration-150 ease-snap active:scale-95 tracking-wider"
+            className="flex items-center justify-center gap-2 rounded-full bg-up-soft py-5 text-lg font-semibold text-up backdrop-blur-sm transition-transform duration-150 ease-snap active:scale-95 tracking-widest"
           >
             <HugeiconsIcon icon={ArrowUp01Icon} size={22} />
             UP
@@ -69,7 +69,7 @@ export function TradeControls({
           <button
             type="button"
             onClick={onShort}
-            className="flex items-center justify-center gap-2 rounded-full bg-down-soft py-5 text-lg font-semibold text-down backdrop-blur-sm transition-transform duration-150 ease-snap active:scale-95 tracking-wider"
+            className="flex items-center justify-center gap-2 rounded-full bg-down-soft py-5 text-lg font-semibold text-down backdrop-blur-sm transition-transform duration-150 ease-snap active:scale-95 tracking-widest"
           >
             <HugeiconsIcon icon={ArrowDown01Icon} size={22} />
             DOWN
@@ -170,7 +170,7 @@ function ActivePosition({
               onToggleTrail();
             }}
             disabled={!trailActive && !trailEligible}
-            className={`flex items-center justify-center gap-2 rounded-full py-4 text-base font-semibold backdrop-blur-sm transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 ${
+            className={`flex items-center justify-center gap-2 rounded-full py-4 text-base font-semibold backdrop-blur-sm transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 tracking-widest uppercase ${
               trailActive ? "bg-up text-black" : "bg-up-soft text-up"
             }`}
           >
@@ -194,7 +194,7 @@ function ActivePosition({
         <button
           type="button"
           onClick={onClose}
-          className="flex items-center justify-center gap-2 self-start rounded-full bg-down-soft py-4 text-base font-semibold text-down backdrop-blur-sm transition-transform active:scale-95"
+          className="flex items-center justify-center gap-2 self-start rounded-full bg-down-soft py-4 text-base font-semibold text-down backdrop-blur-sm transition-transform active:scale-95 tracking-widest uppercase"
           style={{ width: "100%" }}
         >
           <HugeiconsIcon icon={Cancel01Icon} size={20} />

@@ -19,12 +19,20 @@ import { ArrowLeft01Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
  * MAX_H, which leaves a sliver of the page visible at the top so it still reads
  * as an overlay. Both bounds sit on the ROOT; the body stays `min-h-0` so it can
  * shrink and hand overflow to an inner scroll region.
+ *
+ * Width: full-bleed on phones, capped at MAX_W and centred beyond that — the
+ * app is a mobile-shaped experience, and a sheet stretched across a desktop
+ * monitor puts its close button a screen away from its content. MAX_W matches
+ * the `max-w-md` the replay and trader-profile modals already use, so every
+ * overlay lands on the same column.
  */
 
 /** Tallest a sheet gets — a sliver of page stays visible above it. */
 const MAX_H = "98dvh";
 /** Shortest a sheet gets, however little content it holds. */
 const MIN_H = "50dvh";
+/** Widest a sheet gets — below this it stays full-bleed, above it it centres. */
+const MAX_W = "28rem";
 
 interface SheetProps {
   open: boolean;
@@ -79,8 +87,8 @@ export function Sheet({
             onClick={onClose}
           />
           <motion.div
-            className="glass-sheet fixed inset-x-0 bottom-0 z-50 flex flex-col rounded-t-[50px] p-4 pb-8"
-            style={{ maxHeight: MAX_H, minHeight: MIN_H }}
+            className="glass-sheet fixed inset-x-0 bottom-0 z-50 mx-auto flex w-full flex-col rounded-t-[50px] p-4 pb-8"
+            style={{ maxHeight: MAX_H, minHeight: MIN_H, maxWidth: MAX_W }}
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
             exit={{ y: "100%" }}

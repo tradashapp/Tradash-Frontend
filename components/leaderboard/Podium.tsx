@@ -22,6 +22,11 @@ interface Props {
  *
  * The avatar overlaps the top edge of each plinth rather than sitting inside it,
  * which is what keeps a short box from looking cramped.
+ *
+ * Each plinth is a 3D glass cube — see `Plinth` for how the three faces are
+ * assembled. All three share one light source (up and to the left) and one
+ * vanishing direction (back and to the right), which is what stops the row from
+ * reading as three unrelated boxes.
  */
 export function Podium({ top, metric, onSelect }: Props) {
   // Index by rank rather than by array position — a board with two traders on
@@ -49,37 +54,66 @@ export function Podium({ top, metric, onSelect }: Props) {
   );
 }
 
-/** Per-rank presentation. 1st is taller, lifted, and wears the brand glow. */
+/**
+ * Per-rank presentation. 1st is taller, lifted, and wears the brand glow.
+ *
+ * `tint` values are the rgb triples the cube's faces are built from — every
+ * face derives its colour from this one number at a different alpha, so a rank
+ * is re-skinned by editing a single line. The winner is brand green; the
+ * runners-up are plain white glass.
+ */
 const RANKS = {
   1: {
     label: "1st",
-    height: "h-[104px]",
+    height: 104,
     lift: "-translate-y-3",
-    // The green rim + outer bloom is reserved for the winner alone.
-    box: "bg-up-soft ring-1 ring-up/60 shadow-[0_0_28px_-4px_rgba(114,233,18,0.45)]",
+    tint: "114, 233, 18",
+    /** Only the winner throws a coloured bloom onto the surface beneath. */
+    glow: "0 18px 40px -12px rgba(114, 233, 18, 0.5)",
     labelColor: "text-up",
     ring: "ring-2 ring-up",
     avatar: "h-16 w-16",
   },
   2: {
     label: "2nd",
-    height: "h-[78px]",
+    height: 78,
     lift: "translate-y-0",
-    box: "bg-white/[0.05] ring-1 ring-white/10",
+    tint: "255, 255, 255",
+    glow: "0 14px 30px -14px rgba(0, 0, 0, 0.7)",
     labelColor: "text-text-muted",
     ring: "ring-1 ring-white/20",
     avatar: "h-12 w-12",
   },
   3: {
     label: "3rd",
-    height: "h-[64px]",
+    height: 64,
     lift: "translate-y-1",
-    box: "bg-white/[0.035] ring-1 ring-white/[0.08]",
+    tint: "255, 255, 255",
+    glow: "0 14px 30px -14px rgba(0, 0, 0, 0.7)",
     labelColor: "text-text-muted",
     ring: "ring-1 ring-white/[0.14]",
     avatar: "h-12 w-12",
   },
 } as const;
+
+/**
+ * Depth of the cube in px — how far the top face recedes and how wide the side
+ * face is. One value for all three ranks: they sit on the same baseline in the
+ * same room, so they must share a vanishing direction. Tuned against the
+ * ~130px-wide column a `flex-1` plinth gets inside the 28rem sheet; much more
+ * and the top face starts crowding out the avatar above it.
+ */
+const DEPTH = 14;
+
+/**
+ * Skew angle of the two receding faces, in degrees. Paired with DEPTH this sets
+ * how steeply the cube leans away; 45 makes the top face a clean 45° recession,
+ * which is shallow enough to stay believable at this size without needing real
+ * perspective. Negative would send the vanishing point left — it must stay
+ * positive so the light (upper left) and the depth (upper right) disagree,
+ * which is what gives the solid its form.
+ */
+const SKEW = 45;
 
 function Plinth({
   rank,
@@ -127,22 +161,90 @@ function Plinth({
         {value}
       </span>
 
-      {/* The plinth itself. The position label is inscribed on its face. */}
+      {/* The cube. Three faces, all built from the rank's tint:
+
+            top    — a parallelogram skewed back and to the right, brightest of
+                     the three because the light sits above it,
+            side   — the right cheek, darkest, giving the solid its weight,
+            front  — the lit face carrying the rank label.
+
+          The faces are positioned rather than transformed as a group: a real
+          `rotate3d` on a parent would foreshorten the label text with it, and a
+          podium whose "1st" leans away from the reader is worse than a flat one.
+          Skewing only the two receding faces keeps the type square to the
+          screen while the solid still reads as 3D. */}
       <button
         type="button"
         disabled={!entry}
         onClick={() => entry && onSelect(entry)}
         aria-label={entry ? `View @${entry.username}` : undefined}
-        className={`mt-2 flex w-full items-start justify-center rounded-t-2xl pt-2.5 transition-transform disabled:cursor-default ${style.height} ${style.box} ${
+        className={`group relative mt-2 w-full transition-transform duration-200 disabled:cursor-default ${
           entry ? "active:scale-[0.97]" : "opacity-40"
         }`}
+        style={{
+          // Room for the top face, which sits above the front face's box.
+          height: style.height + DEPTH,
+          // The cube is drawn inset from the column so the receding side face
+          // has somewhere to go without colliding with the next plinth.
+          paddingRight: DEPTH,
+        }}
       >
+        {/* Top face. */}
         <span
-          className={`text-lg font-black tracking-tight ${style.labelColor}`}
+          aria-hidden
+          className="absolute left-0 right-0 top-0 origin-bottom-left"
+          style={{
+            height: DEPTH,
+            transform: `skewX(${SKEW}deg)`,
+            background: `linear-gradient(to right, rgba(${style.tint}, 0.28), rgba(${style.tint}, 0.16))`,
+            borderTop: `1px solid rgba(${style.tint}, 0.5)`,
+          }}
+        />
+
+        {/* Right side face. */}
+        <span
+          aria-hidden
+          className="absolute right-0 origin-top-left"
+          style={{
+            top: 0,
+            width: DEPTH,
+            height: style.height,
+            transform: `skewY(${SKEW}deg)`,
+            background: `linear-gradient(to bottom, rgba(${style.tint}, 0.1), rgba(${style.tint}, 0.03))`,
+            borderLeft: `1px solid rgba(${style.tint}, 0.16)`,
+          }}
+        />
+
+        {/* Front face — the glass itself, and the only face carrying content. */}
+        <span
+          className="absolute bottom-0 left-0 flex items-start justify-center overflow-hidden rounded-t-md pt-3 backdrop-blur-md"
+          style={{
+            right: DEPTH,
+            height: style.height,
+            background: `linear-gradient(160deg, rgba(${style.tint}, 0.16) 0%, rgba(${style.tint}, 0.06) 45%, rgba(${style.tint}, 0.02) 100%)`,
+            border: `1px solid rgba(${style.tint}, 0.22)`,
+            borderTopColor: `rgba(${style.tint}, 0.45)`,
+            boxShadow: `inset 0 1px 0 rgba(255, 255, 255, 0.14), ${style.glow}`,
+          }}
         >
-          {style.label}
+          {/* Specular sweep — a soft diagonal highlight across the upper left of
+              the face. This is what sells the surface as glass rather than as
+              flat tinted plastic. */}
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-0"
+            style={{
+              background: `linear-gradient(135deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.04) 30%, transparent 55%)`,
+            }}
+          />
+          <span
+            className={`relative text-lg font-black tracking-tight ${style.labelColor}`}
+          >
+            {style.label}
+          </span>
         </span>
       </button>
+
     </motion.div>
   );
 }

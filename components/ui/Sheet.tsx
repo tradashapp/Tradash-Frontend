@@ -98,6 +98,17 @@ export function Sheet({
     setDragEnabled(!insideBody || body!.scrollTop <= 0);
   };
 
+  // Released: a slow drag past the distance threshold OR a quick flick closes
+  // the sheet; anything less springs back to rest.
+  const endDrag = (
+    _e: unknown,
+    info: { offset: { y: number }; velocity: { y: number } }
+  ) => {
+    if (info.offset.y > DRAG_CLOSE_PX || info.velocity.y > DRAG_CLOSE_VELOCITY) {
+      onClose();
+    }
+  };
+
   return (
     <AnimatePresence>
       {open && (

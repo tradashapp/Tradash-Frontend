@@ -293,14 +293,15 @@ function Menu({
         ? null
         : (tradingBalance ?? 0) + (fundingBalance ?? 0);
 
-  // Today's P&L = everything realized since local midnight + what's currently
-  // floating on open positions. The percentage is against the day's opening
-  // balance (today's balance minus today's P&L).
-  const todayPnl = realizedToday + totalPnl;
-  const dayOpen = totalBalance != null ? totalBalance - todayPnl : null;
-  const todayPct =
-    dayOpen != null && dayOpen > 0 ? (todayPnl / dayOpen) * 100 : null;
-  const todayUp = todayPnl >= 0;
+  // The window's P&L = everything realized inside it + what's currently
+  // floating on open positions. The percentage is against the balance the
+  // window opened at (balance now minus the window's P&L). Both follow the
+  // chart's range pills, so this line says "7D P&L" when 7D is selected.
+  const rangePnl = realizedInRange + totalPnl;
+  const rangeOpen = totalBalance != null ? totalBalance - rangePnl : null;
+  const rangePct =
+    rangeOpen != null && rangeOpen > 0 ? (rangePnl / rangeOpen) * 100 : null;
+  const rangeUp = rangePnl >= 0;
 
   return (
     <div className="flex flex-col">
@@ -377,17 +378,17 @@ function Menu({
           aria-label={chartOpen ? "Hide P&L chart" : "Show P&L chart"}
           className="mt-1.5 flex items-center gap-1.5 text-xs"
         >
-          <span className="text-text-muted">Today&rsquo;s P&amp;L</span>
+          <span className="text-text-muted">{PNL_RANGE_TITLES[pnlRange]}</span>
           <span
-            className={`tabular font-semibold ${todayUp ? "text-up" : "text-down"}`}
+            className={`tabular font-semibold ${rangeUp ? "text-up" : "text-down"}`}
           >
-            {todayUp ? "+" : "−"}
-            {formatUsd(Math.abs(todayPnl))}
-            {todayPct != null && (
+            {rangeUp ? "+" : "−"}
+            {formatUsd(Math.abs(rangePnl))}
+            {rangePct != null && (
               <span className="font-medium">
                 {" "}
-                ({todayUp ? "+" : "−"}
-                {Math.abs(todayPct).toFixed(2)}%)
+                ({rangeUp ? "+" : "−"}
+                {Math.abs(rangePct).toFixed(2)}%)
               </span>
             )}
           </span>
@@ -405,6 +406,8 @@ function Menu({
           open={chartOpen}
           floatingPnl={totalPnl}
           currentBalance={totalBalance}
+          range={pnlRange}
+          onRangeChange={onPnlRangeChange}
         />
 
         {/* The two balances that make up the total. */}

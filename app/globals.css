@@ -103,3 +103,64 @@ body:has(.landing-root) {
 .scroll-glass {
   -webkit-overflow-scrolling: touch;
 }
+
+/* Leverage slider (settings → per-market leverage). Native range inputs can't
+   be styled from Tailwind alone: the track and thumb are vendor pseudo-elements
+   and must be written out for both WebKit and Firefox. The track is filled up
+   to the thumb via a --fill custom property the component sets, so the control
+   itself shows how much of that market's range is in use. */
+.lev-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 24px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.lev-slider::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    #72e912 var(--fill, 0%),
+    rgba(255, 255, 255, 0.1) var(--fill, 0%)
+  );
+}
+
+.lev-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 18px;
+  width: 18px;
+  margin-top: -6px; /* centre the thumb on the 6px track */
+  border-radius: 999px;
+  background: #e8eaed;
+  border: 3px solid #08090c;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  transition: transform 0.12s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.lev-slider:active::-webkit-slider-thumb {
+  transform: scale(1.15);
+}
+
+.lev-slider::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.lev-slider::-moz-range-progress {
+  height: 6px;
+  border-radius: 999px;
+  background: #72e912;
+}
+
+.lev-slider::-moz-range-thumb {
+  height: 18px;
+  width: 18px;
+  border-radius: 999px;
+  background: #e8eaed;
+  border: 3px solid #08090c;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}

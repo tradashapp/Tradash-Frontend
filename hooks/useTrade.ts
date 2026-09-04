@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
-import { MARKETS } from "@/lib/markets";
+import { MARKETS, leverageFor } from "@/lib/markets";
 import {
   openPosition,
   trailStopFor,
@@ -35,6 +35,7 @@ import {
   baseSizeFromUsd,
   isBuilderNotApprovedError,
 } from "@/lib/bulk/orders";
+import { setMarketLeverage as pushLeverageToBulk } from "@/lib/bulk/leverage";
 import type { AgentSigner } from "@/lib/bulk/signing";
 import type { Direction, Position } from "@/types";
 
@@ -165,6 +166,10 @@ export function useTrade(
     async (direction: Direction) => {
       if (price == null) return;
       const market = MARKETS[activeSymbol];
+      // Leverage is per market (each has its own cap on Bulk), resolved through
+      // `leverageFor` so an unset market falls back to the default and a stored
+      // value can never exceed the cap.
+      const leverage = leverageFor(activeSymbol, settings.leverageByMarket);
 
       if (mode === "demo") {
         // Simulate: create a position at the current oracle price.
@@ -172,7 +177,7 @@ export function useTrade(
           symbol: activeSymbol,
           direction,
           marginUsd: settings.defaultPositionSize,
-          leverage: settings.defaultLeverage,
+          leverage,
           entryPrice: price,
         });
         dispatch(setDemoPosition({ symbol: activeSymbol, position: pos }));
@@ -181,7 +186,7 @@ export function useTrade(
         beginProfitTracking(profitStepFor(pos.marginUsed));
         toast(`${direction === "long" ? "Long" : "Short"} ${activeSymbol} opened`, {
           type: "success",
-          description: `${settings.defaultLeverage}× · ${fmtUsd(
+          description: `${leverage}× · ${fmtUsd(
             pos.marginUsed
           ).replace("+", "")} margin`,
         });
@@ -205,9 +210,21 @@ export function useTrade(
         id: `open-${activeSymbol}`,
       });
       try {
+        // Bulk margins the fill at the leverage stored on the ACCOUNT for this
+        // symbol, not at anything in the order. If the user changed leverage
+        // moments ago the debounced sync in useLeverage may not have landed
+        // yet, so push it here as well — the order would otherwise be margined
+        // at the previous value while the UI showed the new one. Cheap and
+        // idempotent; a failure must not block the trade, since the position
+        // still opens (just at the leverage Bulk already had).
+        try {
+          await pushLeverageToBulk(liveSigner, market.bulkSymbol, leverage);
+        } catch (e) {
+          console.warn("[open] leverage sync skipped:", e);
+        }
         const size = baseSizeFromUsd(
           settings.defaultPositionSize,
-          settings.defaultLeverage,
+          leverage,
           price
         );
         await openMarket(liveSigner, {

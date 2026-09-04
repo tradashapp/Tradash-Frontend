@@ -5,12 +5,21 @@ import type { MarketSymbol } from "@/types";
 // localStorage (see store/persist.ts) so they survive reloads.
 export interface SettingsState {
   defaultPositionSize: number; // in quote (USD)
-  defaultLeverage: number;
+  /**
+   * Leverage PER MARKET, e.g. { BTC: 20, SOL: 5 }. Sparse — a market absent
+   * here uses DEFAULT_LEVERAGE (clamped to that market's own cap).
+   *
+   * Per-market because every market has a different ceiling on Bulk
+   * (`MARKETS[x].maxLeverage`: BTC 40×, ETH 25×, most alts 10×), so one global
+   * number could never be valid everywhere. Mirrors Bulk's own model —
+   * leverage lives on the account per symbol (`leverageSettings[]`), not on the
+   * order — and is pushed there via lib/bulk/leverage.ts.
+   */
+  leverageByMarket: Partial<Record<MarketSymbol, number>>;
   takeProfitPct: number | null;
   stopLossPct: number | null;
   /** Trailing-stop distance behind price, as a fraction (e.g. 0.01 = 1%). */
   defaultTrailPct: number;
-  preferredMarket: MarketSymbol;
   /** Markets the user starred in the market switcher, in the order added. */
   favouriteMarkets: MarketSymbol[];
   theme: "dark" | "light";
@@ -28,11 +37,10 @@ export interface SettingsState {
 
 const initialState: SettingsState = {
   defaultPositionSize: 100,
-  defaultLeverage: 10,
+  leverageByMarket: {},
   takeProfitPct: null,
   stopLossPct: null,
   defaultTrailPct: 0.001, // 1% trailing distance by default
-  preferredMarket: "BTC",
   favouriteMarkets: [],
   theme: "dark",
   soundEnabled: true,
@@ -51,6 +59,14 @@ const settingsSlice = createSlice({
     hydrateSettings(_state, action: PayloadAction<SettingsState>) {
       return action.payload;
     },
+    /** Set (or clear) one market's leverage. Callers clamp to the market cap. */
+    setMarketLeverage(
+      state,
+      action: PayloadAction<{ symbol: MarketSymbol; leverage: number }>
+    ) {
+      const { symbol, leverage } = action.payload;
+      state.leverageByMarket[symbol] = leverage;
+    },
     toggleFavouriteMarket(state, action: PayloadAction<MarketSymbol>) {
       const symbol = action.payload;
       const i = state.favouriteMarkets.indexOf(symbol);
@@ -60,7 +76,11 @@ const settingsSlice = createSlice({
   },
 });
 
-export const { updateSettings, hydrateSettings, toggleFavouriteMarket } =
-  settingsSlice.actions;
+export const {
+  updateSettings,
+  hydrateSettings,
+  setMarketLeverage,
+  toggleFavouriteMarket,
+} = settingsSlice.actions;
 export { initialState as defaultSettings };
 export default settingsSlice.reducer;

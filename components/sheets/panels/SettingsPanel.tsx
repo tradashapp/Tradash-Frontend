@@ -8,15 +8,21 @@ import { updateSettings } from "@/store/slices/settingsSlice";
 import { setMode } from "@/store/slices/tradingModeSlice";
 import { ToggleSwitch } from "@/components/ui/ToggleSwitch";
 import { MenuSection } from "@/components/ui/MenuSection";
-import { MARKETS, MARKET_ORDER } from "@/lib/markets";
-import type { MarketSymbol } from "@/types";
+import { LeverageSettings } from "./LeverageSettings";
+import { useLeverage } from "@/hooks/useLeverage";
+import type { AgentSigner } from "@/lib/bulk/signing";
 
 // Settings content, rendered inside the AccountSheet as a sub-view. Edits the
 // settings slice (persisted). No sheet chrome here — the host provides it.
-export function SettingsPanel() {
+//
+// `signer` comes from the host because leverage is not a purely local setting:
+// Bulk keeps it per market on the ACCOUNT, so a change has to be signed and
+// pushed there (the agent key can do it — no wallet popup).
+export function SettingsPanel({ signer }: { signer: AgentSigner | null }) {
   const dispatch = useAppDispatch();
   const s = useAppSelector((st) => st.settings);
   const mode = useAppSelector((st) => st.tradingMode.mode);
+  const leverage = useLeverage(signer);
 
   return (
     <div className="flex flex-col">
@@ -50,15 +56,6 @@ export function SettingsPanel() {
           onChange={(v) => dispatch(updateSettings({ defaultPositionSize: v }))}
         />
         <Stepper
-          label="Leverage"
-          value={s.defaultLeverage}
-          suffix="×"
-          step={1}
-          min={1}
-          max={100}
-          onChange={(v) => dispatch(updateSettings({ defaultLeverage: v }))}
-        />
-        <Stepper
           label="Trailing stop distance"
           value={+(s.defaultTrailPct * 100).toFixed(2)}
           suffix="%"
@@ -67,32 +64,13 @@ export function SettingsPanel() {
           decimals={1}
           onChange={(v) => dispatch(updateSettings({ defaultTrailPct: v / 100 }))}
         />
-        {/* Market the app opens on. Scrolls horizontally rather than wrapping
-            into a tall grid — the list grows as markets are added. */}
-        <div className="px-4 py-3">
-          <div className="mb-2 text-sm">Preferred market</div>
-          <div className="scroll-glass -mx-4 overflow-x-auto px-4">
-            <div className="flex w-max items-center gap-2">
-              {MARKET_ORDER.map((sym: MarketSymbol) => (
-                <button
-                  key={sym}
-                  type="button"
-                  onClick={() =>
-                    dispatch(updateSettings({ preferredMarket: sym }))
-                  }
-                  className={`whitespace-nowrap rounded-xl px-3 py-2 text-sm font-semibold transition-colors ${
-                    s.preferredMarket === sym
-                      ? "bg-up text-black"
-                      : "bg-white/5 text-text-muted"
-                  }`}
-                >
-                  {MARKETS[sym].symbol}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
       </MenuSection>
+
+      {/* Leverage is per market — each has its own cap on Bulk — so it gets its
+          own section rather than a row in "Trade defaults". */}
+      <div className="mb-4">
+        <LeverageSettings leverage={leverage} />
+      </div>
 
       {/* Feedback on interaction. */}
       <MenuSection title="Feedback">

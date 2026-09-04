@@ -18,6 +18,13 @@ export interface AgentSigner {
    * prepare* path needs the browser environment).
    */
   signOrderFor(order: unknown): unknown;
+  /**
+   * Sign an already-prepared message (built with `{ account: master, signer:
+   * agent }`) and return the finalized envelope. Used by non-order actions the
+   * agent may sign for the master — currently per-market leverage
+   * (`prepareUpdateUserSettings`, see lib/bulk/leverage.ts).
+   */
+  signPrepared(prepared: unknown): unknown;
 }
 
 /** Build an agent signer bound to the master account it trades for. */
@@ -46,6 +53,10 @@ export async function makeAgentSigner(
         signatureDomain: signatureDomain(),
       });
       return signer.signPrepared(prepared);
+    },
+    signPrepared(prepared: unknown) {
+      // The caller built `prepared` with account = master, signer = this agent.
+      return signer.signPrepared(prepared as Parameters<typeof signer.signPrepared>[0]);
     },
   };
 }

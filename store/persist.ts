@@ -10,7 +10,8 @@ import {
   hydrateTradingMode,
   type TradingMode,
 } from "./slices/tradingModeSlice";
-import { isMarketSymbol } from "@/lib/markets";
+import { clampLeverage, isMarketSymbol } from "@/lib/markets";
+import type { MarketSymbol } from "@/types";
 import type { CompletedTrade, TradeEpisode } from "@/types";
 
 const SETTINGS_KEY = "tradash.settings.v1";
@@ -44,6 +45,11 @@ export function wireSettingsPersistence(store: AppStore) {
             (s): s is string => typeof s === "string" && isMarketSymbol(s)
           )
         : [];
+      // Leverage became PER MARKET (was one global `defaultLeverage`, which
+      // could never respect each market's own cap). A blob written before that
+      // has no map at all, or could carry junk — rebuild it defensively and
+      // clamp every entry to the market's real ceiling.
+      merged.leverageByMarket = sanitizeLeverage(parsed.leverageByMarket);
       store.dispatch(hydrateSettings(merged));
     }
   } catch {
@@ -151,6 +157,25 @@ export function wireSettingsPersistence(store: AppStore) {
       }
     }
   });
+}
+
+/**
+ * Rebuild the per-market leverage map from whatever was in storage, keeping
+ * only known markets with a finite leverage and clamping each to that market's
+ * cap. Anything else (an older global setting, a delisted market, a hand-edited
+ * value above the cap) is dropped rather than trusted.
+ */
+function sanitizeLeverage(
+  raw: unknown
+): Partial<Record<MarketSymbol, number>> {
+  if (!raw || typeof raw !== "object") return {};
+  const out: Partial<Record<MarketSymbol, number>> = {};
+  for (const [sym, lev] of Object.entries(raw as Record<string, unknown>)) {
+    if (!isMarketSymbol(sym)) continue;
+    if (typeof lev !== "number" || !Number.isFinite(lev)) continue;
+    out[sym] = clampLeverage(sym, lev);
+  }
+  return out;
 }
 
 /**

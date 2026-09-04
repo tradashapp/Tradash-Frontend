@@ -194,6 +194,40 @@ export const MARKET_ORDER: MarketSymbol[] = [
 
 export const DEFAULT_MARKET: MarketSymbol = "BTC";
 
+// --- Leverage ----------------------------------------------------------------
+// Every market has its OWN ceiling on Bulk (see `maxLeverage` above, mirrored
+// from exchangeInfo: BTC 40×, ETH 25×, SOL/XRP 20×, everything else 10×), so
+// leverage is stored per market and always resolved through these helpers —
+// never read raw. That keeps a value chosen on BTC from leaking onto a 10×
+// market as an order Bulk would margin differently than the UI promised.
+
+/** Leverage a market starts at before the user picks one. */
+export const DEFAULT_LEVERAGE = 10;
+
+/** Highest leverage Bulk accepts for this market. */
+export function maxLeverageFor(symbol: MarketSymbol): number {
+  return MARKETS[symbol]?.maxLeverage ?? DEFAULT_LEVERAGE;
+}
+
+/** Round `leverage` to a whole number inside [1, market cap]. */
+export function clampLeverage(symbol: MarketSymbol, leverage: number): number {
+  const max = maxLeverageFor(symbol);
+  if (!Number.isFinite(leverage)) return Math.min(DEFAULT_LEVERAGE, max);
+  return Math.min(max, Math.max(1, Math.round(leverage)));
+}
+
+/**
+ * The leverage to actually trade a market at: the user's choice for that
+ * market, else the default — clamped either way, so a stored value can never
+ * exceed a cap (e.g. after Bulk lowers one).
+ */
+export function leverageFor(
+  symbol: MarketSymbol,
+  byMarket: Partial<Record<MarketSymbol, number>>
+): number {
+  return clampLeverage(symbol, byMarket[symbol] ?? DEFAULT_LEVERAGE);
+}
+
 /** Category filter pills shown above the market list, in display order. */
 export const MARKET_CATEGORIES: { id: MarketCategory; label: string }[] = [
   { id: "favourites", label: "Favourites" },

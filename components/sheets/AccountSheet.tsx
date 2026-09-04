@@ -168,7 +168,7 @@ export function AccountSheet({
               onLeaderboard={onOpenLeaderboard}
             />
           )}
-          {view === "settings" && <SettingsPanel />}
+          {view === "settings" && <SettingsPanel signer={agent.signer} />}
           {view === "history" && (
             <HistoryPanel
               onShare={(trade) => onShare({ kind: "trade", trade })}
@@ -329,14 +329,14 @@ function Menu({
       {/* Balance card: total on top, today's P&L beneath it, then the funding /
           trading split that adds up to the total. */}
       <div className="glass-inset mb-3 rounded-2xl p-4">
-        <div className="flex items-center justify-between text-xs text-text-muted">
+        {/* <div className="flex items-center justify-between text-xs text-text-muted">
           <span>Total balance</span>
           {mode === "demo" && (
             <span className="rounded-md bg-white/10 px-1.5 py-0.5 text-[10px] font-bold text-text-muted">
               DEMO
             </span>
           )}
-        </div>
+        </div> */}
         <div className="tabular text-3xl font-semibold">
           {totalBalance != null ? formatUsd(totalBalance) : "—"}
         </div>

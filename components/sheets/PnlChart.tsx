@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { formatUsd } from "@/lib/format";
 import { haptic } from "@/lib/haptics";
+import { playSound } from "@/lib/sound";
 import {
   PNL_RANGES,
   usePnlSeries,
@@ -176,9 +177,12 @@ export function PnlChart({
         }
       }
       setActiveIndex(best);
+      // One tick per NODE crossed, not per pointer move — so dragging slowly
+      // across a single sample stays silent instead of buzzing continuously.
       if (lastHapticIndex.current !== best) {
         lastHapticIndex.current = best;
         haptic("tap");
+        playSound("tap");
       }
     },
     [coords]
@@ -209,6 +213,7 @@ export function PnlChart({
         // The hold itself gets a beat, so the user feels the mode change before
         // the per-node ticks start.
         haptic("open");
+        playSound("open");
         scrubTo(clientX);
       }, 180);
       return;

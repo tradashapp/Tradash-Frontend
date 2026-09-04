@@ -13,6 +13,8 @@ import {
   Settings02Icon,
   Clock01Icon,
   ArrowRight01Icon,
+  ArrowUp01Icon,
+  ArrowDown01Icon,
   ArrowDataTransferVerticalIcon,
   ArrowDataTransferHorizontalIcon,
   HelpCircleIcon,
@@ -38,6 +40,7 @@ import { useAgentWallet } from "@/hooks/useAgentWallet";
 import { useCollateral } from "@/hooks/useCollateral";
 import { useAllPositions } from "@/hooks/useAllPositions";
 import { ProfileHeader } from "./ProfileHeader";
+import { PnlChart } from "./PnlChart";
 
 type View = "menu" | "settings" | "history" | "transfer";
 
@@ -235,6 +238,9 @@ function Menu({
   onLeaderboard: () => void;
 }) {
   const { fundWallet } = useFundWallet();
+  // Whether the P&L chart under the balance is expanded. Collapsed by default
+  // so the balance card stays compact for users who just want the number.
+  const [chartOpen, setChartOpen] = useState(false);
   // Privy on-ramp: top up the user's OWN Solana wallet with USDC from outside.
   const onFundWallet = () => {
     if (!agent.masterAddress) return;
@@ -341,7 +347,18 @@ function Menu({
           {totalBalance != null ? formatUsd(totalBalance) : "—"}
         </div>
 
-        <div className="mt-1.5 flex items-center gap-1.5 text-xs">
+        {/* Today's P&L, with the chart expander beside it. The whole row is the
+            control (not just the caret) so it's a comfortable tap target. */}
+        <button
+          type="button"
+          onClick={() => {
+            haptic("tap");
+            setChartOpen((o) => !o);
+          }}
+          aria-expanded={chartOpen}
+          aria-label={chartOpen ? "Hide P&L chart" : "Show P&L chart"}
+          className="mt-1.5 flex items-center gap-1.5 text-xs"
+        >
           <span className="text-text-muted">Today&rsquo;s P&amp;L</span>
           <span
             className={`tabular font-semibold ${todayUp ? "text-up" : "text-down"}`}
@@ -356,7 +373,21 @@ function Menu({
               </span>
             )}
           </span>
-        </div>
+          {/* Points the way it will move: down to open, up to collapse. */}
+          <HugeiconsIcon
+            icon={chartOpen ? ArrowUp01Icon : ArrowDown01Icon}
+            size={14}
+            className={`shrink-0 transition-colors ${
+              chartOpen ? "text-text" : "text-text-muted"
+            }`}
+          />
+        </button>
+
+        <PnlChart
+          open={chartOpen}
+          floatingPnl={totalPnl}
+          currentBalance={totalBalance}
+        />
 
         {/* The two balances that make up the total. */}
         <div className="mt-3 flex gap-2">

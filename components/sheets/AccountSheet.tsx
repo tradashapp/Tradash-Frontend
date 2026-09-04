@@ -41,6 +41,11 @@ import { useCollateral } from "@/hooks/useCollateral";
 import { useAllPositions } from "@/hooks/useAllPositions";
 import { ProfileHeader } from "./ProfileHeader";
 import { PnlChart } from "./PnlChart";
+import {
+  PNL_RANGE_TITLES,
+  pnlRangeStart,
+  type PnlRange,
+} from "@/hooks/usePnlSeries";
 
 type View = "menu" | "settings" | "history" | "transfer";
 
@@ -95,18 +100,24 @@ export function AccountSheet({
   const { totalPnl } = useAllPositions();
   const trades = useAppSelector((s) => s.history.trades);
 
-  // PnL realized since local midnight, for the current account only. `add` rows
-  // record an increase in size and realize nothing, so they're excluded.
-  const realizedToday = useMemo(() => {
-    const midnight = new Date().setHours(0, 0, 0, 0);
+  // Which window the balance card's P&L line reports. Owned here rather than
+  // inside the chart because the chart's pills re-label THIS row — "Today's
+  // P&L" becomes "7D P&L" and so on — so the two must read from one value.
+  const [pnlRange, setPnlRange] = useState<PnlRange>("24h");
+
+  // PnL realized inside the selected window, for the current account only.
+  // `add` rows record an increase in size and realize nothing, so they're
+  // excluded — counting them would double-count P&L the close also reports.
+  const realizedInRange = useMemo(() => {
+    const from = pnlRangeStart(pnlRange);
     return trades.reduce(
       (sum, t) =>
-        t.mode === mode && t.kind !== "add" && t.closedAt >= midnight
+        t.mode === mode && t.kind !== "add" && t.closedAt >= from
           ? sum + t.pnl
           : sum,
       0
     );
-  }, [trades, mode]);
+  }, [trades, mode, pnlRange]);
 
   // Refresh the wallet balance each time the sheet opens (it may have changed
   // since the last poll — e.g. right after a deposit or an external transfer).
@@ -151,7 +162,9 @@ export function AccountSheet({
               liveEquity={liveEquity}
               bulkUnrealized={bulkUnrealized}
               totalPnl={totalPnl}
-              realizedToday={realizedToday}
+              realizedInRange={realizedInRange}
+              pnlRange={pnlRange}
+              onPnlRangeChange={setPnlRange}
               collateral={collateral}
               authenticated={authenticated}
               agent={agent}
@@ -197,7 +210,9 @@ function Menu({
   liveEquity,
   bulkUnrealized,
   totalPnl,
-  realizedToday,
+  realizedInRange,
+  pnlRange,
+  onPnlRangeChange,
   collateral,
   authenticated,
   agent,
@@ -220,8 +235,11 @@ function Menu({
   bulkUnrealized: number | undefined;
   /** Our live (MagicBlock-interpolated) unrealized PnL across all positions. */
   totalPnl: number;
-  /** PnL realized since local midnight, from the trade log. */
-  realizedToday: number;
+  /** PnL realized inside the selected window, from the trade log. */
+  realizedInRange: number;
+  /** The window the P&L line and the chart both report. */
+  pnlRange: PnlRange;
+  onPnlRangeChange: (r: PnlRange) => void;
   collateral: ReturnType<typeof useCollateral>;
   authenticated: boolean;
   agent: ReturnType<typeof useAgentWallet>;

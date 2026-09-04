@@ -33,6 +33,15 @@ const WINDOW_MS: Record<Exclude<PnlRange, "all">, number> = {
 };
 
 /**
+ * The instant a window opens. Exported so the balance card's realized sum and
+ * the chart's series are cut at exactly the same boundary — two definitions of
+ * "the last 7 days" would put a different number beside the curve than on it.
+ */
+export function pnlRangeStart(range: PnlRange, now = Date.now()): number {
+  return range === "all" ? 0 : now - WINDOW_MS[range];
+}
+
+/**
  * How many points the curve is resampled to. The raw trade log is clustered —
  * a burst of closes inside one minute, then hours of nothing — which draws as
  * spikes joined by flat runs. Resampling onto an even time grid and smoothing
@@ -121,7 +130,7 @@ export function usePnlSeries(
   const now = Date.now();
 
   return useMemo(() => {
-    const from = range === "all" ? 0 : now - WINDOW_MS[range];
+    const from = pnlRangeStart(range, now);
 
     const realized: CompletedTrade[] = trades
       .filter((t) => t.mode === mode && t.kind !== "add" && t.closedAt >= from)

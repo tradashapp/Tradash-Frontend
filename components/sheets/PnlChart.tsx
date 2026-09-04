@@ -271,7 +271,10 @@ export function PnlChart({
   // would keep filling a chart that has since turned red.
   const gradId = `pnlFill-${up ? "up" : "down"}`;
   const maskId = `pnlMask-${up ? "up" : "down"}`;
-  const clipId = `pnlClip-${up ? "up" : "down"}`;
+  // Deliberately NOT keyed on direction, unlike the gradient and mask ids: the
+  // clip is pure geometry, and rebuilding it when the chart flips green↔red
+  // would remount the rect and replay the wipe on an ordinary price tick.
+  const clipId = "pnlClip";
   // Everything right of the marker is masked back — the scrubbed portion reads
   // as "what had happened by then", the rest as the future you're ignoring.
   const dimFrom = scrubbing ? (marker.x / W) * 100 : 100;

@@ -12,11 +12,20 @@ import type { OrderResponse } from "./types";
 // the order, otherwise Bulk margins the fill at whatever leverage the account
 // last had, no matter what size we computed locally.
 //
-// The keychain exposes it as `prepareUpdateUserSettings(settings, options)`
-// with settings shaped `{ max_leverage: [[symbol, leverage], ...] }`. Because
-// `prepare*` accepts a `signer` distinct from `account`, the AGENT session key
-// can sign this on the master's behalf — same path as orders, so changing
-// leverage costs the user no wallet popup.
+// The keychain exposes it as `prepareUpdateUserSettings(settings, options)`.
+// ⚠️ The settings field is `maxLeverage` (camelCase) taking an array of
+// [symbol, leverage] PAIRS — the keychain's own .d.ts doc comment says
+// `max_leverage`, which the deserializer rejects with "missing field
+// `maxLeverage`" (verified against the WASM 2026-09-04). An object map is
+// rejected too ("expected a sequence"). It compiles to the action
+// `{ updateUserSettings: { m: { "BTC-USD": 20 } } }`, and several markets can
+// ride in one action.
+//
+// Because `prepare*` accepts a `signer` distinct from `account`, the AGENT
+// session key can sign this on the master's behalf — same path as orders, so
+// changing leverage costs the user no wallet popup. (Verified: prepared.account
+// == master, prepared.signer == agent, and the finalized envelope carries
+// actions/nonce/account/signer/signature.)
 
 /**
  * Push per-market leverage to Bulk, signed by the agent session key.
@@ -28,7 +37,7 @@ export async function setLeverage(
 ): Promise<OrderResponse> {
   const kc = await ensureKeychain();
   const prepared = kc.prepareUpdateUserSettings(
-    { max_leverage: entries.map(([symbol, lev]) => [symbol, Math.round(lev)]) },
+    { maxLeverage: entries.map(([symbol, lev]) => [symbol, Math.round(lev)]) },
     {
       // account = master (whose settings), signer = agent (who signs). Nonce
       // must be an explicit nanosecond string — without one the WASM calls

@@ -145,6 +145,17 @@ export function PnlChart({
   const up = series.net >= 0;
   const color = up ? UP : DOWN;
 
+  // Bumped every time the chart should re-draw itself left-to-right: when it
+  // is expanded, and when the range changes. Used as the animation's `key`, so
+  // it restarts on exactly those two events and on NOTHING else — in
+  // particular not on the price ticks that rebuild the path many times a
+  // second, which is what made an earlier `pathLength` version leave the line
+  // permanently clipped short of its tip.
+  const [drawId, setDrawId] = useState(0);
+  useEffect(() => {
+    if (open) setDrawId((n) => n + 1);
+  }, [open, range]);
+
   // Index of the sample under the cursor/finger, or null when not scrubbing.
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const plotRef = useRef<HTMLDivElement>(null);
@@ -260,6 +271,7 @@ export function PnlChart({
   // would keep filling a chart that has since turned red.
   const gradId = `pnlFill-${up ? "up" : "down"}`;
   const maskId = `pnlMask-${up ? "up" : "down"}`;
+  const clipId = `pnlClip-${up ? "up" : "down"}`;
   // Everything right of the marker is masked back — the scrubbed portion reads
   // as "what had happened by then", the rest as the future you're ignoring.
   const dimFrom = scrubbing ? (marker.x / W) * 100 : 100;
@@ -351,6 +363,23 @@ export function PnlChart({
                   <mask id={`${maskId}-m`}>
                     <rect x="0" y="0" width={W} height={H} fill={`url(#${maskId})`} />
                   </mask>
+                  {/* The draw-on wipe. Animating a CLIP rather than the path's
+                      own `pathLength` is what keeps it stable: the rect knows
+                      nothing about `d`, so the curve can be rebuilt on every
+                      price tick underneath a clip that has already finished
+                      opening. It also reveals the gradient fill in step with
+                      the line, which pathLength never could. */}
+                  <clipPath id={clipId}>
+                    <motion.rect
+                      key={drawId}
+                      x={0}
+                      y={0}
+                      height={H}
+                      initial={{ width: 0 }}
+                      animate={{ width: W }}
+                      transition={{ duration: 0.85, ease: [0.33, 1, 0.68, 1] }}
+                    />
+                  </clipPath>
                 </defs>
 
                 {/* Break-even baseline — without it a chart that's entirely
@@ -366,26 +395,11 @@ export function PnlChart({
                   vectorEffect="non-scaling-stroke"
                 />
 
-                <g mask={`url(#${maskId}-m)`}>
-                  {/* Re-keyed on the range so switching windows redraws rather
-                      than morphing between two unrelated shapes. */}
-                  <motion.path
-                    key={`area-${range}-${up}`}
-                    d={area}
-                    fill={`url(#${gradId})`}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ duration: 0.5, delay: 0.25 }}
-                  />
-                  {/* The stroke, drawn plainly so it ALWAYS spans its full
-                      length. It used to animate `pathLength` from 0 to 1, but
-                      `d` is rebuilt on every price tick as the live tip moves,
-                      and framer kept re-resolving that animation against the
-                      new geometry — leaving the stroke clipped to a fraction of
-                      a curve that had since grown past it. The area fill has no
-                      such animation, so it reached the end while the line
-                      stopped short of the tip dot. The fill's fade-in carries
-                      the chart's entry; the line does not need its own. */}
+                <g mask={`url(#${maskId}-m)`} clipPath={`url(#${clipId})`}>
+                  {/* Both the fill and the line are plain paths: the clip
+                      above animates them in together, so neither needs an
+                      entry animation of its own. */}
+                  <path d={area} fill={`url(#${gradId})`} />
                   <path
                     d={path}
                     stroke={color}
@@ -423,9 +437,13 @@ export function PnlChart({
                   left: `${(marker.x / W) * 100}%`,
                   top: `${(marker.y / H) * 100}%`,
                 }}
+                // Keyed and delayed to match the wipe: the dot marks the end
+                // of the line, so it must not appear before the line has
+                // arrived under it.
+                key={drawId}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                transition={{ delay: 0.7, duration: 0.3 }}
+                transition={{ delay: 0.8, duration: 0.25 }}
               >
                 <span className="relative -ml-[4px] -mt-[4px] block h-2 w-2">
                   {/* Expanding halo — the "still ticking" signal. Suppressed

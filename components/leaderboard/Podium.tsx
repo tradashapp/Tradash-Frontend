@@ -105,16 +105,6 @@ const RANKS = {
  */
 const DEPTH = 14;
 
-/**
- * Skew angle of the two receding faces, in degrees. Paired with DEPTH this sets
- * how steeply the cube leans away; 45 makes the top face a clean 45° recession,
- * which is shallow enough to stay believable at this size without needing real
- * perspective. Negative would send the vanishing point left — it must stay
- * positive so the light (upper left) and the depth (upper right) disagree,
- * which is what gives the solid its form.
- */
-const SKEW = 45;
-
 function Plinth({
   rank,
   entry,
@@ -161,80 +151,76 @@ function Plinth({
         {value}
       </span>
 
-      {/* The cube. Three faces, all built from the rank's tint:
+      {/* The cube. Three faces sharing one light source (upper left) and one
+          vanishing direction (back and to the right):
 
-            top    — a parallelogram skewed back and to the right, brightest of
-                     the three because the light sits above it,
-            side   — the right cheek, darkest, giving the solid its weight,
-            front  — the lit face carrying the rank label.
+            top    — brightest, it faces the light,
+            side   — the right cheek, mid-tone, giving the solid its weight,
+            front  — the glass face carrying the rank label.
 
-          The faces are positioned rather than transformed as a group: a real
-          `rotate3d` on a parent would foreshorten the label text with it, and a
-          podium whose "1st" leans away from the reader is worse than a flat one.
-          Skewing only the two receding faces keeps the type square to the
-          screen while the solid still reads as 3D. */}
+          The receding faces are cut with `clip-path` rather than skewed. A
+          skewX/skewY pair cannot produce the two parallelograms this needs —
+          the sheared box detaches from the front face's corners at anything but
+          a trivial angle — whereas naming all four corners places the shared
+          edges exactly. It also leaves the label unforeshortened: a 3D
+          transform on a parent would tilt the type away from the reader with
+          the solid, which is worse than a flat plinth.
+
+          Every corner is expressed against DEPTH, so the three ranks recede in
+          parallel despite their different heights. */}
       <button
         type="button"
         disabled={!entry}
         onClick={() => entry && onSelect(entry)}
         aria-label={entry ? `View @${entry.username}` : undefined}
-        className={`group relative mt-2 w-full transition-transform duration-200 disabled:cursor-default ${
+        className={`relative mt-2 w-full transition-transform duration-200 disabled:cursor-default ${
           entry ? "active:scale-[0.97]" : "opacity-40"
         }`}
-        style={{
-          // Room for the top face, which sits above the front face's box.
-          height: style.height + DEPTH,
-          // The cube is drawn inset from the column so the receding side face
-          // has somewhere to go without colliding with the next plinth.
-          paddingRight: DEPTH,
-        }}
+        // Room for the top face, which stands above the front face's box.
+        style={{ height: style.height + DEPTH }}
       >
         {/* Top face. */}
         <span
           aria-hidden
-          className="absolute left-0 right-0 top-0 origin-bottom-left"
+          className="absolute inset-0"
           style={{
-            height: DEPTH,
-            transform: `skewX(${SKEW}deg)`,
-            background: `linear-gradient(to right, rgba(${style.tint}, 0.28), rgba(${style.tint}, 0.16))`,
-            borderTop: `1px solid rgba(${style.tint}, 0.5)`,
+            clipPath: `polygon(0 ${DEPTH}px, ${DEPTH}px 0, 100% 0, calc(100% - ${DEPTH}px) ${DEPTH}px)`,
+            background: `linear-gradient(115deg, rgba(${style.tint}, 0.42), rgba(${style.tint}, 0.2))`,
           }}
         />
 
         {/* Right side face. */}
         <span
           aria-hidden
-          className="absolute right-0 origin-top-left"
+          className="absolute inset-0"
           style={{
-            top: 0,
-            width: DEPTH,
-            height: style.height,
-            transform: `skewY(${SKEW}deg)`,
-            background: `linear-gradient(to bottom, rgba(${style.tint}, 0.1), rgba(${style.tint}, 0.03))`,
-            borderLeft: `1px solid rgba(${style.tint}, 0.16)`,
+            clipPath: `polygon(calc(100% - ${DEPTH}px) ${DEPTH}px, 100% 0, 100% calc(100% - ${DEPTH}px), calc(100% - ${DEPTH}px) 100%)`,
+            background: `linear-gradient(to bottom, rgba(${style.tint}, 0.2), rgba(${style.tint}, 0.07))`,
           }}
         />
 
         {/* Front face — the glass itself, and the only face carrying content. */}
         <span
-          className="absolute bottom-0 left-0 flex items-start justify-center overflow-hidden rounded-t-md pt-3 backdrop-blur-md"
+          className="absolute bottom-0 left-0 flex items-start justify-center overflow-hidden pt-3"
           style={{
+            top: DEPTH,
             right: DEPTH,
-            height: style.height,
-            background: `linear-gradient(160deg, rgba(${style.tint}, 0.16) 0%, rgba(${style.tint}, 0.06) 45%, rgba(${style.tint}, 0.02) 100%)`,
+            background: `linear-gradient(165deg, rgba(${style.tint}, 0.2) 0%, rgba(${style.tint}, 0.07) 40%, rgba(${style.tint}, 0.03) 100%)`,
+            backdropFilter: "blur(6px)",
+            WebkitBackdropFilter: "blur(6px)",
             border: `1px solid rgba(${style.tint}, 0.22)`,
             borderTopColor: `rgba(${style.tint}, 0.45)`,
             boxShadow: `inset 0 1px 0 rgba(255, 255, 255, 0.14), ${style.glow}`,
           }}
         >
-          {/* Specular sweep — a soft diagonal highlight across the upper left of
-              the face. This is what sells the surface as glass rather than as
-              flat tinted plastic. */}
+          {/* Specular sweep across the upper left — this is what sells the face
+              as glass rather than flat tinted plastic. */}
           <span
             aria-hidden
             className="pointer-events-none absolute inset-0"
             style={{
-              background: `linear-gradient(135deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.04) 30%, transparent 55%)`,
+              background:
+                "linear-gradient(135deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.06) 28%, transparent 52%)",
             }}
           />
           <span

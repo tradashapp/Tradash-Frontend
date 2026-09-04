@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useRef, useState, type PointerEvent, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowLeft01Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
@@ -33,6 +33,14 @@ const MAX_H = "98dvh";
 const MIN_H = "50dvh";
 /** Widest a sheet gets — below this it stays full-bleed, above it it centres. */
 const MAX_W = "28rem";
+
+/**
+ * Drag-to-dismiss thresholds. Either one alone closes the sheet: a slow drag
+ * past DRAG_CLOSE_PX, or a quick flick regardless of distance — matching how
+ * native sheets behave, where a fast short swipe still dismisses.
+ */
+const DRAG_CLOSE_PX = 110;
+const DRAG_CLOSE_VELOCITY = 550;
 
 interface SheetProps {
   open: boolean;
@@ -74,6 +82,22 @@ export function Sheet({
   children,
   className = "",
 }: SheetProps) {
+  // The scrollable body. A downward drag that starts while the body is scrolled
+  // belongs to the scroll region, not the sheet — otherwise a long sheet could
+  // never be read back up through without dismissing itself. Framer decides
+  // whether a gesture may drag at `dragListener` time, so the permission is
+  // held in state and flipped on pointer-down, before the drag begins.
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const [dragEnabled, setDragEnabled] = useState(true);
+
+  // Pointer-down anywhere in the sheet: the drag is allowed unless the gesture
+  // started inside a body that has somewhere to scroll back to.
+  const armDrag = (e: PointerEvent) => {
+    const body = bodyRef.current;
+    const insideBody = !!body && body.contains(e.target as Node);
+    setDragEnabled(!insideBody || body!.scrollTop <= 0);
+  };
+
   return (
     <AnimatePresence>
       {open && (
@@ -93,9 +117,25 @@ export function Sheet({
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
             transition={{ type: "spring", damping: 30, stiffness: 300 }}
+            onPointerDown={armDrag}
+            drag={dragEnabled ? "y" : false}
+            // Constrained to its resting position, so only the elastic overshoot
+            // moves — and only downward (top elasticity 0), because a sheet
+            // yanked off the top edge has nowhere to go.
+            dragConstraints={{ top: 0, bottom: 0 }}
+            dragElastic={{ top: 0, bottom: 0.5 }}
+            dragDirectionLock
+            onDragEnd={endDrag}
           >
-            {/* Grabber */}
-            <div className="mx-auto mb-2 h-1 w-10 shrink-0 rounded-full bg-up" />
+            {/* Grabber. Sits in a tall, wide hit area that never scrolls, so
+                there is always a place to grab the sheet from — including when
+                the body beneath it is scrolled down. */}
+            <div
+              className="mx-auto mb-2 flex h-6 w-24 shrink-0 cursor-grab touch-none items-center justify-center active:cursor-grabbing"
+              aria-hidden
+            >
+              <div className="h-1 w-10 rounded-full bg-up" />
+            </div>
 
             {/* Title bar. Always rendered (even with no title) so the close
                 button has a home — it sits far right on every sheet. */}
@@ -138,6 +178,7 @@ export function Sheet({
                 contradiction the inline style wins, pinning the body open and
                 pushing tall lists past the sheet instead of scrolling them. */}
             <div
+              ref={bodyRef}
               className={`flex min-h-0 flex-1 flex-col ${
                 scrollBody ? "overflow-y-auto" : ""
               } ${className}`}

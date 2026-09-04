@@ -377,17 +377,23 @@ export function PnlChart({
                     animate={{ opacity: 1 }}
                     transition={{ duration: 0.5, delay: 0.25 }}
                   />
-                  <motion.path
-                    key={`line-${range}-${up}`}
+                  {/* The stroke, drawn plainly so it ALWAYS spans its full
+                      length. It used to animate `pathLength` from 0 to 1, but
+                      `d` is rebuilt on every price tick as the live tip moves,
+                      and framer kept re-resolving that animation against the
+                      new geometry — leaving the stroke clipped to a fraction of
+                      a curve that had since grown past it. The area fill has no
+                      such animation, so it reached the end while the line
+                      stopped short of the tip dot. The fill's fade-in carries
+                      the chart's entry; the line does not need its own. */}
+                  <path
                     d={path}
                     stroke={color}
                     strokeWidth={2}
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     vectorEffect="non-scaling-stroke"
-                    initial={{ pathLength: 0 }}
-                    animate={{ pathLength: 1 }}
-                    transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+                    fill="none"
                   />
                 </g>
 

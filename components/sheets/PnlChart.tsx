@@ -229,8 +229,6 @@ export function PnlChart({
       }
       // Once holding, the gesture is ours: stop the page scrolling under it.
       e.preventDefault();
-    } else if (e.buttons === 0 && activeIndex == null) {
-      // Plain hover before any press — still scrub, that's the desktop affordance.
     }
     scrubTo(e.clientX);
   };
@@ -242,6 +240,8 @@ export function PnlChart({
   // Everything right of the marker is masked back — the scrubbed portion reads
   // as "what had happened by then", the rest as the future you're ignoring.
   const dimFrom = scrubbing ? (marker.x / W) * 100 : 100;
+  // Clamped so a tooltip near either edge stays fully inside the plot.
+  const tooltipLeftPct = Math.min(Math.max((marker.x / W) * 100, 14), 86);
 
   return (
     <AnimatePresence initial={false}>
@@ -392,25 +392,16 @@ export function PnlChart({
               <AnimatePresence>
                 {scrubbing && (
                   <motion.div
-                    className="pointer-events-none absolute -top-1 z-20 -translate-y-full"
-                    style={{
-                      left: `${(marker.x / W) * 100}%`,
-                      // Keep the box inside the plot at both ends instead of
-                      // letting it hang off the edge of the card.
-                      transform: "translate(-50%, -100%)",
-                      marginLeft:
-                        marker.x / W < 0.15
-                          ? `${(0.15 - marker.x / W) * 100}%`
-                          : marker.x / W > 0.85
-                            ? `${(0.85 - marker.x / W) * 100}%`
-                            : undefined,
-                    }}
+                    className="pointer-events-none absolute bottom-full z-20 flex w-full justify-start pb-1"
+                    // The box is centred on the marker, then clamped into the
+                    // plot at both ends so it never hangs off the card edge.
+                    style={{ left: 0, paddingLeft: `${tooltipLeftPct}%` }}
                     initial={{ opacity: 0, y: 4 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: 4 }}
                     transition={{ duration: 0.12 }}
                   >
-                    <div className="glass-inset whitespace-nowrap rounded-lg px-2 py-1.5 text-center">
+                    <div className="glass-inset -translate-x-1/2 whitespace-nowrap rounded-lg px-2 py-1.5 text-center">
                       <div className="text-[9px] leading-tight text-text-muted">
                         {formatStamp(markerPoint.t)}
                       </div>

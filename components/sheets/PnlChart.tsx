@@ -38,6 +38,15 @@ const PAD_X = 14;
 const PAD_Y = 16;
 
 /**
+ * Height reserved ABOVE the plot for the scrub tooltip, in px.
+ *
+ * The tooltip cannot simply overflow upward: the balance card's own rows are
+ * painted after it and would cover it. Reserving the band keeps the tooltip
+ * inside the chart's own box, where nothing later in the card can sit on top.
+ */
+const TOOLTIP_BAND = 42;
+
+/**
  * Project the series into viewbox coordinates.
  *
  * X is spread over TIME, not sample index: the series is resampled onto an even
@@ -254,8 +263,10 @@ export function PnlChart({
   // Everything right of the marker is masked back — the scrubbed portion reads
   // as "what had happened by then", the rest as the future you're ignoring.
   const dimFrom = scrubbing ? (marker.x / W) * 100 : 100;
-  // Clamped so a tooltip near either edge stays fully inside the plot.
-  const tooltipLeftPct = Math.min(Math.max((marker.x / W) * 100, 14), 86);
+  // Clamped so a tooltip centred near either end stays fully inside the plot
+  // instead of hanging off the card. The bounds are wider than PAD_X because
+  // the box is centred on the marker and is far wider than the dot.
+  const tooltipLeftPct = Math.min(Math.max((marker.x / W) * 100, 16), 84);
 
   return (
     <AnimatePresence initial={false}>
@@ -269,6 +280,40 @@ export function PnlChart({
           className="overflow-hidden"
         >
           <div className="pt-3">
+            {/* Reserved band for the scrub tooltip — always present, so the
+                chart never shifts down when a scrub begins. */}
+            <div
+              className="relative"
+              style={{ height: TOOLTIP_BAND }}
+              aria-hidden
+            >
+              <AnimatePresence>
+                {scrubbing && (
+                  <motion.div
+                    className="pointer-events-none absolute bottom-0 flex w-full justify-start"
+                    // The box is centred on the marker, then clamped into the
+                    // plot at both ends so it never hangs off the card edge.
+                    style={{ left: 0, paddingLeft: `${tooltipLeftPct}%` }}
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 4 }}
+                    transition={{ duration: 0.12 }}
+                  >
+                    <div className="glass-inset -translate-x-1/2 whitespace-nowrap rounded-lg border border-white/10 px-2 py-1.5 text-center shadow-lg">
+                      <div className="text-[9px] leading-tight text-text-muted">
+                        {formatStamp(markerPoint.t)}
+                      </div>
+                      <div className="tabular text-[11px] font-semibold leading-tight">
+                        {markerPoint.balance != null
+                          ? formatUsd(markerPoint.balance)
+                          : "—"}
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
             <div
               ref={plotRef}
               className="relative select-none"
@@ -402,32 +447,6 @@ export function PnlChart({
                 </span>
               </motion.div>
 
-              {/* Tooltip: the moment, and what the account was worth at it. */}
-              <AnimatePresence>
-                {scrubbing && (
-                  <motion.div
-                    className="pointer-events-none absolute bottom-full z-20 flex w-full justify-start pb-1"
-                    // The box is centred on the marker, then clamped into the
-                    // plot at both ends so it never hangs off the card edge.
-                    style={{ left: 0, paddingLeft: `${tooltipLeftPct}%` }}
-                    initial={{ opacity: 0, y: 4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 4 }}
-                    transition={{ duration: 0.12 }}
-                  >
-                    <div className="glass-inset -translate-x-1/2 whitespace-nowrap rounded-lg px-2 py-1.5 text-center">
-                      <div className="text-[9px] leading-tight text-text-muted">
-                        {formatStamp(markerPoint.t)}
-                      </div>
-                      <div className="tabular text-[11px] font-semibold leading-tight">
-                        {markerPoint.balance != null
-                          ? formatUsd(markerPoint.balance)
-                          : "—"}
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
             </div>
 
             {/* Range pills — these also re-label the P&L row above the chart. */}

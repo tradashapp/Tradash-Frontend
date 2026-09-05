@@ -1,15 +1,9 @@
-// Profile avatars for the account sheet. An avatar is either one of the emoji
-// below or a data-URL photo the user picked from their device.
+// Profile avatars. A photo the user picked from their device, stored as a
+// data-URL. Older accounts may still hold an emoji here — the leaderboard's
+// Avatar still renders those — but the picker that set them is gone: the
+// account sheet now takes a photo or falls back to the handle's initials.
 
-/** Crypto/trading-flavoured emoji offered in the avatar picker. */
-export const AVATAR_EMOJIS = [
-  "🚀", "🔥", "💰", "💵", "💸", "🤑", "💎", "🙌",
-  "📈", "📉", "🐂", "🐻", "🐳", "🦍", "🌙", "⚡",
-  "🏆", "👑", "🎯", "🎲", "🧠", "🦈", "🍀", "🪙",
-  "💼", "📊", "⛏️", "🔗", "🛡️", "🥇", "😎", "🤖",
-] as const;
-
-/** True when the stored avatar is a device photo rather than an emoji. */
+/** True when the stored avatar is a device photo rather than a legacy emoji. */
 export function isPhotoAvatar(avatar: string): boolean {
   return avatar.startsWith("data:");
 }

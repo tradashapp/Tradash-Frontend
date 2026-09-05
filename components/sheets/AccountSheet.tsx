@@ -31,6 +31,7 @@ import { formatUsd } from "@/lib/format";
 import { MenuSection } from "@/components/ui/MenuSection";
 import { Sheet } from "@/components/ui/Sheet";
 import { SettingsPanel } from "./panels/SettingsPanel";
+import { SettingsMenuPanel } from "./panels/SettingsMenuPanel";
 import { HistoryPanel } from "./panels/HistoryPanel";
 import type { ShareSubject } from "@/components/share/ShareCardModal";
 import type { CompletedTrade, TradeEpisode } from "@/types";
@@ -47,7 +48,7 @@ import {
   type PnlRange,
 } from "@/hooks/usePnlSeries";
 
-type View = "menu" | "settings" | "history" | "transfer";
+type View = "menu" | "settings" | "settingsMenu" | "history" | "transfer";
 
 interface Props {
   open: boolean;
@@ -64,7 +65,8 @@ interface Props {
 // The menu view has no title — it leads with the profile header instead.
 const TITLES: Record<View, string> = {
   menu: "",
-  settings: "Settings",
+  settings: "Trade settings",
+  settingsMenu: "Settings",
   history: "Trade history",
   transfer: "Transfer margin",
 };
@@ -145,6 +147,21 @@ export function AccountSheet({
       // title bar (and the back chevron that returns to the menu).
       title={view === "menu" ? undefined : TITLES[view]}
       onBack={view === "menu" ? undefined : () => go("menu")}
+      // Settings is reachable from the menu's top-left rather than only from a
+      // row further down, because it is the one destination users look for by
+      // its icon.
+      headerLeft={
+        view === "menu" ? (
+          <button
+            type="button"
+            onClick={() => go("settingsMenu")}
+            aria-label="Settings"
+            className="glass-inset flex h-9 w-9 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-white/10 hover:text-text active:scale-90"
+          >
+            <HugeiconsIcon icon={Settings02Icon} size={18} />
+          </button>
+        ) : undefined
+      }
     >
       {/* Animated sub-views */}
       <AnimatePresence mode="wait" initial={false}>
@@ -185,6 +202,7 @@ export function AccountSheet({
             />
           )}
           {view === "settings" && <SettingsPanel signer={agent.signer} />}
+          {view === "settingsMenu" && <SettingsMenuPanel />}
           {view === "history" && (
             <HistoryPanel
               onShare={(trade) => onShare({ kind: "trade", trade })}

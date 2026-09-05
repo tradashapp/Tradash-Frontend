@@ -81,9 +81,9 @@ export function RankBadge({ rank, size = 46, className = "" }: BadgeProps) {
 
   return (
     <svg
-      viewBox="0 0 64 58"
+      viewBox="0 0 100 74"
       width={size}
-      height={(size * 58) / 64}
+      height={(size * 74) / 100}
       fill="none"
       className={className}
       aria-hidden
@@ -110,39 +110,41 @@ export function RankBadge({ rank, size = 46, className = "" }: BadgeProps) {
         </linearGradient>
       </defs>
 
-      {/* Wings. Drawn as one mirrored pair sweeping out and slightly up from
-          the crossbar, with three feather notches cut into each trailing edge
-          so the silhouette reads as plumage at small sizes. */}
+      {/* Wings. A mirrored pair sweeping out and slightly up from the crossbar,
+          long and tapering rather than stubby — the spread is what makes this
+          read as an award crest instead of a ribbon bow. Three feather notches
+          are cut into each trailing edge so the silhouette still says "plumage"
+          once it's shrunk to ~40px on the podium. */}
       <g fill={`url(#${wing})`}>
-        <path d="M31 13 L10 9 Q3 8.5 1.5 12.5 Q6 13.5 8 15.5 Q3.5 15.5 2.5 18.5 Q8 19.5 10.5 21.5 Q6.5 22 6 24.5 Q15 25.5 22 22.5 Q28 20 31 16.5 Z" />
-        <path d="M33 13 L54 9 Q61 8.5 62.5 12.5 Q58 13.5 56 15.5 Q60.5 15.5 61.5 18.5 Q56 19.5 53.5 21.5 Q57.5 22 58 24.5 Q49 25.5 42 22.5 Q36 20 33 16.5 Z" />
+        <path d="M47 12 Q35 4 21 3 Q9 2.5 3 7 Q11 8.5 16 11.5 Q8 12 4.5 15.5 Q13 16.5 19 19 Q11.5 20 9 23.5 Q19 24 26 22 Q37 19.5 47 18 Z" />
+        <path d="M53 12 Q65 4 79 3 Q91 2.5 97 7 Q89 8.5 84 11.5 Q92 12 95.5 15.5 Q87 16.5 81 19 Q88.5 20 91 23.5 Q81 24 74 22 Q63 19.5 53 18 Z" />
       </g>
 
       {/* Crossbar joining the wings over the neck. */}
-      <rect x="25" y="10" width="14" height="7" rx="3" fill={`url(#${rim})`} />
+      <rect x="43" y="9" width="14" height="8" rx="3" fill={`url(#${rim})`} />
 
       {/* Neck — the short stem the medallion hangs from. */}
-      <path d="M28 16 L36 16 L34.5 25 L29.5 25 Z" fill={`url(#${rim})`} />
+      <path d="M46 16 L54 16 L52.5 25 L47.5 25 Z" fill={`url(#${rim})`} />
 
       {/* Medallion. */}
-      <circle cx="32" cy="39" r="17" fill={`url(#${rim})`} />
-      <circle cx="32" cy="39" r="14" fill={`url(#${face})`} />
+      <circle cx="50" cy="47" r="23" fill={`url(#${rim})`} />
+      <circle cx="50" cy="47" r="19" fill={`url(#${face})`} />
       {/* Inner bevel ring, and a specular arc across the upper left of the
           dome — the two together are what stop the disc looking flat. */}
       <circle
-        cx="32"
-        cy="39"
-        r="11"
+        cx="50"
+        cy="47"
+        r="15"
         fill="none"
         stroke={metal.dark}
         strokeOpacity="0.35"
         strokeWidth="1"
       />
       <path
-        d="M23 33 Q28 28 36 29"
+        d="M38 39 Q44 32 55 34"
         stroke="#fff"
         strokeOpacity="0.6"
-        strokeWidth="2.5"
+        strokeWidth="3"
         strokeLinecap="round"
         fill="none"
       />
@@ -150,10 +152,10 @@ export function RankBadge({ rank, size = 46, className = "" }: BadgeProps) {
       {/* The numeral, struck into the medallion. The dark copy offset a hair
           below the light one is what gives the digit its engraved edge. */}
       <text
-        x="32"
-        y="45.5"
+        x="50"
+        y="55.5"
         textAnchor="middle"
-        fontSize="17"
+        fontSize="24"
         fontWeight="900"
         fill={metal.dark}
         fillOpacity="0.55"
@@ -162,10 +164,10 @@ export function RankBadge({ rank, size = 46, className = "" }: BadgeProps) {
         {rank}
       </text>
       <text
-        x="32"
-        y="44.8"
+        x="50"
+        y="54.7"
         textAnchor="middle"
-        fontSize="17"
+        fontSize="24"
         fontWeight="900"
         fill="#fff"
         fillOpacity="0.95"

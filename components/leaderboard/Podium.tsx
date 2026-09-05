@@ -70,28 +70,28 @@ const RANKS = {
     // Metal tints, matching the badge each plinth carries: gold, silver, bronze.
     // The cube and its badge are the same material seen at different alphas.
     tint: "255, 199, 64",
-    /** Only the winner throws a coloured bloom onto the surface beneath. */
-    glow: "0 18px 40px -12px rgba(255, 199, 64, 0.4)",
+    /** Only the winner throws a coloured bloom; see `bloom` in the render. */
+    bloom: "rgba(255, 199, 64, 0.30)",
     ringColor: "#FFD75E",
-    badge: 52,
+    badge: 76,
     avatar: "h-16 w-16",
   },
   2: {
     height: 78,
     lift: "translate-y-0",
     tint: "226, 232, 240",
-    glow: "0 14px 30px -14px rgba(0, 0, 0, 0.7)",
+    bloom: "transparent",
     ringColor: "rgba(226, 232, 240, 0.55)",
-    badge: 42,
+    badge: 60,
     avatar: "h-12 w-12",
   },
   3: {
     height: 64,
     lift: "translate-y-1",
     tint: "224, 155, 95",
-    glow: "0 14px 30px -14px rgba(0, 0, 0, 0.7)",
+    bloom: "transparent",
     ringColor: "rgba(224, 155, 95, 0.5)",
-    badge: 42,
+    badge: 60,
     avatar: "h-12 w-12",
   },
 } as const;
@@ -104,6 +104,17 @@ const RANKS = {
  * and the top face starts crowding out the avatar above it.
  */
 const DEPTH = 14;
+
+/**
+ * The ramp every face fades out on towards the base, so the plinths read as
+ * bottomless — open at the floor rather than sealed boxes sitting on it.
+ *
+ * It is applied as a MASK, not just as transparent gradient stops: the receding
+ * faces are cut with `clip-path`, whose edges keep drawing the box's silhouette
+ * even where the fill has faded to nothing. One constant for all three faces —
+ * if they fade on different ramps the seams reappear as visible corners.
+ */
+const FADE_OUT = "linear-gradient(to bottom, #000 0%, #000 45%, transparent 100%)";
 
 function Plinth({
   rank,
@@ -190,6 +201,22 @@ function Plinth({
         // Room for the top face, which stands above the front face's box.
         style={{ height: style.height + DEPTH }}
       >
+        {/* The winner's bloom, painted behind the faces. A box-shadow under the
+            front face would light the floor but also redraw the bottom edge the
+            fade exists to remove — a blurred radial has no edge to leak. */}
+        <span
+          aria-hidden
+          className="pointer-events-none absolute"
+          style={{
+            left: "-14%",
+            right: "-14%",
+            bottom: -10,
+            height: "62%",
+            background: `radial-gradient(ellipse at 50% 100%, ${style.bloom} 0%, transparent 70%)`,
+            filter: "blur(10px)",
+          }}
+        />
+
         {/* Top face. */}
         <span
           aria-hidden
@@ -209,6 +236,11 @@ function Plinth({
           style={{
             clipPath: `polygon(calc(100% - ${DEPTH}px) ${DEPTH}px, 100% 0, 100% calc(100% - ${DEPTH}px), calc(100% - ${DEPTH}px) 100%)`,
             background: `linear-gradient(to bottom, rgba(${style.tint}, 0.2) 0%, rgba(${style.tint}, 0.07) 45%, rgba(${style.tint}, 0) 100%)`,
+            // Masked as well as faded: the clip-path's lower corner is a hard
+            // edge that would still draw the closed bottom of the box even once
+            // its fill has gone transparent.
+            maskImage: FADE_OUT,
+            WebkitMaskImage: FADE_OUT,
           }}
         />
 
@@ -228,7 +260,6 @@ function Plinth({
             backdropFilter: "blur(6px)",
             WebkitBackdropFilter: "blur(6px)",
             borderTop: `1px solid rgba(${style.tint}, 0.45)`,
-            boxShadow: style.glow,
           }}
         >
           {/* Side edges, faded out towards the open base. Drawn as an inset
@@ -238,10 +269,8 @@ function Plinth({
             className="pointer-events-none absolute inset-0"
             style={{
               boxShadow: `inset 1px 0 0 rgba(${style.tint}, 0.22), inset -1px 0 0 rgba(${style.tint}, 0.22)`,
-              maskImage:
-                "linear-gradient(to bottom, #000 0%, #000 45%, transparent 100%)",
-              WebkitMaskImage:
-                "linear-gradient(to bottom, #000 0%, #000 45%, transparent 100%)",
+              maskImage: FADE_OUT,
+              WebkitMaskImage: FADE_OUT,
             }}
           />
           {/* Specular sweep across the upper left — this is what sells the face
@@ -253,10 +282,8 @@ function Plinth({
             style={{
               background:
                 "linear-gradient(135deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.06) 28%, transparent 52%)",
-              maskImage:
-                "linear-gradient(to bottom, #000 0%, #000 50%, transparent 100%)",
-              WebkitMaskImage:
-                "linear-gradient(to bottom, #000 0%, #000 50%, transparent 100%)",
+              maskImage: FADE_OUT,
+              WebkitMaskImage: FADE_OUT,
             }}
           />
           {/* The medal, struck into the face of the cube. */}

@@ -18,14 +18,30 @@ export function ProfileAvatar({
   src,
   name,
   className = "",
+  loading = false,
 }: {
   /** Photo URL (bucket or data URL). Null falls back to initials. */
   src?: string | null;
   /** Handle the initials and the colour come from. */
   name?: string | null;
   className?: string;
+  /**
+   * The profile is still being fetched. Renders a pulsing circle instead of
+   * guessing at initials — otherwise a user with a photo sees a "?" or the
+   * wrong letter for a beat, then a swap once the real avatar lands.
+   */
+  loading?: boolean;
 }) {
   const initials = initialsOf(name);
+
+  if (loading && !src) {
+    return (
+      <span
+        aria-hidden
+        className={`block shrink-0 animate-pulse rounded-full bg-white/[0.08] h-12 w-12 ${className}`}
+      />
+    );
+  }
 
   return (
     <div

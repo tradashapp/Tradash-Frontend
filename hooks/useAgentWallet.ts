@@ -43,7 +43,7 @@ import { useToast } from "@/components/toast/ToastProvider";
 //  - exposes a ready AgentSigner for one-tap trades
 export function useAgentWallet() {
   const dispatch = useAppDispatch();
-  const { user, authenticated } = usePrivy();
+  const { user, authenticated, ready } = usePrivy();
   const { signMessage } = useSignMessage();
   const { toast } = useToast();
 
@@ -81,9 +81,17 @@ export function useAgentWallet() {
     [signMessage]
   );
 
-  // Toast on connect / disconnect transitions.
+  // Toast on connect / disconnect transitions the user actually performed.
+  //
+  // Gated on Privy's `ready`, which is what separates "restoring an existing
+  // session" from "just logged in". Privy reports `authenticated: false` while
+  // it rehydrates, so watching `authenticated` alone saw false→true on EVERY
+  // app open and greeted returning users with "Wallet connected" every time.
+  // Seeding the ref on the first ready render means the restored session is the
+  // baseline, and only a genuine login or logout after that is announced.
   const wasAuthed = useRef<boolean | null>(null);
   useEffect(() => {
+    if (!ready) return;
     if (wasAuthed.current === null) {
       wasAuthed.current = authenticated;
       return;
@@ -94,7 +102,7 @@ export function useAgentWallet() {
       toast("Wallet disconnected", { type: "info" });
     }
     wasAuthed.current = authenticated;
-  }, [authenticated, toast]);
+  }, [ready, authenticated, toast]);
 
   // Track the wallet in Redux + sync the backend user by Privy DID (carrying the
   // embedded wallet, auth method, and linked accounts so one person = one row).

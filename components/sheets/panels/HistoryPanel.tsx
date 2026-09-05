@@ -9,6 +9,7 @@ import {
   PlayIcon,
 } from "@hugeicons/core-free-icons";
 import { useAppSelector } from "@/store/hooks";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { formatUsd } from "@/lib/format";
 import { isReplayable } from "@/lib/replay/path";
 import type { CompletedTrade, TradeEpisode } from "@/types";
@@ -29,6 +30,10 @@ export function HistoryPanel({ onShare, onReplay }: Props) {
   const mode = useAppSelector((s) => s.tradingMode.mode);
   const allTrades = useAppSelector((s) => s.history.trades);
   const episodes = useAppSelector((s) => s.replay.byId);
+  // Only LIVE history is fetched; demo rows come from localStorage and are
+  // present on the first render, so demo never shows a loading state.
+  const liveHydrated = useAppSelector((s) => s.history.liveHydrated);
+  const historyLoading = mode === "live" && !liveHydrated;
   // Memoize so the filtered array keeps a stable identity between renders.
   const trades = useMemo(
     () => allTrades.filter((t) => t.mode === mode),
@@ -53,7 +58,16 @@ export function HistoryPanel({ onShare, onReplay }: Props) {
         <StatTile label="Volume" value={formatUsd(stats.volume)} />
       </div>
 
-      {trades.length === 0 ? (
+      {historyLoading ? (
+        // Rows in outline while the backend's history is in flight. The empty
+        // state below is a CLAIM ("you have never traded") and must not be
+        // shown to a user whose trades simply haven't arrived yet.
+        <div className="flex flex-col gap-1.5">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="h-[52px] rounded-xl" />
+          ))}
+        </div>
+      ) : trades.length === 0 ? (
         <p className="py-8 text-center text-sm text-text-muted">
           No trades yet. Tap UP or DOWN to start.
         </p>

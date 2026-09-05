@@ -15,7 +15,10 @@ import {
   clearAllPositions,
 } from "@/store/slices/positionSlice";
 import { clearPendingChartEntry } from "@/store/slices/tradingSlice";
-import { hydrateLiveHistory } from "@/store/slices/historySlice";
+import {
+  hydrateLiveHistory,
+  markLiveHydrated,
+} from "@/store/slices/historySlice";
 import { recordClose } from "@/lib/history";
 import { hydrateLiveEpisodes } from "@/store/slices/replaySlice";
 import { useToast, type ToastOptions } from "@/components/toast/ToastProvider";
@@ -51,11 +54,17 @@ export function useBulkAccount(
     if (!walletAddress) {
       dispatch(setBalance(null));
       dispatch(clearAllPositions());
+      // Signed out: there is no live history to wait for, so settle the flag or
+      // the history panel would show a loading state indefinitely.
+      dispatch(markLiveHydrated());
       lastOpen.current = {};
       return;
     }
 
     // Load this user's persisted live history from the backend (by Privy DID).
+    // No DID means nothing to fetch — settle the flag so the panel renders its
+    // empty state instead of waiting on a request that will never be made.
+    if (!privyId) dispatch(markLiveHydrated());
     if (privyId) {
       api
         .fetchHistory(privyId)
@@ -64,7 +73,11 @@ export function useBulkAccount(
           // so any stale live rows should be cleared while demo trades stay.
           dispatch(hydrateLiveHistory(trades));
         })
-        .catch(() => {});
+        .catch(() => {
+          // Failed fetch still settles the flag: showing the empty state is
+          // wrong but recoverable, whereas an endless skeleton is a dead end.
+          dispatch(markLiveHydrated());
+        });
 
       // Recorded price paths for replaying those trades. Optional data — a
       // failure here must never affect the history itself.

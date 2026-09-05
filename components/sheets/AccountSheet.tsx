@@ -30,6 +30,7 @@ import { resetDemo } from "@/store/slices/tradingModeSlice";
 import { formatUsd } from "@/lib/format";
 import { MenuSection } from "@/components/ui/MenuSection";
 import { Sheet } from "@/components/ui/Sheet";
+import { SkeletonText } from "@/components/ui/Skeleton";
 import { SettingsPanel } from "./panels/SettingsPanel";
 import { SettingsMenuPanel } from "./panels/SettingsMenuPanel";
 import { HistoryPanel } from "./panels/HistoryPanel";
@@ -304,6 +305,15 @@ function Menu({
   // total silently drop the funding leg; we only add a leg once it is known,
   // and fall back to the trading balance alone rather than showing nothing.
   const fundingBalance = mode === "demo" ? null : collateral.walletUsdc;
+
+  // Whether the live balances are still arriving. In live mode the trading leg
+  // comes from the Bulk account WS and the funding leg from an RPC read, and
+  // both start null — so a signed-in user's first frame would otherwise show a
+  // dash where their money goes. Demo has no fetch at all, so it never waits.
+  const balancesLoading =
+    mode === "live" &&
+    authenticated &&
+    (liveEquity == null || collateral.walletUsdc == null);
   const totalBalance =
     mode === "demo"
       ? demoBalance
@@ -380,8 +390,16 @@ function Menu({
             </span>
           )}
         </div> */}
-        <div className="tabular text-3xl font-semibold">
-          {totalBalance != null ? formatUsd(totalBalance) : "—"}
+        <div className="tabular flex h-9 items-center text-3xl font-semibold">
+          {/* Never render "$0.00" or a dash for a balance that is merely still
+              loading — on a money screen that is read as fact. */}
+          {balancesLoading && totalBalance == null ? (
+            <SkeletonText width="8rem" size="xl" />
+          ) : totalBalance != null ? (
+            formatUsd(totalBalance)
+          ) : (
+            "—"
+          )}
         </div>
 
         {/* Today's P&L, with the chart expander beside it. The whole row is the
@@ -430,8 +448,16 @@ function Menu({
 
         {/* The two balances that make up the total. */}
         <div className="mt-3 flex gap-2">
-          <BalanceCell label="Funding" value={fundingBalance} />
-          <BalanceCell label="Trading" value={tradingBalance} />
+          <BalanceCell
+            label="Funding"
+            value={fundingBalance}
+            loading={balancesLoading}
+          />
+          <BalanceCell
+            label="Trading"
+            value={tradingBalance}
+            loading={balancesLoading}
+          />
         </div>
       </div>
 
@@ -603,15 +629,28 @@ function SetupAction({
 function BalanceCell({
   label,
   value,
+  loading,
 }: {
   label: string;
   value: number | null | undefined;
+  /**
+   * The figure is still being fetched. Distinct from a null value that is
+   * genuinely unavailable (demo mode has no funding balance at all) — an
+   * em dash says "there is nothing here", a skeleton says "still counting".
+   */
+  loading?: boolean;
 }) {
   return (
     <div className="flex-1 rounded-xl bg-white/[0.02] px-3 py-2">
       <div className="text-[11px] text-text-muted">{label}</div>
-      <div className="tabular text-sm font-semibold">
-        {value != null ? formatUsd(value) : "—"}
+      <div className="tabular flex h-5 items-center text-sm font-semibold">
+        {loading && value == null ? (
+          <SkeletonText width="3.5rem" size="sm" />
+        ) : value != null ? (
+          formatUsd(value)
+        ) : (
+          "—"
+        )}
       </div>
     </div>
   );

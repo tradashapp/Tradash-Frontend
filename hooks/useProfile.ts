@@ -31,6 +31,15 @@ interface ProfileState {
    */
   savingUsername: boolean;
   savingAvatar: boolean;
+  /**
+   * True until the stored profile has been fetched (or failed) for this user.
+   *
+   * Consumers need this to tell "no avatar" from "avatar not loaded yet" —
+   * without it the pill renders initials, or a blank circle, for the first beat
+   * after login and then swaps to the real photo. A skeleton while `loading` is
+   * both honest and stable.
+   */
+  loading: boolean;
 }
 
 const EMPTY: ProfileState = {
@@ -38,6 +47,7 @@ const EMPTY: ProfileState = {
   avatarUrl: null,
   savingUsername: false,
   savingAvatar: false,
+  loading: false,
 };
 
 let state: ProfileState = EMPTY;
@@ -84,15 +94,21 @@ export function useProfile() {
     }
     if (loadedFor === privyId) return;
     loadedFor = privyId;
+    setState({ loading: true });
     api
       .fetchProfile(privyId)
       .then((p) => {
         // A logout mid-flight (or a switch to another account) invalidates this
         // response — dropping it keeps one user's name off another's screen.
         if (loadedFor !== privyId) return;
-        setState({ username: p.username, avatarUrl: p.avatarUrl });
+        setState({ username: p.username, avatarUrl: p.avatarUrl, loading: false });
       })
-      .catch(() => {});
+      .catch(() => {
+        // Clear `loading` on failure too, or the UI shows a skeleton forever.
+        // Falling back to the Privy-derived identity is right here: it's the
+        // same person, just not the stored handle.
+        if (loadedFor === privyId) setState({ loading: false });
+      });
   }, [privyId, authenticated]);
 
   /**
@@ -158,6 +174,7 @@ export function useProfile() {
   return {
     username: snapshot.username,
     avatarUrl: snapshot.avatarUrl,
+    loading: snapshot.loading,
     savingUsername: snapshot.savingUsername,
     savingAvatar: snapshot.savingAvatar,
     claimUsername,

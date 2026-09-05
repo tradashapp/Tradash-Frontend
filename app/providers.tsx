@@ -1,12 +1,13 @@
 "use client";
 
-import { useRef, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { Provider as ReduxProvider } from "react-redux";
 import { PrivyProvider } from "@privy-io/react-auth";
 import { makeStore, type AppStore } from "@/store";
 import { wireSettingsPersistence } from "@/store/persist";
 import { ToastProvider } from "@/components/toast/ToastProvider";
 import { config } from "@/lib/config";
+import { startOutbox } from "@/lib/outbox";
 
 // Single client-side provider tree: Redux (with settings persistence wired
 // once) + Toasts, wrapped by Privy for wallet connect / master-account auth.
@@ -16,6 +17,13 @@ export function Providers({ children }: { children: ReactNode }) {
     storeRef.current = makeStore();
     wireSettingsPersistence(storeRef.current);
   }
+
+  // Drain any writes queued while the API was unreachable — including ones from
+  // a PREVIOUS session, since the queue is persisted. Runs once per mount, and
+  // then again on `online` / tab-focus (wired inside startOutbox).
+  useEffect(() => {
+    startOutbox();
+  }, []);
 
   const tree = (
     <ReduxProvider store={storeRef.current}>

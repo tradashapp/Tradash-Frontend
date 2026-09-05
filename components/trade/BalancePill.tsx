@@ -6,6 +6,7 @@ import { formatUsd } from "@/lib/format";
 import { demoPnlAt, livePnlAt } from "@/lib/perp";
 import { Odometer } from "@/components/ui/Odometer";
 import { ProfileAvatar } from "@/components/ui/ProfileAvatar";
+import { SkeletonText } from "@/components/ui/Skeleton";
 import { useProfile } from "@/hooks/useProfile";
 import { playSound } from "@/lib/sound";
 import { haptic } from "@/lib/haptics";
@@ -23,7 +24,7 @@ interface Props {
 // chips of different heights.
 export function BalancePill({ onOpen }: Props) {
   const mode = useAppSelector((s) => s.tradingMode.mode);
-  const { user } = usePrivy();
+  const { user, ready, authenticated } = usePrivy();
   const profile = useProfile();
 
   const demoBalance = useAppSelector((s) => s.tradingMode.demo.balance);
@@ -75,8 +76,17 @@ export function BalancePill({ onOpen }: Props) {
       className="group flex items-center gap-3 rounded-full bg-bg-overlay/50 px-2 py-1.5 transition-colors hover:bg-bg-overlay"
     >
       <div className="pl-1.5 text-right items-center leading-tight">
-        <div className="text-lg font-semibold">
-          {balance != null ? (
+        <div className="flex justify-end text-lg font-semibold">
+          {/* Three distinct states, and they must not be conflated:
+                - Privy still restoring, or signed in with the balance in
+                  flight  → skeleton. Showing "Connect" here tells a logged-in
+                  user they're logged out; showing "$0.00" tells them they're
+                  broke. Both are wrong and both resolve a beat later.
+                - signed out                      → "Connect".
+                - signed in with a real balance    → the number. */}
+          {mode !== "demo" && (!ready || (authenticated && balance == null)) ? (
+            <SkeletonText width="4.5rem" size="lg" />
+          ) : balance != null ? (
             <Odometer value={formatUsd(balance)} />
           ) : (
             "Connect"
@@ -93,6 +103,7 @@ export function BalancePill({ onOpen }: Props) {
         src={profile.avatarUrl}
         name={name}
         className="h-9 w-9"
+        loading={mode !== "demo" && (!ready || (authenticated && profile.loading))}
       />
     </button>
   );

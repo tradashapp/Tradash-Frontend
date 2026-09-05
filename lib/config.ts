@@ -51,28 +51,32 @@ export const config = {
   },
 
   magicblock: {
-    // Ephemeral Rollup endpoint — the price feeds stream live here (~16 ticks/s).
+    // PRICE FEEDS ONLY — read-only, never signs and never touches funds.
+    //
+    // These stay on devnet even when Bulk is on mainnet, on purpose. The oracle
+    // program is deployed on both and publishes the SAME live Pyth-Lazer prices
+    // (verified 2026-09-05: BTC $80,080.7 devnet vs $80,082.1 mainnet), while
+    // devnet needs no API key — mainnet does. Since nothing here is network-
+    // bound, devnet is the cheaper source of an identical number.
     erUrl:
       process.env.NEXT_PUBLIC_MAGICBLOCK_ER_URL ??
       "https://devnet.magicblock.app",
     routerUrl:
       process.env.NEXT_PUBLIC_MAGICBLOCK_ROUTER_URL ??
       "https://devnet-router.magicblock.app",
-    // Base-layer RPC (snapshots / non-streaming reads).
+    // Base-layer RPC for the oracle (snapshots / non-streaming reads).
     rpcUrl:
-      process.env.NEXT_PUBLIC_SOLANA_RPC_URL ??
+      process.env.NEXT_PUBLIC_MAGICBLOCK_RPC_URL ??
       "https://rpc.magicblock.app/devnet",
   },
 
   solana: {
-    // Base-layer RPC used for wallet reads (USDC balance) — shares the same node
-    // as the MagicBlock base layer unless overridden.
-    rpcUrl:
-      process.env.NEXT_PUBLIC_SOLANA_RPC_URL ??
-      "https://rpc.magicblock.app/devnet",
-    // USDC mint per Bulk network. Bulk is on devnet today, so the deposit/withdraw
-    // and wallet-balance reads use the devnet USDC mint; flipping BULK_NETWORK to
-    // mainnet swaps in the canonical mainnet USDC mint (see usdcMint() below).
+    // Base-layer RPC for REAL-MONEY reads: the user's wallet USDC balance, which
+    // backs deposits. Deliberately NOT shared with the oracle URLs above — see
+    // solanaRpcUrl() for why a devnet value here fails silently rather than loudly.
+    rpcUrl: process.env.NEXT_PUBLIC_SOLANA_RPC_URL ?? "",
+    // USDC mint per Bulk network — devnet mint on devnet/testnet, the canonical
+    // mainnet mint on mainnet (see usdcMint() below).
     usdcMintDevnet: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
     usdcMintMainnet: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
   },
@@ -146,6 +150,35 @@ export function signatureDomain(): BulkNetwork {
  */
 export function nonceNs(): string {
   return (BigInt(Date.now()) * 1_000_000n).toString();
+}
+
+/**
+ * The base-layer Solana RPC for wallet USDC reads.
+ *
+ * On mainnet this MUST be a real mainnet RPC and there is no safe default, so a
+ * missing value throws here rather than falling back.
+ *
+ * The failure this guards against is silent, not loud: the mainnet USDC mint
+ * address ALSO resolves to an unrelated account on devnet, so querying it over a
+ * devnet RPC returns an empty token-account list instead of an error. Every user
+ * would see a $0 wallet balance and be unable to deposit, with nothing logged
+ * anywhere. Verified 2026-09-05 — rpc.magicblock.app/devnet reports the devnet
+ * genesis hash yet still answers for the mainnet mint.
+ *
+ * Note rpc.magicblock.app/mainnet returns 401 `invalid api key`, so this needs a
+ * keyed provider (Helius / Triton / QuickNode).
+ */
+export function solanaRpcUrl(): string {
+  const url = config.solana.rpcUrl;
+  if (url) return url;
+  if (config.bulk.network === "mainnet") {
+    throw new Error(
+      "Missing NEXT_PUBLIC_SOLANA_RPC_URL. On mainnet this must be a mainnet " +
+        "Solana RPC — without it wallet USDC balances silently read as $0."
+    );
+  }
+  // devnet/testnet: the MagicBlock base layer is devnet and serves the devnet mint.
+  return config.magicblock.rpcUrl;
 }
 
 /** The USDC mint for the active Bulk network (devnet today, mainnet when live). */

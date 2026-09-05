@@ -55,7 +55,11 @@ export function MobileLayout({
           position is open (add more size / reduce it). */}
       {trade.position && <PositionDock trade={trade} />}
 
-      <header className="relative z-20 flex items-start justify-between px-3 pt-4">
+      {/* pt clears the status bar / notch. Needs `viewportFit: "cover"` in the
+          root viewport export for the inset to be non-zero — in an installed
+          PWA the page runs full-screen, so without this the status bar sits on
+          top of the market and balance pills. */}
+      <header className="relative z-20 flex items-start justify-between px-3 pt-[calc(env(safe-area-inset-top)+16px)]">
         <MarketHeader symbol={symbol} onOpen={onOpenMarket} />
         <BalancePill onOpen={onOpenAccount} />
       </header>

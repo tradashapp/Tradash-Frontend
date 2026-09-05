@@ -47,7 +47,7 @@ export function ProfileHeader({ onLogin }: { onLogin: () => void }) {
       <ProfileAvatar
         src={profile.avatarUrl}
         name={name}
-        className="h-28 w-28 border-8 border-white/[0.6] text-4xl"
+        className="h-28 w-28 text-4xl"
       />
 
       {/* Handle + the pencil that opens the edit panel, or the login pill. */}

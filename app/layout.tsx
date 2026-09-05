@@ -64,6 +64,13 @@ export const viewport: Viewport = {
   maximumScale: 1,
   // Mobile-first: prevent zoom so tap-to-trade never mis-fires on double tap.
   userScalable: false,
+  // REQUIRED for env(safe-area-inset-*) to report real values. Without it iOS
+  // letterboxes the page below the status bar and every inset resolves to 0px —
+  // which is fine in Safari's tab UI, but in an installed PWA (and after the
+  // in-app-browser hop that X/Twitter login takes) the page owns the full screen
+  // and the status bar then overlaps the top pills. `viewport-fit: cover` is
+  // what lets the layout's pt-[env(safe-area-inset-top)] actually reserve space.
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

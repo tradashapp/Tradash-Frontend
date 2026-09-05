@@ -83,5 +83,32 @@ export function useProfile() {
     [privyId]
   );
 
-  return { username, avatarUrl, saving, claimUsername, uploadAvatar };
+  /**
+   * Re-host a photo that lives on another server (the X profile picture) and
+   * adopt the resulting bucket URL.
+   */
+  const importAvatar = useCallback(
+    async (remoteUrl: string): Promise<boolean> => {
+      if (!privyId) return false;
+      setSaving(true);
+      try {
+        setAvatarUrl(await api.importAvatar(privyId, remoteUrl));
+        return true;
+      } catch {
+        return false;
+      } finally {
+        setSaving(false);
+      }
+    },
+    [privyId]
+  );
+
+  return {
+    username,
+    avatarUrl,
+    saving,
+    claimUsername,
+    uploadAvatar,
+    importAvatar,
+  };
 }

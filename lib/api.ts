@@ -210,6 +210,20 @@ export const api = {
     return avatarUrl;
   },
 
+  /**
+   * Adopt a photo hosted elsewhere — the X profile picture Privy returns after
+   * a link. The backend fetches and re-hosts it: X's CDN sends no CORS header,
+   * so the browser can display that image but can't read it into a data URL for
+   * the upload route above.
+   */
+  importAvatar: async (privyId: string, remoteUrl: string): Promise<string> => {
+    const { avatarUrl } = await req<{ avatarUrl: string }>(
+      `/users/${encodeURIComponent(privyId)}/avatar`,
+      { method: "PUT", body: JSON.stringify({ avatarUrl: remoteUrl }) }
+    );
+    return avatarUrl;
+  },
+
   /** The stored profile (handle + avatar URL) for a user. */
   fetchProfile: async (privyId: string): Promise<ApiUserProfile> => {
     const user = await req<ApiUserProfile>(

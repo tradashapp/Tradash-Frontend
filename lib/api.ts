@@ -1,4 +1,5 @@
 import { config } from "@/lib/config";
+import { enqueue, setOutboxSender } from "@/lib/outbox";
 import type {
   CompletedTrade,
   Leaderboard,
@@ -11,14 +12,39 @@ import type {
 // Thin client for our own backend (users, onboarding record, trades, stats).
 const BASE = config.apiUrl;
 
+/**
+ * An API failure that carries the HTTP status, so callers can tell a permanent
+ * rejection (4xx — the server understood and refused) from a transient one
+ * (5xx / offline). The outbox needs that distinction to know what to retry.
+ */
+export class ApiError extends Error {
+  status: number;
+  constructor(path: string, status: number) {
+    super(`API ${path} ${status}`);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     headers: { "Content-Type": "application/json" },
     ...init,
   });
-  if (!res.ok) throw new Error(`API ${path} ${res.status}`);
+  // `status: 0` marks a network-level failure (offline, DNS, CORS) — the outbox
+  // treats it as retryable, unlike a real 4xx.
+  if (!res.ok) throw new ApiError(path, res.status);
   return (await res.json()) as T;
 }
+
+// Writes queued by the outbox are replayed through the same fetch path, so a
+// retry is byte-identical to the original attempt.
+setOutboxSender(async (item) => {
+  await req(item.path, {
+    method: item.method,
+    body: JSON.stringify(item.body),
+  });
+});
 
 // Backend trade row shape (from routes/trades.ts). openedAt/closedAt are ISO.
 interface ApiTrade {
@@ -152,17 +178,22 @@ export const api = {
 
   /** Record that a master-signed onboarding step completed. */
   recordOnboard: (privyId: string, step: "agent" | "builder") =>
-    req(`/users/${encodeURIComponent(privyId)}/onboard`, {
-      method: "POST",
-      body: JSON.stringify({ step }),
-    }),
+    enqueue(`/users/${encodeURIComponent(privyId)}/onboard`, "POST", { step }),
 
-  /** Persist a completed live trade. */
+  /**
+   * Persist a completed live trade.
+   *
+   * Queued through the outbox rather than fired and forgotten: the trade already
+   * happened on Bulk, so losing our copy because the API blipped would drop it
+   * from history, stats and the leaderboard permanently. Resolves true if it
+   * landed now, false if it was queued for retry — either way it is not lost.
+   */
   recordTrade: (privyId: string, trade: CompletedTrade) =>
-    req(`/users/${encodeURIComponent(privyId)}/trades`, {
-      method: "POST",
-      body: JSON.stringify(toApiTrade(trade)),
-    }),
+    enqueue(
+      `/users/${encodeURIComponent(privyId)}/trades`,
+      "POST",
+      toApiTrade(trade)
+    ),
 
   /**
    * Upload a recorded price path. Posted separately from the trade row because
@@ -170,10 +201,11 @@ export const api = {
    * would store the same samples up to four times.
    */
   recordEpisode: (privyId: string, episode: TradeEpisode) =>
-    req(`/users/${encodeURIComponent(privyId)}/episodes`, {
-      method: "POST",
-      body: JSON.stringify(toApiEpisode(episode)),
-    }),
+    enqueue(
+      `/users/${encodeURIComponent(privyId)}/episodes`,
+      "POST",
+      toApiEpisode(episode)
+    ),
 
   /** Fetch a user's recorded episodes (newest first). */
   fetchEpisodes: async (privyId: string): Promise<TradeEpisode[]> => {

@@ -18,6 +18,12 @@ import type {
 interface Props {
   open: boolean;
   onClose: () => void;
+  /**
+   * Return to wherever the leaderboard was opened from (the account sheet).
+   * Optional — without it the sheet only offers close, which is right for a
+   * caller that opened it from nowhere in particular.
+   */
+  onBack?: () => void;
 }
 
 /**
@@ -28,7 +34,7 @@ interface Props {
  * filters and podium stay put while the ranks scroll under them, and so the
  * pinned "you" row has a scroll container to anchor to.
  */
-export function LeaderboardSheet({ open, onClose }: Props) {
+export function LeaderboardSheet({ open, onClose, onBack }: Props) {
   // ROI leads: it ranks on skill rather than on who deposited the most.
   const [metric, setMetric] = useState<LeaderboardMetric>("roi");
   const [period, setPeriod] = useState<LeaderboardPeriod>("all");
@@ -50,6 +56,7 @@ export function LeaderboardSheet({ open, onClose }: Props) {
       <Sheet
         open={open}
         onClose={onClose}
+        onBack={onBack}
         title="Leaderboard"
         scrollBody={false}
         header={

@@ -169,6 +169,13 @@ export function TradeScreen({ initialMarket }: Props) {
       <LeaderboardSheet
         open={leaderboardOpen}
         onClose={() => setLeaderboardOpen(false)}
+        // The leaderboard is reached FROM the account sheet, which closes to
+        // open it — so back reverses exactly that, rather than dumping the user
+        // on the chart and making them re-open the account to get where they were.
+        onBack={() => {
+          setLeaderboardOpen(false);
+          setAccountOpen(true);
+        }}
       />
       <ShareCardModal
         subject={shareSubject}

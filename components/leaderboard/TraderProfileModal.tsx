@@ -11,6 +11,7 @@ import {
 import { api } from "@/lib/api";
 import { formatUsd } from "@/lib/format";
 import { Avatar } from "./Avatar";
+import { XLink } from "@/components/ui/XLink";
 import type {
   CompletedTrade,
   LeaderboardEntry,
@@ -118,8 +119,13 @@ export function TraderProfileModal({ subject, period, onClose }: Props) {
                 name={subject.username}
                 className="h-20 w-20 ring-2 ring-up/50"
               />
-              <span className="mt-2 text-base font-semibold">
+              <span className="mt-2 flex items-center gap-1.5 text-base font-semibold">
                 @{profile?.username ?? subject.username}
+                {/* Seeded from the tapped row so the icon doesn't pop in once
+                    the profile request resolves. */}
+                <XLink
+                  handle={profile?.twitterHandle ?? subject.twitterHandle}
+                />
               </span>
               <span className="text-[11px] text-text-muted">
                 {subject.rank >= 1 ? `Rank #${subject.rank}` : "Unranked"} ·{" "}

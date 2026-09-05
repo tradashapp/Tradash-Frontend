@@ -22,6 +22,7 @@ import { useProfile } from "@/hooks/useProfile";
 import { USERNAME_PATTERN } from "@/lib/username";
 import { twitterHandle } from "@/lib/twitter";
 import { ProfileAvatar } from "@/components/ui/ProfileAvatar";
+import { XLink } from "@/components/ui/XLink";
 
 /**
  * Top of the account sheet: the avatar above the user's handle — or a login
@@ -41,6 +42,9 @@ export function ProfileHeader({ onLogin }: { onLogin: () => void }) {
   // the login method suggests until the backend's seeded one has loaded.
   const name = profile.username ?? fallbackName(user);
   const handle = `@${name}`;
+  // Own X handle comes straight from Privy — no backend round trip needed for
+  // the signed-in user (other people's handles arrive on the leaderboard entry).
+  const xHandle = twitterHandle(user);
 
   return (
     <div className="mb-4 flex flex-col items-center">
@@ -50,26 +54,32 @@ export function ProfileHeader({ onLogin }: { onLogin: () => void }) {
         className="h-28 w-28 text-4xl"
       />
 
-      {/* Handle + the pencil that opens the edit panel, or the login pill. */}
+      {/* Handle + the pencil that opens the edit panel, or the login pill.
+          The X link is a SIBLING of the button, not a child: an <a> nested in a
+          <button> is invalid HTML and the outer button swallows its activation,
+          so tapping the icon would open the edit panel instead of X. */}
       {authenticated ? (
-        <button
-          type="button"
-          onClick={() => {
-            playSound("tap");
-            haptic("tap");
-            setEditing((e) => !e);
-          }}
-          className="mt-2 flex items-center gap-1.5 text-sm font-medium text-text transition-opacity active:opacity-60"
-          aria-expanded={editing}
-          aria-label="Edit profile"
-        >
-          {handle}
-          <HugeiconsIcon
-            icon={PencilEdit02Icon}
-            size={12}
-            className="text-text-muted"
-          />
-        </button>
+        <div className="mt-2 flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => {
+              playSound("tap");
+              haptic("tap");
+              setEditing((e) => !e);
+            }}
+            className="flex items-center gap-1.5 text-sm font-medium text-text transition-opacity active:opacity-60"
+            aria-expanded={editing}
+            aria-label="Edit profile"
+          >
+            {handle}
+            <HugeiconsIcon
+              icon={PencilEdit02Icon}
+              size={12}
+              className="text-text-muted"
+            />
+          </button>
+          <XLink handle={xHandle} />
+        </div>
       ) : (
         <button
           type="button"

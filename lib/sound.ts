@@ -20,11 +20,6 @@ const FILES: Record<SoundName, string> = {
   profit: "/audios/profit_move.mp3",
 };
 
-// Per-clip trim. The clips are authored with the transient on sample 0, but the
-// MP3 format itself prepends ~25 ms of encoder-delay padding that every decoder
-// reproduces. Skipping it at playback keeps the attack exactly on the gesture.
-const LEAD_TRIM = 0.025;
-
 // Taps fire on every button in the app, so they sit well under the trade
 // events; profit repeats while PnL climbs, so it stays a garnish.
 const VOLUME: Record<SoundName, number> = {
@@ -102,8 +97,10 @@ export function playSound(name: SoundName) {
 
     // start(when=0) means "now" — scheduled on the audio clock, not the task
     // queue, so it lands on the click instead of after the next frame.
-    const offset = Math.min(LEAD_TRIM, buf.duration);
-    src.start(0, offset);
+    // No start offset: decodeAudioData already strips MP3 encoder-delay padding,
+    // so sample 0 IS the transient. Skipping ahead here would cut the attack
+    // (and, for the 45 ms tap, very nearly the whole clip).
+    src.start(0);
     src.onended = () => {
       src.disconnect();
       gain.disconnect();

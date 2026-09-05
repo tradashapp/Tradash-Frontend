@@ -74,7 +74,7 @@ export function BalancePill({ onOpen }: Props) {
       }}
       className="group flex items-center gap-3 rounded-full bg-bg-overlay/50 px-2 py-1.5 transition-colors hover:bg-bg-overlay"
     >
-      <div className="text-right items-center leading-tight">
+      <div className="pl-1.5 text-right items-center leading-tight">
         <div className="text-lg font-semibold">
           {balance != null ? (
             <Odometer value={formatUsd(balance)} />
@@ -92,7 +92,7 @@ export function BalancePill({ onOpen }: Props) {
       <ProfileAvatar
         src={profile.avatarUrl}
         name={name}
-        className="h-9 w-9 text-xs"
+        className="h-9 w-9"
       />
     </button>
   );

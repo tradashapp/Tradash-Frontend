@@ -17,7 +17,7 @@
 export function ProfileAvatar({
   src,
   name,
-  className = "h-10 w-10 text-sm",
+  className = "",
 }: {
   /** Photo URL (bucket or data URL). Null falls back to initials. */
   src?: string | null;

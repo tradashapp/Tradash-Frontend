@@ -20,7 +20,7 @@ import { playSound } from "@/lib/sound";
 import { haptic } from "@/lib/haptics";
 import { useProfile } from "@/hooks/useProfile";
 import { USERNAME_PATTERN } from "@/lib/username";
-import { twitterAvatarUrl, twitterHandle } from "@/lib/twitter";
+import { twitterHandle } from "@/lib/twitter";
 import { ProfileAvatar } from "@/components/ui/ProfileAvatar";
 
 /**
@@ -119,19 +119,6 @@ function EditProfilePanel({
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   const xHandle = twitterHandle(user);
-  const xAvatar = twitterAvatarUrl(user);
-
-  // Adopt the X photo as soon as an account is linked (or the user logged in
-  // with X), so linking visibly does something. Only when they have no photo of
-  // their own — re-linking must not overwrite one they uploaded here. The ref
-  // keeps a failed import from retrying on every render.
-  const adopted = useRef<string | null>(null);
-  useEffect(() => {
-    if (!xAvatar || profile.avatarUrl || adopted.current === xAvatar) return;
-    adopted.current = xAvatar;
-    void profile.importAvatar(xAvatar);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [xAvatar, profile.avatarUrl]);
 
   const onPickFile = async (file: File | undefined) => {
     if (!file) return;
@@ -167,13 +154,13 @@ function EditProfilePanel({
         <button
           type="button"
           onClick={() => fileRef.current?.click()}
-          disabled={profile.saving}
+          disabled={profile.savingAvatar}
           className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-white/[0.05] py-2.5 text-xs font-medium text-text-muted transition-colors hover:text-text disabled:opacity-50"
         >
           <HugeiconsIcon
-            icon={profile.saving ? Loading03Icon : Camera01Icon}
+            icon={profile.savingAvatar ? Loading03Icon : Camera01Icon}
             size={16}
-            className={profile.saving ? "animate-spin" : ""}
+            className={profile.savingAvatar ? "animate-spin" : ""}
           />
           {photo ? "Change photo" : "Upload photo"}
         </button>
@@ -192,7 +179,7 @@ function EditProfilePanel({
 
       <UsernameForm
         current={profile.username}
-        saving={profile.saving}
+        saving={profile.savingUsername}
         onSubmit={async (name) => {
           const result = await profile.claimUsername(name);
           if (result === "ok") {
@@ -208,7 +195,9 @@ function EditProfilePanel({
         }}
       />
 
-      {/* Socials. Linking X also brings its photo across (see the effect above). */}
+      {/* Socials. Linking X also brings its profile photo across for users who
+          have none yet — adopted centrally in useAgentWallet, so it happens on
+          a plain X login too, not only when this panel is open. */}
       <div>
         <div className="mb-1.5 px-1 text-[11px] font-medium uppercase tracking-wide text-text-muted">
           Connect socials

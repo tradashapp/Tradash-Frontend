@@ -7,6 +7,8 @@ import bs58 from "bs58";
 import { config } from "@/lib/config";
 import { api } from "@/lib/api";
 import { suggestedUsername } from "@/lib/username";
+import { twitterAvatarUrl } from "@/lib/twitter";
+import { setProfileAvatar } from "@/hooks/useProfile";
 import {
   loadAgent,
   saveAgent,
@@ -115,6 +117,30 @@ export function useAgentWallet() {
         .catch(() => {});
     }
   }, [privyId, masterAddress, authMethod, user?.linkedAccounts, dispatch]);
+
+  // Adopt the X profile picture as the user's avatar — on an X login as well as
+  // a later link from the profile panel, which is why this sits here (running
+  // once for the session) rather than in the panel that offers the link button.
+  //
+  // Only for users who have NO avatar yet: re-linking must never overwrite a
+  // photo they uploaded themselves. The ref stops a failed import from retrying
+  // on every render, and the backend re-hosts the image (X's CDN blocks the
+  // browser from reading it).
+  const adoptedAvatar = useRef<string | null>(null);
+  useEffect(() => {
+    const remote = twitterAvatarUrl(user);
+    if (!privyId || !remote || adoptedAvatar.current === remote) return;
+    adoptedAvatar.current = remote;
+    void (async () => {
+      try {
+        const profile = await api.fetchProfile(privyId);
+        if (profile.avatarUrl) return;
+        setProfileAvatar(await api.importAvatar(privyId, remote));
+      } catch {
+        // A missing avatar is cosmetic — never block login on it.
+      }
+    })();
+  }, [privyId, user]);
 
   // Rehydrate an existing agent signer — but ONLY if Bulk actually has it
   // authorized. A stored key that Bulk doesn't recognize (e.g. from a failed

@@ -109,7 +109,10 @@ export function useAgentWallet() {
   useEffect(() => {
     dispatch(setWallet(masterAddress));
     if (privyId) {
-      api
+      // Retried on failure: this CREATES the backend user row, and without it
+      // the user has no record to attach trades to — they'd trade normally and
+      // never appear in history or on the leaderboard.
+      void api
         .syncUser({
           privyId,
           walletAddress: masterAddress,
@@ -121,8 +124,7 @@ export function useAgentWallet() {
           // from the first trade. The backend never lets this overwrite a
           // handle the user has since chosen for themselves.
           username: suggestedUsername(user),
-        })
-        .catch(() => {});
+        });
     }
   }, [privyId, masterAddress, authMethod, user?.linkedAccounts, dispatch]);
 
@@ -249,7 +251,7 @@ export function useAgentWallet() {
       toast("Authorizing agent wallet…", { type: "loading", id: TID });
       await authorizeAgentWallet(masterAddress, stored.pubkey, masterSign);
       dispatch(setAgentAuthorized(true));
-      if (privyId) api.recordOnboard(privyId, "agent").catch(() => {});
+      if (privyId) void api.recordOnboard(privyId, "agent");
 
       // 3. Approve our builder code (master-signed) — required for revenue.
       //    Every order carries the builder code, so if this step fails EVERY
@@ -264,7 +266,7 @@ export function useAgentWallet() {
           await approveBuilderCode(masterAddress, recipient, feeBps, masterSign);
           saveApproval(masterAddress, { recipient, feeBps });
           dispatch(setBuilderApproved(true));
-          if (privyId) api.recordOnboard(privyId, "builder").catch(() => {});
+          if (privyId) void api.recordOnboard(privyId, "builder");
         } catch (e) {
           // Don't let a bad cache outlive the failure.
           clearApproval(masterAddress);
@@ -317,7 +319,7 @@ export function useAgentWallet() {
       await approveBuilderCode(masterAddress, recipient, feeBps, masterSign);
       saveApproval(masterAddress, { recipient, feeBps });
       dispatch(setBuilderApproved(true));
-      if (privyId) api.recordOnboard(privyId, "builder").catch(() => {});
+      if (privyId) void api.recordOnboard(privyId, "builder");
       toast("Builder code approved", {
         type: "success",
         id: TID,

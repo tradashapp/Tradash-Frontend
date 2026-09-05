@@ -216,13 +216,15 @@ function recordCloseFor(
 ) {
   const exit = store.getState().price.prices[prev.symbol] ?? prev.entryPrice;
   const trade = recordClose(dispatch, "live", prev, exit, prev.unrealizedPnl);
-  if (privyId) api.recordTrade(privyId, trade).catch(() => {});
+  // Queued through the outbox: this resolves once the write has either landed
+  // or been persisted for retry, so the trade survives an API outage.
+  if (privyId) void api.recordTrade(privyId, trade);
   // recordClose sealed the recording into the store — upload it so the replay
   // survives a reload and follows the user across devices. Best-effort: a
   // failed upload costs a replay, never the trade row.
   if (privyId && trade.episodeId) {
     const episode = store.getState().replay.byId[trade.episodeId];
-    if (episode) api.recordEpisode(privyId, episode).catch(() => {});
+    if (episode) void api.recordEpisode(privyId, episode);
   }
   // Confirm the close (upgrades the pending close-<sym> loading toast if present).
   toast(`Closed ${prev.symbol}`, {
@@ -249,14 +251,14 @@ function recordAdjustFor(
   if (next.size > prev.size) {
     // Added size — informational row, no realized PnL.
     const t = recordClose(dispatch, "live", next, next.entryPrice, 0, "add", delta);
-    if (privyId) api.recordTrade(privyId, t).catch(() => {});
+    if (privyId) void api.recordTrade(privyId, t);
   } else {
     // Reduced size — realize the reduced fraction of the prior PnL.
     const exit = store.getState().price.prices[prev.symbol] ?? prev.entryPrice;
     const realized =
       prev.size > 0 ? prev.unrealizedPnl * (delta / prev.size) : 0;
     const t = recordClose(dispatch, "live", prev, exit, realized, "reduce", delta);
-    if (privyId) api.recordTrade(privyId, t).catch(() => {});
+    if (privyId) void api.recordTrade(privyId, t);
   }
 }
 

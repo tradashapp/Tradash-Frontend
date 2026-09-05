@@ -169,12 +169,16 @@ interface ApiTraderProfile extends Omit<TraderProfile, "recentTrades"> {
 }
 
 export const api = {
-  /** Get-or-create + sync the user by Privy DID after login. */
+  /**
+   * Get-or-create + sync the user by Privy DID after login.
+   *
+   * Outboxed: this is the write that CREATES the user row. If it's lost the
+   * person can still trade (orders go to Bulk, not to us) but has no record to
+   * attach those trades to, so history and the leaderboard would silently skip
+   * them. Retried until it lands.
+   */
   syncUser: ({ privyId, ...identity }: UserSync) =>
-    req(`/users/${encodeURIComponent(privyId)}`, {
-      method: "POST",
-      body: JSON.stringify(identity),
-    }),
+    enqueue(`/users/${encodeURIComponent(privyId)}`, "POST", identity),
 
   /** Record that a master-signed onboarding step completed. */
   recordOnboard: (privyId: string, step: "agent" | "builder") =>

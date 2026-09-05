@@ -8,6 +8,8 @@ import { formatUsd } from "@/lib/format";
 import { useAppSelector } from "@/store/hooks";
 import { Odometer } from "@/components/ui/Odometer";
 import type { MarketSymbol } from "@/types";
+import { playSound } from "@/lib/sound";
+import { haptic } from "@/lib/haptics";
 
 interface Props {
   symbol: MarketSymbol;
@@ -24,7 +26,11 @@ export function MarketHeader({ symbol, onOpen }: Props) {
   return (
     <button
       type="button"
-      onClick={onOpen}
+      onClick={() => {
+        playSound("tap");
+        haptic("tap");
+        onOpen();
+      }}
       className="group flex items-center gap-3 rounded-full px-2 py-1.5 text-left transition-colors bg-bg-overlay/50 hover:bg-bg-overlay"
     >
       <Image

@@ -14,6 +14,7 @@ import { MARKETS, MARKET_ORDER, maxLeverageFor } from "@/lib/markets";
 import { haptic } from "@/lib/haptics";
 import type { useLeverage } from "@/hooks/useLeverage";
 import type { MarketSymbol } from "@/types";
+import { playSound } from "@/lib/sound";
 
 // Per-market leverage. Every market has its OWN ceiling on Bulk (BTC 40×, ETH
 // 25×, most alts 10×), so this is a list of markets rather than one number —
@@ -171,6 +172,7 @@ function LeverageRow({
       <button
         type="button"
         onClick={() => {
+          playSound("tap");
           haptic("tap");
           onToggle();
         }}
@@ -258,7 +260,8 @@ function LeverageRow({
                     key={p}
                     type="button"
                     onClick={() => {
-                      haptic("tap");
+                      playSound("tap");
+          haptic("tap");
                       onChange(p);
                     }}
                     className={`tabular flex-1 rounded-lg py-1.5 text-xs font-semibold transition-colors ${

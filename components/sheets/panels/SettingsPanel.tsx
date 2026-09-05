@@ -11,6 +11,8 @@ import { MenuSection } from "@/components/ui/MenuSection";
 import { LeverageSettings } from "./LeverageSettings";
 import { useLeverage } from "@/hooks/useLeverage";
 import type { AgentSigner } from "@/lib/bulk/signing";
+import { playSound } from "@/lib/sound";
+import { haptic } from "@/lib/haptics";
 
 // Settings content, rendered inside the AccountSheet as a sub-view. Edits the
 // settings slice (persisted). No sheet chrome here — the host provides it.
@@ -133,7 +135,11 @@ function Stepper({
       <div className="flex items-center gap-3">
         <button
           type="button"
-          onClick={() => onChange(clamp(value - step))}
+          onClick={() => {
+            playSound("tap");
+            haptic("tap");
+            onChange(clamp(value - step));
+          }}
           className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-text transition-colors hover:bg-white/15 active:scale-90"
         >
           <HugeiconsIcon icon={MinusSignIcon} size={16} />
@@ -156,7 +162,11 @@ function Stepper({
         ) : (
           <button
             type="button"
-            onClick={startEdit}
+            onClick={() => {
+              playSound("tap");
+              haptic("tap");
+              startEdit();
+            }}
             className="tabular w-16 text-center text-sm font-semibold text-text"
             aria-label={`Edit ${label}`}
           >
@@ -167,7 +177,11 @@ function Stepper({
         )}
         <button
           type="button"
-          onClick={() => onChange(clamp(value + step))}
+          onClick={() => {
+            playSound("tap");
+            haptic("tap");
+            onChange(clamp(value + step));
+          }}
           className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-text transition-colors hover:bg-white/15 active:scale-90"
         >
           <HugeiconsIcon icon={PlusSignIcon} size={16} />

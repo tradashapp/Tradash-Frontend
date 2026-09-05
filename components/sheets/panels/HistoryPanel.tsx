@@ -12,6 +12,8 @@ import { useAppSelector } from "@/store/hooks";
 import { formatUsd } from "@/lib/format";
 import { isReplayable } from "@/lib/replay/path";
 import type { CompletedTrade, TradeEpisode } from "@/types";
+import { playSound } from "@/lib/sound";
+import { haptic } from "@/lib/haptics";
 
 interface Props {
   /** Open the shareable PnL card for a completed trade. */
@@ -101,7 +103,15 @@ function TradeRow({
           ? "cursor-pointer transition-colors hover:bg-white/[0.06]"
           : ""
       }`}
-      onClick={onReplay}
+      onClick={
+        onReplay
+          ? () => {
+              playSound("tap");
+              haptic("tap");
+              onReplay();
+            }
+          : undefined
+      }
       role={onReplay ? "button" : undefined}
       tabIndex={onReplay ? 0 : undefined}
       onKeyDown={
@@ -175,6 +185,8 @@ function TradeRow({
         type="button"
         onClick={(e) => {
           e.stopPropagation();
+          playSound("tap");
+          haptic("tap");
           onShare();
         }}
         className="rounded-full p-1.5 text-text-muted transition-colors hover:bg-white/10 hover:text-text"

@@ -17,6 +17,8 @@ import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { startSwitch, finishSwitch } from "@/store/slices/marketSlice";
 import { toggleFavouriteMarket } from "@/store/slices/settingsSlice";
 import type { MarketCategory, MarketSymbol } from "@/types";
+import { playSound } from "@/lib/sound";
+import { haptic } from "@/lib/haptics";
 
 interface Props {
   open: boolean;
@@ -77,6 +79,8 @@ export function MarketSwitcher({ open, onClose }: Props) {
   }, [query, category, favouriteSet, hot, stats]);
 
   const select = (symbol: MarketSymbol) => {
+    playSound("tap");
+    haptic("tap");
     if (symbol !== active) {
       dispatch(startSwitch(symbol));
       // Chart resets on symbol change; clear the switching flag next tick.
@@ -114,6 +118,8 @@ export function MarketSwitcher({ open, onClose }: Props) {
                 <button
                   type="button"
                   onClick={() => {
+                    playSound("tap");
+                    haptic("tap");
                     setQuery("");
                     searchRef.current?.focus();
                   }}
@@ -135,7 +141,11 @@ export function MarketSwitcher({ open, onClose }: Props) {
                   <button
                     key={c.id}
                     type="button"
-                    onClick={() => setCategory(c.id)}
+                    onClick={() => {
+                      playSound("tap");
+                      haptic("tap");
+                      setCategory(c.id);
+                    }}
                     className={`whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors ${
                       selected
                         ? "bg-up text-black" 
@@ -185,7 +195,11 @@ export function MarketSwitcher({ open, onClose }: Props) {
             >
               <button
                 type="button"
-                onClick={() => dispatch(toggleFavouriteMarket(symbol))}
+                onClick={() => {
+                  playSound("tap");
+                  haptic("tap");
+                  dispatch(toggleFavouriteMarket(symbol));
+                }}
                 aria-label={
                   favourite
                     ? `Remove ${m.label} from favourites`

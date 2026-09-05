@@ -7,6 +7,8 @@ import { Podium } from "@/components/leaderboard/Podium";
 import { LeaderboardTable } from "@/components/leaderboard/LeaderboardTable";
 import { TraderProfileModal } from "@/components/leaderboard/TraderProfileModal";
 import { useLeaderboard } from "@/hooks/useLeaderboard";
+import { playSound } from "@/lib/sound";
+import { haptic } from "@/lib/haptics";
 import type {
   LeaderboardEntry,
   LeaderboardMetric,
@@ -66,7 +68,11 @@ export function LeaderboardSheet({ open, onClose }: Props) {
             </p>
             <button
               type="button"
-              onClick={refresh}
+              onClick={() => {
+                playSound("tap");
+                haptic("tap");
+                refresh();
+              }}
               className="rounded-full bg-up px-5 py-2 text-sm font-bold text-black transition-transform active:scale-95"
             >
               Try again

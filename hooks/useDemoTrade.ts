@@ -18,7 +18,7 @@ import {
   type Direction,
   type DemoPhase,
 } from "@/lib/landing/demoMachine";
-import { playSound, unlockSound } from "@/lib/sound";
+import { playSound, playCloseOutcome, unlockSound } from "@/lib/sound";
 import type { PositionOverlay } from "@/lib/chart/engine";
 
 export interface DemoPosition {
@@ -122,7 +122,7 @@ export function useDemoTrade(active: boolean): DemoTrade {
     feedRef.current!.setDrift(0);
     feedRef.current!.setCalm(0);
     setPhaseBoth("closing");
-    playSound("close");
+    playCloseOutcome(booked);
 
     cooldownUntilRef.current = performance.now() + COOLDOWN_MS;
     window.setTimeout(() => {

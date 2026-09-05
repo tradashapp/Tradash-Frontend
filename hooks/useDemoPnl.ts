@@ -10,7 +10,7 @@ import {
 } from "@/lib/perp";
 import { patchDemoPosition, settleDemo } from "@/store/slices/tradingModeSlice";
 import { recordClose } from "@/lib/history";
-import { playSound, tickProfit } from "@/lib/sound";
+import { playCloseOutcome, tickProfit } from "@/lib/sound";
 import { haptic } from "@/lib/haptics";
 import { useToast } from "@/components/toast/ToastProvider";
 import type { MarketSymbol } from "@/types";
@@ -52,7 +52,8 @@ export function useDemoPnl() {
         recordClose(dispatch, "demo", position, price, -position.marginUsed);
         dispatch(settleDemo({ symbol: sym, pnl: -position.marginUsed }));
         if (sym === activeSymbol) {
-          playSound("close");
+          // Liquidation is always a loss — the whole margin is gone.
+          playCloseOutcome(-position.marginUsed);
           haptic("close");
         }
         toast(`${sym} liquidated`, {
@@ -77,7 +78,7 @@ export function useDemoPnl() {
           recordClose(dispatch, "demo", position, price, pnl);
           dispatch(settleDemo({ symbol: sym, pnl }));
           if (sym === activeSymbol) {
-            playSound("close");
+            playCloseOutcome(pnl);
             haptic("close");
           }
           toast(`Trailing stop hit · ${sym}`, {

@@ -11,12 +11,20 @@
 // accurate, no I/O, no decode, no promise. That path is sub-millisecond, well
 // inside the ~20 ms window where a sound still reads as "instant".
 
-export type SoundName = "tap" | "open" | "close" | "profit";
+export type SoundName =
+  | "tap"
+  | "open"
+  | "close"
+  | "win"
+  | "loss"
+  | "profit";
 
 const FILES: Record<SoundName, string> = {
   tap: "/audios/button_tap.mp3",
   open: "/audios/open_trade.mp3",
   close: "/audios/close_trade.mp3",
+  win: "/audios/close_win.mp3",
+  loss: "/audios/close_loss.mp3",
   profit: "/audios/profit_move.mp3",
 };
 
@@ -26,6 +34,10 @@ const VOLUME: Record<SoundName, number> = {
   tap: 0.3,
   open: 0.55,
   close: 0.55,
+  win: 0.5,
+  // Losing is already unpleasant — the cue acknowledges it, never punishes,
+  // so it sits below the win.
+  loss: 0.4,
   profit: 0.35,
 };
 
@@ -108,6 +120,16 @@ export function playSound(name: SoundName) {
   } catch {
     /* never let feedback throw into a trade path */
   }
+}
+
+/**
+ * Close cue chosen by outcome: rising major for a win, falling minor for a
+ * loss. Same interval logic as open/close (contour carries the meaning), so a
+ * user learns the result before reading the toast. Exactly-zero PnL counts as
+ * a win — it is a break-even exit, not a loss.
+ */
+export function playCloseOutcome(pnl: number) {
+  playSound(pnl >= 0 ? "win" : "loss");
 }
 
 // --- Profit-move ticker ------------------------------------------------------

@@ -24,6 +24,7 @@ import {
 import { recordClose } from "@/lib/history";
 import {
   playSound,
+  playCloseOutcome,
   beginProfitTracking,
   stopProfitTracking,
 } from "@/lib/sound";
@@ -281,7 +282,7 @@ export function useTrade(
       // Log the completed trade, then realize PnL into the demo balance.
       if (price != null) recordClose(dispatch, "demo", position, price, position.unrealizedPnl);
       dispatch(settleDemo({ symbol: position.symbol, pnl: position.unrealizedPnl }));
-      playSound("close");
+      playCloseOutcome(position.unrealizedPnl);
       haptic("close");
       stopProfitTracking();
       toast(`Closed ${position.symbol}`, {
@@ -293,6 +294,7 @@ export function useTrade(
 
     const liveSigner = requireLiveSetup();
     if (!liveSigner) return;
+    const closingPnl = position.unrealizedPnl;
     dispatch(setOrderStatus("submitting"));
     toast(`Closing ${position.symbol}…`, {
       type: "loading",
@@ -306,7 +308,10 @@ export function useTrade(
         refPrice: price ?? position.entryPrice,
       });
       dispatch(setOrderStatus("filled"));
-      playSound("close");
+      // Last known unrealized PnL is the best estimate of the realized result
+      // here: the authoritative fill arrives later over the WS, and the cue has
+      // to land now, on the tap.
+      playCloseOutcome(closingPnl);
       haptic("close");
       stopProfitTracking();
       // Success toast fires from useBulkAccount when the WS confirms flat.
@@ -334,10 +339,15 @@ export function useTrade(
     const open = Object.values(source).filter((p): p is Position => p != null);
     if (open.length === 0) return;
 
+    // One cue for the whole basket, keyed on the net result — several
+    // overlapping win/loss clips would just smear into noise.
+    let basketPnl = 0;
+
     if (mode === "demo") {
       for (const pos of open) {
         const mark = allPrices[pos.symbol];
         const pnl = displayPnlFor("demo", pos, mark);
+        basketPnl += pnl;
         if (mark != null) recordClose(dispatch, "demo", pos, mark, pnl);
         dispatch(settleDemo({ symbol: pos.symbol, pnl }));
         toast(`Closed ${pos.symbol}`, {
@@ -345,7 +355,7 @@ export function useTrade(
           description: `Realized ${fmtUsd(pnl)}`,
         });
       }
-      playSound("close");
+      playCloseOutcome(basketPnl);
       haptic("close");
       stopProfitTracking();
       toast(`Closed all ${open.length} positions`, { type: "success" });
@@ -356,6 +366,7 @@ export function useTrade(
     if (!liveSigner) return;
 
     dispatch(setOrderStatus("submitting"));
+    basketPnl = open.reduce((sum, pos) => sum + pos.unrealizedPnl, 0);
     for (const pos of open) {
       toast(`Closing ${pos.symbol}…`, {
         type: "loading",
@@ -399,7 +410,7 @@ export function useTrade(
       return;
     }
     dispatch(setOrderStatus("filled"));
-    playSound("close");
+    playCloseOutcome(basketPnl);
     haptic("close");
     stopProfitTracking();
     toast(

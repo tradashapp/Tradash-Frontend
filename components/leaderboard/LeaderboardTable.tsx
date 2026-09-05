@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { formatUsd } from "@/lib/format";
 import { Avatar } from "./Avatar";
+import { RankNumeral } from "./RankBadge";
 import type { LeaderboardEntry, LeaderboardMetric } from "@/types";
 
 interface Props {
@@ -163,13 +164,20 @@ function Row({ entry, metric, isMe, floating, onSelect, ref }: RowProps & {
       }`}
     >
       {/* Rank 0 means "traded, but doesn't qualify for this board" (see the
-          volume floor in leaderboardService) — show a dash, not a zero. */}
-      <span
-        className={`tabular w-6 shrink-0 text-xs font-semibold ${
-          entry.rank >= 1 && entry.rank <= 3 ? "text-up" : "text-text-muted"
-        }`}
-      >
-        {entry.rank >= 1 ? entry.rank : "—"}
+          volume floor in leaderboardService) — show a dash, not a zero.
+
+          The top three are struck in the same gold/silver/bronze as the podium
+          badges above, so the list and the podium name the same three people in
+          the same material. They run a size larger than the rest of the column:
+          a metal gradient needs the glyph weight to be legible at all. */}
+      <span className="w-6 shrink-0 text-xs font-semibold">
+        {entry.rank >= 1 && entry.rank <= 3 ? (
+          <RankNumeral rank={entry.rank as 1 | 2 | 3} />
+        ) : (
+          <span className="tabular text-text-muted">
+            {entry.rank >= 1 ? entry.rank : "—"}
+          </span>
+        )}
       </span>
 
       <button
@@ -183,9 +191,11 @@ function Row({ entry, metric, isMe, floating, onSelect, ref }: RowProps & {
           name={entry.username}
           className="h-7 w-7"
         />
-        <span className="truncate font-medium">@{entry.username}</span>
+        <span className="truncate text-[13px] font-medium">
+          @{entry.username}
+        </span>
         {isMe && (
-          <span className="shrink-0 rounded bg-up px-1 py-0.5 text-[9px] font-bold uppercase text-black">
+          <span className="shrink-0 rounded bg-up px-1 py-px text-[8px] font-bold uppercase leading-[1.4] tracking-wide text-black">
             You
           </span>
         )}
@@ -194,8 +204,11 @@ function Row({ entry, metric, isMe, floating, onSelect, ref }: RowProps & {
       <span className="tabular w-20 shrink-0 text-right text-xs text-text-muted">
         {formatUsd(entry.volume)}
       </span>
+      {/* Same size as the volume column beside it — the colour and weight
+          already carry the emphasis, so a larger figure only made the row
+          top-heavy against the handle it belongs to. */}
       <span
-        className={`tabular w-20 shrink-0 text-right font-semibold ${
+        className={`tabular w-20 shrink-0 text-right text-xs font-semibold ${
           up ? "text-up" : "text-down"
         }`}
       >

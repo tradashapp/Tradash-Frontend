@@ -72,7 +72,6 @@ const RANKS = {
     tint: "255, 199, 64",
     /** Only the winner throws a coloured bloom onto the surface beneath. */
     glow: "0 18px 40px -12px rgba(255, 199, 64, 0.4)",
-    ring: "ring-2",
     ringColor: "#FFD75E",
     badge: 52,
     avatar: "h-16 w-16",
@@ -82,7 +81,6 @@ const RANKS = {
     lift: "translate-y-0",
     tint: "226, 232, 240",
     glow: "0 14px 30px -14px rgba(0, 0, 0, 0.7)",
-    ring: "ring-1",
     ringColor: "rgba(226, 232, 240, 0.55)",
     badge: 42,
     avatar: "h-12 w-12",
@@ -92,7 +90,6 @@ const RANKS = {
     lift: "translate-y-1",
     tint: "224, 155, 95",
     glow: "0 14px 30px -14px rgba(0, 0, 0, 0.7)",
-    ring: "ring-1",
     ringColor: "rgba(224, 155, 95, 0.5)",
     badge: 42,
     avatar: "h-12 w-12",
@@ -200,45 +197,67 @@ function Plinth({
           }}
         />
 
-        {/* Right side face. */}
+        {/* Right side face. Fades out towards the base on the same ramp as the
+            front face, so the cube stays open at the bottom on both visible
+            sides — otherwise the receding cheek would still close the corner. */}
         <span
           aria-hidden
           className="absolute inset-0"
           style={{
             clipPath: `polygon(calc(100% - ${DEPTH}px) ${DEPTH}px, 100% 0, 100% calc(100% - ${DEPTH}px), calc(100% - ${DEPTH}px) 100%)`,
-            background: `linear-gradient(to bottom, rgba(${style.tint}, 0.2), rgba(${style.tint}, 0.07))`,
+            background: `linear-gradient(to bottom, rgba(${style.tint}, 0.2) 0%, rgba(${style.tint}, 0.07) 45%, rgba(${style.tint}, 0) 100%)`,
           }}
         />
 
-        {/* Front face — the glass itself, and the only face carrying content. */}
+        {/* Front face — the glass itself, and the only face carrying content.
+
+            BOTTOMLESS: there is no bottom border, and the tint fades to fully
+            transparent at the base, so the cube dissolves into the sheet rather
+            than sitting in a closed box. The side borders are masked to fade out
+            over the same distance — a hard 1px edge running all the way down
+            would redraw the bottom corners the fade is meant to remove. */}
         <span
           className="absolute bottom-0 left-0 flex items-start justify-center overflow-hidden pt-3"
           style={{
             top: DEPTH,
             right: DEPTH,
-            background: `linear-gradient(165deg, rgba(${style.tint}, 0.2) 0%, rgba(${style.tint}, 0.07) 40%, rgba(${style.tint}, 0.03) 100%)`,
+            background: `linear-gradient(to bottom, rgba(${style.tint}, 0.2) 0%, rgba(${style.tint}, 0.08) 45%, rgba(${style.tint}, 0) 100%)`,
             backdropFilter: "blur(6px)",
             WebkitBackdropFilter: "blur(6px)",
-            border: `1px solid rgba(${style.tint}, 0.22)`,
-            borderTopColor: `rgba(${style.tint}, 0.45)`,
-            boxShadow: `inset 0 1px 0 rgba(255, 255, 255, 0.14), ${style.glow}`,
+            borderTop: `1px solid rgba(${style.tint}, 0.45)`,
+            boxShadow: style.glow,
           }}
         >
+          {/* Side edges, faded out towards the open base. Drawn as an inset
+              shadow on a masked overlay so only the left and right rules show. */}
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-0"
+            style={{
+              boxShadow: `inset 1px 0 0 rgba(${style.tint}, 0.22), inset -1px 0 0 rgba(${style.tint}, 0.22)`,
+              maskImage:
+                "linear-gradient(to bottom, #000 0%, #000 45%, transparent 100%)",
+              WebkitMaskImage:
+                "linear-gradient(to bottom, #000 0%, #000 45%, transparent 100%)",
+            }}
+          />
           {/* Specular sweep across the upper left — this is what sells the face
-              as glass rather than flat tinted plastic. */}
+              as glass rather than flat tinted plastic. Faded at the base too, so
+              it doesn't reintroduce a visible bottom edge. */}
           <span
             aria-hidden
             className="pointer-events-none absolute inset-0"
             style={{
               background:
                 "linear-gradient(135deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.06) 28%, transparent 52%)",
+              maskImage:
+                "linear-gradient(to bottom, #000 0%, #000 50%, transparent 100%)",
+              WebkitMaskImage:
+                "linear-gradient(to bottom, #000 0%, #000 50%, transparent 100%)",
             }}
           />
-          <span
-            className={`relative text-lg font-black tracking-tight ${style.labelColor}`}
-          >
-            {style.label}
-          </span>
+          {/* The medal, struck into the face of the cube. */}
+          <RankBadge rank={rank} size={style.badge} className="relative" />
         </span>
       </button>
 

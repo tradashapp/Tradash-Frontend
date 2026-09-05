@@ -114,7 +114,7 @@ const DEPTH = 14;
  * even where the fill has faded to nothing. One constant for all three faces —
  * if they fade on different ramps the seams reappear as visible corners.
  */
-const FADE_OUT = "linear-gradient(to bottom, #000 0%, #000 45%, transparent 100%)";
+const FADE_OUT = "linear-gradient(to bottom, #000 0%, #000 22%, transparent 92%)";
 
 function Plinth({
   rank,
@@ -223,7 +223,7 @@ function Plinth({
           className="absolute inset-0"
           style={{
             clipPath: `polygon(0 ${DEPTH}px, ${DEPTH}px 0, 100% 0, calc(100% - ${DEPTH}px) ${DEPTH}px)`,
-            background: `linear-gradient(115deg, rgba(${style.tint}, 0.42), rgba(${style.tint}, 0.2))`,
+            background: `linear-gradient(115deg, rgba(${style.tint}, 0.3), rgba(${style.tint}, 0.14))`,
           }}
         />
 
@@ -235,7 +235,7 @@ function Plinth({
           className="absolute inset-0"
           style={{
             clipPath: `polygon(calc(100% - ${DEPTH}px) ${DEPTH}px, 100% 0, 100% calc(100% - ${DEPTH}px), calc(100% - ${DEPTH}px) 100%)`,
-            background: `linear-gradient(to bottom, rgba(${style.tint}, 0.2) 0%, rgba(${style.tint}, 0.07) 45%, rgba(${style.tint}, 0) 100%)`,
+            background: `linear-gradient(to bottom, rgba(${style.tint}, 0.16) 0%, rgba(${style.tint}, 0.05) 40%, rgba(${style.tint}, 0) 100%)`,
             // Masked as well as faded: the clip-path's lower corner is a hard
             // edge that would still draw the closed bottom of the box even once
             // its fill has gone transparent.
@@ -256,7 +256,7 @@ function Plinth({
           style={{
             top: DEPTH,
             right: DEPTH,
-            background: `linear-gradient(to bottom, rgba(${style.tint}, 0.2) 0%, rgba(${style.tint}, 0.08) 45%, rgba(${style.tint}, 0) 100%)`,
+            background: `linear-gradient(to bottom, rgba(${style.tint}, 0.17) 0%, rgba(${style.tint}, 0.06) 40%, rgba(${style.tint}, 0) 100%)`,
             backdropFilter: "blur(6px)",
             WebkitBackdropFilter: "blur(6px)",
             borderTop: `1px solid rgba(${style.tint}, 0.45)`,

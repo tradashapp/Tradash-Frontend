@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { formatUsd } from "@/lib/format";
 import { haptic } from "@/lib/haptics";
+import { playSound } from "@/lib/sound";
 import {
   PNL_RANGES,
   usePnlSeries,
@@ -210,6 +211,8 @@ export function PnlChart({
       setActiveIndex(best);
       // One tick per NODE crossed, not per pointer move — so dragging slowly
       // across a single sample stays silent instead of buzzing continuously.
+      // Haptic only, deliberately: a click per node would machine-gun the
+      // speaker across a fast scrub.
       if (lastHapticIndex.current !== best) {
         lastHapticIndex.current = best;
         haptic("tap");
@@ -483,6 +486,7 @@ export function PnlChart({
                   key={r.id}
                   type="button"
                   onClick={() => {
+                    playSound("tap");
                     haptic("tap");
                     onRangeChange(r.id);
                   }}

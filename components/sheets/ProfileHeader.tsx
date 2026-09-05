@@ -62,7 +62,7 @@ export function ProfileHeader({ onLogin }: { onLogin: () => void }) {
   };
 
   return (
-    <div className="mb-4 flex flex-col items-center py-3">
+    <div className="mb-4 flex flex-col items-center py-1">
       {/* Avatar + pencil */}
       <div className="relative mb-1">
         <div className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-full bg-white/[0.06] text-6xl">

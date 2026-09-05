@@ -50,6 +50,13 @@ interface SheetProps {
   /** Renders a back chevron on the left of the header instead of closing. */
   onBack?: () => void;
   /**
+   * Content for the top-left of the title bar, opposite the close button — for
+   * a sheet that carries an action of its own (the account sheet's settings
+   * gear). Ignored when `onBack` is set: the back chevron owns that slot, and a
+   * view deep enough to need it has its own header anyway.
+   */
+  headerLeft?: ReactNode;
+  /**
    * Extra pinned content below the title bar — for sheets whose top line is a
    * control (e.g. the market search field) rather than a heading. Stays above
    * the scroll region.
@@ -76,6 +83,7 @@ export function Sheet({
   onClose,
   title,
   onBack,
+  headerLeft,
   header,
   scrollBody = true,
   hideClose = false,
@@ -150,8 +158,13 @@ export function Sheet({
 
             {/* Title bar. Always rendered (even with no title) so the close
                 button has a home — it sits far right on every sheet. */}
-            {!hideClose || title || onBack ? (
+            {!hideClose || title || onBack || headerLeft ? (
               <div className="relative mb-3 flex h-9 shrink-0 items-center justify-center">
+                {!onBack && headerLeft && (
+                  <div className="absolute left-0 flex items-center">
+                    {headerLeft}
+                  </div>
+                )}
                 {onBack && (
                   <button
                     type="button"

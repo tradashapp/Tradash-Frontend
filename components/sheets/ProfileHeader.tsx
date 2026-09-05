@@ -62,10 +62,10 @@ export function ProfileHeader({ onLogin }: { onLogin: () => void }) {
   };
 
   return (
-    <div className="mb-4 flex flex-col items-center py-1">
+    <div className="mb-4 flex flex-col items-center">
       {/* Avatar + pencil */}
       <div className="relative mb-1">
-        <div className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-full bg-white/[0.06] text-6xl">
+        <div className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-full bg-up text-6xl border-8 border-white/[0.6]">
           {profile.avatarUrl || isPhotoAvatar(avatar) ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -74,7 +74,7 @@ export function ProfileHeader({ onLogin }: { onLogin: () => void }) {
               className="h-full w-full object-cover"
             />
           ) : (
-            <span aria-hidden>{avatar}</span>
+            <span aria-hidden className="text-black">D</span>
           )}
         </div>
         <button

@@ -1,107 +1,67 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { usePrivy } from "@privy-io/react-auth";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   PencilEdit02Icon,
-  ImageAdd02Icon,
+  Camera01Icon,
   Tick02Icon,
   Loading03Icon,
+  NewTwitterIcon,
+  CheckmarkCircle02Icon,
 } from "@hugeicons/core-free-icons";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { updateSettings } from "@/store/slices/settingsSlice";
-import { AVATAR_EMOJIS, fileToAvatarDataUrl, isPhotoAvatar } from "@/lib/avatars";
+import { fileToAvatarDataUrl, isPhotoAvatar } from "@/lib/avatars";
 import { useToast } from "@/components/toast/ToastProvider";
 import { playSound } from "@/lib/sound";
 import { haptic } from "@/lib/haptics";
 import { useProfile } from "@/hooks/useProfile";
 import { USERNAME_PATTERN } from "@/lib/username";
+import { twitterAvatarUrl, twitterHandle } from "@/lib/twitter";
+import { ProfileAvatar } from "@/components/ui/ProfileAvatar";
 
-// Top of the account sheet: the avatar (with a glass pencil that opens the
-// emoji / device-photo picker) above the user's handle — or a login button that
-// opens the Privy modal when they aren't signed in yet.
+/**
+ * Top of the account sheet: the avatar above the user's handle — or a login
+ * button when they aren't signed in yet.
+ *
+ * The avatar itself is not a control: editing lives behind the pencil beside
+ * the handle, which opens ONE panel owning both the name and the photo. Two
+ * separate edit affordances (a pencil on the avatar, another on the name) meant
+ * two panels that could both be open, each editing half an identity.
+ */
 export function ProfileHeader({ onLogin }: { onLogin: () => void }) {
-  const dispatch = useAppDispatch();
-  const { toast } = useToast();
   const { user, authenticated } = usePrivy();
-  const avatar = useAppSelector((s) => s.settings.avatar);
   const profile = useProfile();
-  const [picking, setPicking] = useState(false);
-  const [editingName, setEditingName] = useState(false);
-  const fileRef = useRef<HTMLInputElement | null>(null);
+  const [editing, setEditing] = useState(false);
 
   // The stored handle is the identity other people see; fall back to whatever
-  // the login method suggests until one has been claimed.
-  const handle = profile.username ? `@${profile.username}` : usernameFor(user);
-
-  const setAvatar = (next: string) => {
-    dispatch(updateSettings({ avatar: next }));
-    playSound("tap");
-    haptic("tap");
-    setPicking(false);
-  };
-
-  const onPickFile = async (file: File | undefined) => {
-    if (!file) return;
-    let dataUrl: string;
-    try {
-      dataUrl = await fileToAvatarDataUrl(file);
-    } catch {
-      toast("Couldn't use that image", { type: "error" });
-      return;
-    }
-    // Show it locally at once, then publish it so it renders for everyone else
-    // on the leaderboard. A failed upload leaves the local avatar in place —
-    // it's still valid for this browser — but says so.
-    setAvatar(dataUrl);
-    if (authenticated && !(await profile.uploadAvatar(dataUrl))) {
-      toast("Photo saved on this device only", { type: "info" });
-    }
-  };
+  // the login method suggests until the backend's seeded one has loaded.
+  const name = profile.username ?? fallbackName(user);
+  const handle = `@${name}`;
 
   return (
     <div className="mb-4 flex flex-col items-center">
-      {/* Avatar + pencil */}
-      <div className="relative mb-1">
-        <div className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-full bg-up text-6xl border-8 border-white/[0.6]">
-          {profile.avatarUrl || isPhotoAvatar(avatar) ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={profile.avatarUrl ?? avatar}
-              alt="Profile"
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <span aria-hidden className="text-black">D</span>
-          )}
-        </div>
-        <button
-          type="button"
-          onClick={() => {
-            playSound("tap");
-            haptic("tap");
-            setPicking((p) => !p);
-          }}
-          aria-label="Change avatar"
-          className="glass absolute -bottom-0.5 -right-0.5 flex h-8 w-8 items-center justify-center rounded-full text-text transition-transform active:scale-90"
-        >
-          <HugeiconsIcon icon={PencilEdit02Icon} size={15} />
-        </button>
-      </div>
+      <ProfileAvatar
+        src={profile.avatarUrl}
+        name={name}
+        className="h-28 w-28 border-8 border-white/[0.6] text-4xl"
+      />
 
-      {/* Handle (logged in) — plain centred text — or the login pill. */}
+      {/* Handle + the pencil that opens the edit panel, or the login pill. */}
       {authenticated ? (
         <button
           type="button"
           onClick={() => {
             playSound("tap");
             haptic("tap");
-            setEditingName((e) => !e);
+            setEditing((e) => !e);
           }}
           className="mt-2 flex items-center gap-1.5 text-sm font-medium text-text transition-opacity active:opacity-60"
-          aria-label="Change username"
+          aria-expanded={editing}
+          aria-label="Edit profile"
         >
           {handle}
           <HugeiconsIcon
@@ -124,9 +84,8 @@ export function ProfileHeader({ onLogin }: { onLogin: () => void }) {
         </button>
       )}
 
-      {/* Username claim. Opened by tapping the handle. */}
       <AnimatePresence initial={false}>
-        {editingName && authenticated && (
+        {editing && authenticated && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
@@ -134,78 +93,147 @@ export function ProfileHeader({ onLogin }: { onLogin: () => void }) {
             transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
             className="w-full overflow-hidden"
           >
-            <UsernameForm
-              current={profile.username}
-              saving={profile.saving}
-              onSubmit={async (name) => {
-                const result = await profile.claimUsername(name);
-                if (result === "ok") {
-                  toast("Username updated", { type: "success" });
-                  setEditingName(false);
-                } else if (result === "taken") {
-                  toast("That username is taken", { type: "error" });
-                } else if (result === "invalid") {
-                  toast("3-20 letters, numbers or underscores", {
-                    type: "error",
-                  });
-                } else {
-                  toast("Couldn't save that username", { type: "error" });
-                }
-              }}
-            />
+            <EditProfilePanel profile={profile} onDone={() => setEditing(false)} />
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  );
+}
 
-      {/* Avatar picker — emoji grid + "from device". */}
-      <AnimatePresence initial={false}>
-        {picking && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-            className="w-full overflow-hidden"
-          >
-            <div className="glass-inset mt-3 rounded-2xl p-3">
-              <div className="grid grid-cols-8 gap-1.5">
-                {AVATAR_EMOJIS.map((e) => (
-                  <button
-                    key={e}
-                    type="button"
-                    onClick={() => setAvatar(e)}
-                    aria-label={`Use ${e} as avatar`}
-                    className={`flex aspect-square items-center justify-center rounded-full text-lg transition-transform active:scale-90 ${
-                      avatar === e ? "bg-up-soft ring-1 ring-up" : "bg-white/[0.04]"
-                    }`}
-                  >
-                    <span aria-hidden>{e}</span>
-                  </button>
-                ))}
-              </div>
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                className="mt-2.5 flex w-full items-center justify-center gap-2 rounded-xl bg-white/[0.05] py-2.5 text-xs font-medium text-text-muted transition-colors hover:text-text"
-              >
-                <HugeiconsIcon icon={ImageAdd02Icon} size={16} />
-                Choose from device
-              </button>
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/*"
-                hidden
-                onChange={(e) => {
-                  void onPickFile(e.target.files?.[0]);
-                  // Reset so picking the SAME file again still fires onChange.
-                  e.target.value = "";
-                }}
-              />
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+/**
+ * Everything that makes up the public identity, in one panel: the handle, the
+ * photo, and the social accounts linked to it.
+ */
+function EditProfilePanel({
+  profile,
+  onDone,
+}: {
+  profile: ReturnType<typeof useProfile>;
+  onDone: () => void;
+}) {
+  const dispatch = useAppDispatch();
+  const { toast } = useToast();
+  const { user, linkTwitter } = usePrivy();
+  const avatar = useAppSelector((s) => s.settings.avatar);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+
+  const xHandle = twitterHandle(user);
+  const xAvatar = twitterAvatarUrl(user);
+
+  // Adopt the X photo as soon as an account is linked (or the user logged in
+  // with X), so linking visibly does something. Only when they have no photo of
+  // their own — re-linking must not overwrite one they uploaded here. The ref
+  // keeps a failed import from retrying on every render.
+  const adopted = useRef<string | null>(null);
+  useEffect(() => {
+    if (!xAvatar || profile.avatarUrl || adopted.current === xAvatar) return;
+    adopted.current = xAvatar;
+    void profile.importAvatar(xAvatar);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [xAvatar, profile.avatarUrl]);
+
+  const onPickFile = async (file: File | undefined) => {
+    if (!file) return;
+    let dataUrl: string;
+    try {
+      dataUrl = await fileToAvatarDataUrl(file);
+    } catch {
+      toast("Couldn't use that image", { type: "error" });
+      return;
+    }
+    playSound("tap");
+    haptic("tap");
+    // Show it locally at once, then publish it so it renders for everyone else
+    // on the leaderboard. A failed upload leaves the local photo in place — it's
+    // still valid for this browser — but says so.
+    dispatch(updateSettings({ avatar: dataUrl }));
+    if (!(await profile.uploadAvatar(dataUrl))) {
+      toast("Photo saved on this device only", { type: "info" });
+    }
+  };
+
+  const photo = profile.avatarUrl ?? (isPhotoAvatar(avatar) ? avatar : null);
+
+  return (
+    <div className="glass-inset mt-3 flex flex-col gap-3 rounded-2xl p-3">
+      {/* Photo — a preview beside the one action that changes it. */}
+      <div className="flex items-center gap-3">
+        <ProfileAvatar
+          src={photo}
+          name={profile.username}
+          className="h-12 w-12 text-base"
+        />
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          disabled={profile.saving}
+          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-white/[0.05] py-2.5 text-xs font-medium text-text-muted transition-colors hover:text-text disabled:opacity-50"
+        >
+          <HugeiconsIcon
+            icon={profile.saving ? Loading03Icon : Camera01Icon}
+            size={16}
+            className={profile.saving ? "animate-spin" : ""}
+          />
+          {photo ? "Change photo" : "Upload photo"}
+        </button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          hidden
+          onChange={(e) => {
+            void onPickFile(e.target.files?.[0]);
+            // Reset so picking the SAME file again still fires onChange.
+            e.target.value = "";
+          }}
+        />
+      </div>
+
+      <UsernameForm
+        current={profile.username}
+        saving={profile.saving}
+        onSubmit={async (name) => {
+          const result = await profile.claimUsername(name);
+          if (result === "ok") {
+            toast("Username updated", { type: "success" });
+            onDone();
+          } else if (result === "taken") {
+            toast("That username is taken", { type: "error" });
+          } else if (result === "invalid") {
+            toast("3-20 letters, numbers or underscores", { type: "error" });
+          } else {
+            toast("Couldn't save that username", { type: "error" });
+          }
+        }}
+      />
+
+      {/* Socials. Linking X also brings its photo across (see the effect above). */}
+      <div>
+        <div className="mb-1.5 px-1 text-[11px] font-medium uppercase tracking-wide text-text-muted">
+          Connect socials
+        </div>
+        <button
+          type="button"
+          disabled={!!xHandle}
+          onClick={() => {
+            playSound("tap");
+            haptic("tap");
+            linkTwitter();
+          }}
+          className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/[0.12] py-2.5 text-xs font-semibold text-text transition-colors hover:bg-white/[0.05] disabled:cursor-default disabled:text-text-muted disabled:hover:bg-transparent"
+        >
+          <HugeiconsIcon icon={NewTwitterIcon} size={15} />
+          {xHandle ? `@${xHandle}` : "Connect X"}
+          {xHandle && (
+            <HugeiconsIcon
+              icon={CheckmarkCircle02Icon}
+              size={15}
+              className="text-up"
+            />
+          )}
+        </button>
+      </div>
     </div>
   );
 }
@@ -229,8 +257,15 @@ function UsernameForm({
   const valid = USERNAME_PATTERN.test(cleaned);
   const unchanged = cleaned === current;
 
+  // The handle is seeded server-side at signup, so it can land AFTER this form
+  // mounted with an empty box. Adopt it while the field is still untouched —
+  // otherwise the user sees a blank input under a header showing their name.
+  useEffect(() => {
+    if (current) setValue((v) => (v === "" ? current : v));
+  }, [current]);
+
   return (
-    <div className="glass-inset mt-3 flex items-center gap-2 rounded-2xl p-2">
+    <div className="flex items-center gap-2 rounded-2xl bg-white/[0.04] p-2">
       <span className="pl-2 text-sm text-text-muted">@</span>
       <input
         value={value}
@@ -266,22 +301,21 @@ function UsernameForm({
 }
 
 /**
- * A display handle for the signed-in user. Privy has no single username field,
- * so we take the best identity the login method gave us — Twitter/Discord
- * handle, email local-part, phone, else a shortened wallet address.
+ * A display name for the signed-in user, used only until the stored handle
+ * loads (every user is seeded one at signup). Privy has no single username
+ * field, so we take the best identity the login method gave us.
  */
-function usernameFor(user: ReturnType<typeof usePrivy>["user"]): string {
-  if (!user) return "@trader";
+function fallbackName(user: ReturnType<typeof usePrivy>["user"]): string {
+  if (!user) return "trader";
   const twitter = user.twitter?.username;
-  if (twitter) return `@${twitter}`;
+  if (twitter) return twitter;
   const discord = user.discord?.username;
-  if (discord) return `@${discord.split("#")[0]}`;
+  if (discord) return discord.split("#")[0];
   const github = user.github?.username;
-  if (github) return `@${github}`;
+  if (github) return github;
   const email = user.email?.address ?? user.google?.email;
-  if (email) return `@${email.split("@")[0]}`;
-  if (user.phone?.number) return user.phone.number;
+  if (email) return email.split("@")[0];
   const addr = user.wallet?.address;
-  if (addr) return `@${addr.slice(0, 4)}…${addr.slice(-4)}`;
-  return "@trader";
+  if (addr) return `${addr.slice(0, 4)}…${addr.slice(-4)}`;
+  return "trader";
 }

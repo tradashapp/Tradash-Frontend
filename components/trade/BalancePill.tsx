@@ -74,7 +74,7 @@ export function BalancePill({ onOpen }: Props) {
       }}
       className="group flex items-center gap-3 rounded-full bg-bg-overlay/50 px-2 py-1.5 transition-colors hover:bg-bg-overlay"
     >
-      <div className="pl-1.5 text-right leading-tight">
+      <div className="text-right items-center leading-tight">
         <div className="text-lg font-semibold">
           {balance != null ? (
             <Odometer value={formatUsd(balance)} />
@@ -85,14 +85,14 @@ export function BalancePill({ onOpen }: Props) {
         {/* The sub-line only says something in demo, but it always occupies a
             line: without it the pill loses ~16px of height and stops matching
             the market selector across the header. */}
-        <div className="text-xs text-text-muted">
-          {mode === "demo" ? "Demo" : "\u00A0"}
-        </div>
+        {/* <div className="text-xs text-text-muted">
+          {mode === "demo" ? "Demo" : ""}
+        </div> */}
       </div>
       <ProfileAvatar
         src={profile.avatarUrl}
         name={name}
-        className="h-8 w-8 text-xs"
+        className="h-9 w-9 text-xs"
       />
     </button>
   );

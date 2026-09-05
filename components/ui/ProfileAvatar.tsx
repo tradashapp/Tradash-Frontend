@@ -29,7 +29,7 @@ export function ProfileAvatar({
 
   return (
     <div
-      className={`flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/[0.06] ${className}`}
+      className={`flex shrink-0 items-center h-12 w-12 justify-center overflow-hidden rounded-full bg-white/[0.06] ${className}`}
       style={src || !name ? undefined : { backgroundColor: tint(name) }}
     >
       {src ? (

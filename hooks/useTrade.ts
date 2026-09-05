@@ -288,6 +288,7 @@ export function useTrade(
       toast(`Closed ${position.symbol}`, {
         type: position.unrealizedPnl >= 0 ? "success" : "info",
         description: `Realized ${fmtUsd(position.unrealizedPnl)}`,
+        confetti: position.unrealizedPnl > 0,
       });
       return;
     }
@@ -353,6 +354,7 @@ export function useTrade(
         toast(`Closed ${pos.symbol}`, {
           type: pnl >= 0 ? "success" : "info",
           description: `Realized ${fmtUsd(pnl)}`,
+          confetti: pnl > 0,
         });
       }
       playCloseOutcome(basketPnl);

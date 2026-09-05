@@ -9,6 +9,7 @@ import {
   Loading03Icon,
   Cancel01Icon,
 } from "@hugeicons/core-free-icons";
+import { Confetti } from "./Confetti";
 import type { Toast, ToastType } from "./ToastProvider";
 
 const ICON: Record<ToastType, typeof CheckmarkCircle02Icon> = {
@@ -45,8 +46,11 @@ export function ToastViewport({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -60, scale: 0.96 }}
             transition={{ type: "spring", damping: 26, stiffness: 320 }}
-            className="glass pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-2xl px-4 py-3 shadow-lg"
+            className="glass pointer-events-auto relative isolate flex w-full max-w-sm items-start gap-3 rounded-2xl px-4 py-3 shadow-lg"
           >
+            {/* Mounts only once the toast is flagged celebratory, so a re-used
+                id (loading → success) bursts exactly when it turns good. */}
+            {t.confetti && <Confetti trigger={1} />}
             <HugeiconsIcon
               icon={ICON[t.type]}
               size={20}

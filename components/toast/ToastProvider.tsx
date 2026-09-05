@@ -26,6 +26,8 @@ export interface Toast {
   action?: ToastAction;
   /** ms before auto-dismiss; 0 = sticky (must be dismissed/updated). */
   duration: number;
+  /** Celebrate this toast with a confetti burst (profitable closes only). */
+  confetti?: boolean;
 }
 
 export interface ToastOptions {
@@ -35,6 +37,11 @@ export interface ToastOptions {
   duration?: number;
   /** Stable id — reuse to UPDATE an existing toast (e.g. loading → success). */
   id?: string;
+  /**
+   * Fire a confetti burst behind this toast. Reserved for genuinely good news
+   * the user earned — a profitable close — so it keeps its meaning.
+   */
+  confetti?: boolean;
 }
 
 interface ToastContextValue {
@@ -90,6 +97,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         description: opts.description,
         action: opts.action,
         duration,
+        confetti: opts.confetti,
       };
 
       setToasts((cur) => {

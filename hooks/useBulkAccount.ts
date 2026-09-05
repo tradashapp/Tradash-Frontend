@@ -216,6 +216,9 @@ function recordCloseFor(
     type: prev.unrealizedPnl >= 0 ? "success" : "info",
     id: `close-${prev.symbol}`,
     description: `Realized ${fmtUsd(prev.unrealizedPnl)}`,
+    // Only an actual gain earns the burst — break-even closes stay quiet so the
+    // celebration keeps meaning something.
+    confetti: prev.unrealizedPnl > 0,
   });
 }
 

@@ -84,6 +84,7 @@ export function useDemoPnl() {
           toast(`Trailing stop hit · ${sym}`, {
             type: pnl >= 0 ? "success" : "info",
             description: `Locked ${fmtUsd(pnl)}`,
+            confetti: pnl > 0,
           });
           continue;
         }

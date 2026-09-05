@@ -134,12 +134,15 @@ function Plinth({
       transition={{ delay, duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
       className={`flex flex-1 flex-col items-center ${style.lift}`}
     >
-      {/* Avatar + handle, straddling the top edge of the plinth. */}
-      {/* The metal ring lives on a wrapper, not on Avatar: Avatar owns its own
-          `style` (it paints a generated tint for users with no photo), so the
-          ring colour cannot be passed down as an inline custom property. */}
+      {/* Avatar + handle, straddling the top edge of the plinth.
+
+          The metal ring lives on this wrapper rather than on Avatar: Avatar
+          owns its own `style` (it paints a generated tint for users with no
+          photo), so a ring colour can't be passed down as an inline property.
+          `block` matters — an inline span would add descender space beneath the
+          avatar and push the handle off the spacing the other ranks use. */}
       <span
-        className="rounded-full"
+        className="block rounded-full"
         style={{ boxShadow: `0 0 0 ${rank === 1 ? 2 : 1}px ${style.ringColor}` }}
       >
         <Avatar

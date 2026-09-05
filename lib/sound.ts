@@ -1,6 +1,15 @@
-// Lightweight sound engine. Preloads the trade SFX and plays them on demand,
-// gated by the user's soundEnabled setting (read via the getter passed to init).
-// Uses plain HTMLAudioElement clones so overlapping plays don't cut each other.
+// Sound engine. Web Audio, not <audio> elements — the difference is latency.
+//
+// The old implementation cloned an HTMLAudioElement per play. A clone does NOT
+// inherit the decoded audio of its source: it re-fetches the URL and re-decodes
+// the MP3 on every single tap, which is why a click could sound a second late.
+// HTMLAudioElement.play() is also promise-based and best-effort scheduled, so
+// even a warm element drifts away from the gesture that triggered it.
+//
+// Here each clip is fetched and decoded exactly once into an AudioBuffer. A tap
+// then allocates a throwaway AudioBufferSourceNode and calls start() — sample
+// accurate, no I/O, no decode, no promise. That path is sub-millisecond, well
+// inside the ~20 ms window where a sound still reads as "instant".
 
 export type SoundName = "tap" | "open" | "close" | "profit";
 
@@ -11,68 +20,97 @@ const FILES: Record<SoundName, string> = {
   profit: "/audios/profit_move.mp3",
 };
 
+// Per-clip trim. The clips are authored with the transient on sample 0, but the
+// MP3 format itself prepends ~25 ms of encoder-delay padding that every decoder
+// reproduces. Skipping it at playback keeps the attack exactly on the gesture.
+const LEAD_TRIM = 0.025;
+
+// Taps fire on every button in the app, so they sit well under the trade
+// events; profit repeats while PnL climbs, so it stays a garnish.
 const VOLUME: Record<SoundName, number> = {
-  tap: 0.35,
-  open: 0.6,
-  close: 0.6,
-  profit: 0.4,
+  tap: 0.3,
+  open: 0.55,
+  close: 0.55,
+  profit: 0.35,
 };
 
-const buffers = new Map<SoundName, HTMLAudioElement>();
+let ctx: AudioContext | null = null;
+let master: GainNode | null = null;
+const buffers = new Map<SoundName, AudioBuffer>();
 let enabledGetter: () => boolean = () => true;
-let unlocked = false;
 
-/** Preload clips and wire the enabled-check. Safe to call on the client only. */
+/** Preload + decode every clip and wire the enabled-check. Client only. */
 export function initSound(isEnabled: () => boolean) {
   enabledGetter = isEnabled;
-  if (typeof Audio === "undefined") return;
-  (Object.keys(FILES) as SoundName[]).forEach((name) => {
-    if (!buffers.has(name)) {
-      const a = new Audio(FILES[name]);
-      a.preload = "auto";
-      a.volume = VOLUME[name];
-      buffers.set(name, a);
+  if (typeof window === "undefined") return;
+
+  const Ctor =
+    window.AudioContext ??
+    (window as unknown as { webkitAudioContext?: typeof AudioContext })
+      .webkitAudioContext;
+  if (!Ctor || ctx) return;
+
+  try {
+    // "interactive" asks the platform for the smallest output buffer it can
+    // give us, trading power for responsiveness — correct for UI feedback.
+    ctx = new Ctor({ latencyHint: "interactive" });
+  } catch {
+    return; // No Web Audio (very old browser) — the app is silent, never broken.
+  }
+
+  master = ctx.createGain();
+  master.gain.value = 1;
+  master.connect(ctx.destination);
+
+  // Decode ahead of time so the first tap is as fast as the thousandth.
+  (Object.keys(FILES) as SoundName[]).forEach(async (name) => {
+    try {
+      const res = await fetch(FILES[name]);
+      const raw = await res.arrayBuffer();
+      buffers.set(name, await ctx!.decodeAudioData(raw));
+    } catch {
+      /* a missing clip must never break the interaction it accompanies */
     }
   });
 }
 
-// Browsers block audio until a user gesture. Call once on first interaction.
-//
-// The unlock MUST be silent. play() resolves asynchronously, so pausing in the
-// .then() still lets each clip sound for a few ms first — with four buffers
-// that's an audible smear layered under the tap that triggered the unlock.
-// Muting for the round-trip makes the unlock inaudible; we restore the real
-// volume afterwards so the next playSound() is unaffected.
+// Browsers start an AudioContext suspended until a user gesture. Resuming is
+// silent and idempotent, so unlike the old element-priming trick there is
+// nothing here that can leak an audible smear on first touch.
 export function unlockSound() {
-  if (unlocked || typeof Audio === "undefined") return;
-  unlocked = true;
-  buffers.forEach((a, name) => {
-    a.muted = true;
-    a.volume = 0;
-    a.play()
-      .then(() => {
-        a.pause();
-        a.currentTime = 0;
-      })
-      .catch(() => {})
-      .finally(() => {
-        a.muted = false;
-        a.volume = VOLUME[name];
-      });
-  });
+  if (ctx?.state === "suspended") void ctx.resume();
 }
 
 export function playSound(name: SoundName) {
-  if (!enabledGetter() || typeof Audio === "undefined") return;
-  const base = buffers.get(name);
-  if (!base) return;
-  // Clone so rapid repeats overlap cleanly instead of restarting one element.
-  // Reset muted/volume explicitly: a clone taken mid-unlock would otherwise
-  // inherit the muted state the unlock sets on the base element.
-  const node = base.cloneNode() as HTMLAudioElement;
-  node.muted = false;
-  node.volume = VOLUME[name];
-  node.play().catch(() => {});
+  if (!enabledGetter() || !ctx || !master) return;
+  const buf = buffers.get(name);
+  if (!buf) return;
+
+  // A tap can be the very gesture that unlocks audio; resume inline so that
+  // first tap is heard rather than swallowed.
+  if (ctx.state === "suspended") void ctx.resume();
+
+  try {
+    // Source nodes are single-use and self-releasing: a fresh one per play is
+    // the intended pattern, and it lets rapid taps overlap instead of cutting.
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+
+    const gain = ctx.createGain();
+    gain.gain.value = VOLUME[name];
+    src.connect(gain).connect(master);
+
+    // start(when=0) means "now" — scheduled on the audio clock, not the task
+    // queue, so it lands on the click instead of after the next frame.
+    const offset = Math.min(LEAD_TRIM, buf.duration);
+    src.start(0, offset);
+    src.onended = () => {
+      src.disconnect();
+      gain.disconnect();
+    };
+  } catch {
+    /* never let feedback throw into a trade path */
+  }
 }
 
 // --- Profit-move ticker ------------------------------------------------------

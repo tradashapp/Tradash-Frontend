@@ -15,8 +15,16 @@ export function useFeedback() {
     initSound(() => store.getState().settings.soundEnabled);
     initHaptics(() => store.getState().settings.hapticsEnabled);
 
+    // Not { once: true }: an AudioContext can be re-suspended by the browser
+    // (tab backgrounded, iOS reclaiming audio), and a one-shot listener would
+    // already be gone. unlockSound() is a no-op unless actually suspended, so
+    // leaving it attached costs nothing and keeps audio recoverable.
     const unlock = () => unlockSound();
-    window.addEventListener("pointerdown", unlock, { once: true });
-    return () => window.removeEventListener("pointerdown", unlock);
+    window.addEventListener("pointerdown", unlock);
+    document.addEventListener("visibilitychange", unlock);
+    return () => {
+      window.removeEventListener("pointerdown", unlock);
+      document.removeEventListener("visibilitychange", unlock);
+    };
   }, [store]);
 }

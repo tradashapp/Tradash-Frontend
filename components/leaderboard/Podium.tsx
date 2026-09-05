@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import { formatUsd } from "@/lib/format";
 import { Avatar } from "./Avatar";
+import { RankBadge } from "./RankBadge";
 import type { LeaderboardEntry, LeaderboardMetric } from "@/types";
 
 interface Props {
@@ -55,43 +56,45 @@ export function Podium({ top, metric, onSelect }: Props) {
 }
 
 /**
- * Per-rank presentation. 1st is taller, lifted, and wears the brand glow.
+ * Per-rank presentation. 1st is taller, lifted, and wears the brightest glow.
  *
  * `tint` values are the rgb triples the cube's faces are built from — every
  * face derives its colour from this one number at a different alpha, so a rank
- * is re-skinned by editing a single line. The winner is brand green; the
- * runners-up are plain white glass.
+ * is re-skinned by editing a single line. Each rank is tinted with its own metal
+ * so the cube and the badge standing on it read as one object.
  */
 const RANKS = {
   1: {
-    label: "1st",
     height: 104,
     lift: "-translate-y-3",
-    tint: "114, 233, 18",
+    // Metal tints, matching the badge each plinth carries: gold, silver, bronze.
+    // The cube and its badge are the same material seen at different alphas.
+    tint: "255, 199, 64",
     /** Only the winner throws a coloured bloom onto the surface beneath. */
-    glow: "0 18px 40px -12px rgba(114, 233, 18, 0.5)",
-    labelColor: "text-up",
-    ring: "ring-2 ring-up",
+    glow: "0 18px 40px -12px rgba(255, 199, 64, 0.4)",
+    ring: "ring-2",
+    ringColor: "#FFD75E",
+    badge: 52,
     avatar: "h-16 w-16",
   },
   2: {
-    label: "2nd",
     height: 78,
     lift: "translate-y-0",
-    tint: "255, 255, 255",
+    tint: "226, 232, 240",
     glow: "0 14px 30px -14px rgba(0, 0, 0, 0.7)",
-    labelColor: "text-text-muted",
-    ring: "ring-1 ring-white/20",
+    ring: "ring-1",
+    ringColor: "rgba(226, 232, 240, 0.55)",
+    badge: 42,
     avatar: "h-12 w-12",
   },
   3: {
-    label: "3rd",
     height: 64,
     lift: "translate-y-1",
-    tint: "255, 255, 255",
+    tint: "224, 155, 95",
     glow: "0 14px 30px -14px rgba(0, 0, 0, 0.7)",
-    labelColor: "text-text-muted",
-    ring: "ring-1 ring-white/[0.14]",
+    ring: "ring-1",
+    ringColor: "rgba(224, 155, 95, 0.5)",
+    badge: 42,
     avatar: "h-12 w-12",
   },
 } as const;
@@ -135,11 +138,19 @@ function Plinth({
       className={`flex flex-1 flex-col items-center ${style.lift}`}
     >
       {/* Avatar + handle, straddling the top edge of the plinth. */}
-      <Avatar
-        src={entry?.avatarUrl}
-        name={entry?.username}
-        className={`${style.avatar} ${style.ring}`}
-      />
+      {/* The metal ring lives on a wrapper, not on Avatar: Avatar owns its own
+          `style` (it paints a generated tint for users with no photo), so the
+          ring colour cannot be passed down as an inline custom property. */}
+      <span
+        className="rounded-full"
+        style={{ boxShadow: `0 0 0 ${rank === 1 ? 2 : 1}px ${style.ringColor}` }}
+      >
+        <Avatar
+          src={entry?.avatarUrl}
+          name={entry?.username}
+          className={style.avatar}
+        />
+      </span>
       <span className="mt-1.5 max-w-full truncate px-1 text-[11px] font-medium text-text">
         {entry ? `@${entry.username}` : "—"}
       </span>

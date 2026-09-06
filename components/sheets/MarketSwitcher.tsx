@@ -11,6 +11,7 @@ import {
   inCategory,
 } from "@/lib/markets";
 import { formatUsd } from "@/lib/format";
+import { SkeletonText } from "@/components/ui/Skeleton";
 import { Sheet } from "@/components/ui/Sheet";
 import { useMarketStats } from "@/hooks/useMarketStats";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
@@ -49,7 +50,7 @@ export function MarketSwitcher({ open, onClose }: Props) {
 
   // 24h stats from Bulk drive both the "Hot" set and the change column. Only
   // polls while the sheet is open.
-  const { stats, hot } = useMarketStats(open);
+  const { stats, hot, loaded: statsLoaded } = useMarketStats(open);
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -241,9 +242,21 @@ export function MarketSwitcher({ open, onClose }: Props) {
                 </div>
                 {/* Live oracle price, with Bulk's 24h change beneath it. */}
                 <div className="shrink-0 text-right leading-tight">
-                  <div className="tabular text-sm text-text">
-                    {price != null ? formatUsd(price) : "—"}
+                  <div className="tabular flex h-5 items-center justify-end text-sm text-text">
+                    {/* The oracle price streams in per market, so a row can be
+                        priced while its neighbour isn't. A dash reads as "no
+                        price exists"; this is just the first tick pending. */}
+                    {price != null ? (
+                      formatUsd(price)
+                    ) : (
+                      <SkeletonText width="4rem" size="sm" />
+                    )}
                   </div>
+                  {change == null && !statsLoaded ? (
+                    <div className="flex justify-end pt-0.5">
+                      <SkeletonText width="2.75rem" size="xs" />
+                    </div>
+                  ) : null}
                   {change != null && (
                     <div
                       className={`tabular text-xs ${

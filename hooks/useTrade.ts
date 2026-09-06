@@ -20,6 +20,7 @@ import {
   setOrderStatus,
   setOrderError,
   setPendingChartEntry,
+  clearPendingChartEntry,
 } from "@/store/slices/tradingSlice";
 import { recordClose } from "@/lib/history";
 import {
@@ -42,6 +43,25 @@ import type { Direction, Position } from "@/types";
 
 // A "significant" profit move ~= 5% of the margin at risk.
 const profitStepFor = (marginUsd: number) => Math.max(marginUsd * 0.05, 1);
+
+/**
+ * Fraction of free margin an order may consume.
+ *
+ * Bulk recomputes leverage against ITS equity at fill time, which is not quite
+ * the equity our last WS snapshot reported — funding, fees and price movement
+ * all move it between the tap and the fill. Sizing to 100% of available margin
+ * therefore lands fractionally over the market cap and is rejected outright, so
+ * we leave 2% of slack for that drift.
+ */
+const MARGIN_HEADROOM = 0.98;
+
+/**
+ * Don't submit an order below this margin. Bulk enforces a per-market
+ * `minNotional` (as low as $1 on BTC, $50 on most others); at 10x leverage $5 of
+ * margin clears a $50 floor, and anything under this is a dust order the user
+ * did not mean to place.
+ */
+const MIN_MARGIN_USD = 5;
 
 // Bulk's /order gateway can 504 (or the request abort) even though the order
 // STILL FILLS — so a timeout is not a real failure. When we see one, we leave
@@ -87,6 +107,9 @@ export function useTrade(
   const builderApproved = useAppSelector((s) => s.trading.builderApproved);
   const activeSymbol = useAppSelector((s) => s.market.active);
   const settings = useAppSelector((s) => s.settings);
+  // Free collateral reported by the Bulk account WS — the same figure Bulk
+  // divides notional by when it checks the order against the leverage cap.
+  const liveBalance = useAppSelector((s) => s.user.balance);
   // Positions are keyed by market; read the ACTIVE market's position for each
   // mode. One position per market, so switching markets shows the right one.
   const livePosition = useAppSelector(
@@ -197,6 +220,40 @@ export function useTrade(
       // Live: one-tap market order via the agent signer.
       const liveSigner = requireLiveSetup();
       if (!liveSigner) return;
+
+      // Size against the margin the account ACTUALLY has free, not against the
+      // configured position size.
+      //
+      // Bulk derives the fill's leverage as notional / available-margin and
+      // rejects it above the market cap (`rejectedRiskLimit`). So sizing
+      // `defaultPositionSize × maxLeverage` fails whenever the wallet holds less
+      // than defaultPositionSize: a $999 size at 10x on an account with $954
+      // free is 9993/954 = ~10.5x, over a 10x cap, and the order is refused.
+      // That is the exact rejection this guards against:
+      //   "leverage ~11.6x exceeds max leverage 10.0x, margin: 954.1"
+      //
+      // HEADROOM: we also stay a hair under the cap. Bulk margins against its
+      // own equity at fill time, which drifts from our snapshot with funding and
+      // price movement between the tap and the fill — sizing at exactly the cap
+      // leaves nothing for that drift and rejects on the rounding.
+      const availableMargin = liveBalance?.available ?? null;
+      const marginUsd =
+        availableMargin != null
+          ? Math.min(settings.defaultPositionSize, availableMargin * MARGIN_HEADROOM)
+          : settings.defaultPositionSize;
+
+      if (availableMargin != null && marginUsd < MIN_MARGIN_USD) {
+        // Nothing to trade with — say so rather than letting Bulk reject it with
+        // a risk-limit message the user can do nothing about.
+        dispatch(clearPendingChartEntry(activeSymbol));
+        toast("Not enough margin", {
+          type: "error",
+          description: `Deposit more USDC — $${availableMargin.toFixed(
+            2
+          )} available.`,
+        });
+        return;
+      }
       // Snapshot the MagicBlock price at THIS instant (the tap) so the chart's
       // entry line lands exactly where the user clicked. Consumed when the
       // position appears via the WS. Purely visual — PnL stays Bulk-anchored.
@@ -223,11 +280,7 @@ export function useTrade(
         } catch (e) {
           console.warn("[open] leverage sync skipped:", e);
         }
-        const size = baseSizeFromUsd(
-          settings.defaultPositionSize,
-          leverage,
-          price
-        );
+        const size = baseSizeFromUsd(marginUsd, leverage, price);
         await openMarket(liveSigner, {
           bulkSymbol: market.bulkSymbol,
           isLong: direction === "long",
@@ -268,6 +321,8 @@ export function useTrade(
       activeSymbol,
       settings,
       signer,
+      liveBalance,
+      requireLiveSetup,
       dispatch,
       toast,
       onBuilderNotApproved,
@@ -439,7 +494,22 @@ export function useTrade(
     async (deltaUsd: number) => {
       if (!position || price == null || deltaUsd <= 0) return;
       const market = MARKETS[position.symbol];
-      const addSize = baseSizeFromUsd(deltaUsd, position.leverage, price);
+      // Same risk-limit clamp as `open`: added notional is margined against the
+      // account's FREE collateral, so adding more than that is rejected with
+      // `rejectedRiskLimit` rather than partially filled. Demo has no Bulk
+      // account behind it, so it keeps the requested size.
+      const addMargin =
+        mode === "live" && liveBalance?.available != null
+          ? Math.min(deltaUsd, liveBalance.available * MARGIN_HEADROOM)
+          : deltaUsd;
+      if (mode === "live" && addMargin < MIN_MARGIN_USD) {
+        toast("Not enough margin", {
+          type: "error",
+          description: "Deposit more USDC to add to this position.",
+        });
+        return;
+      }
+      const addSize = baseSizeFromUsd(addMargin, position.leverage, price);
       if (addSize <= 0) return;
 
       if (mode === "demo") {
@@ -516,7 +586,16 @@ export function useTrade(
         }
       }
     },
-    [mode, position, price, signer, requireLiveSetup, dispatch, toast]
+    [
+      mode,
+      position,
+      price,
+      signer,
+      liveBalance,
+      requireLiveSetup,
+      dispatch,
+      toast,
+    ]
   );
 
   // Reduce SIZE of the open position — a reduce-only market order for part of the

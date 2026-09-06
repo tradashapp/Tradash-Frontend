@@ -54,6 +54,17 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 }
 
 /**
+ * "rejectedRiskLimit" → "rejected risk limit", for when Bulk sends no reason.
+ * Runs of capitals are kept together so acronyms survive: `cancelledIOC` reads
+ * as "cancelled IOC", not "cancelled i o c".
+ */
+function humanizeStatusKey(key: string): string {
+  return key
+    .replace(/([A-Z]+)/g, (m) => ` ${m.length > 1 ? m : m.toLowerCase()}`)
+    .trim();
+}
+
+/**
  * Submit a signed transaction envelope (order, agent-wallet, abc, etc.).
  *
  * CRITICAL: Bulk returns HTTP 200 even when the action FAILED — the real result
@@ -79,13 +90,32 @@ export async function submitSigned(
     const msg = (status.agentWalletFailed as { message?: string }).message;
     throw new Error(`Agent wallet authorization failed: ${msg}`);
   }
-  // An order can also be turned away with `rejectedInvalid` (e.g. "builder-code
-  // fee 10bps not approved for <recipient>"). It is NOT an `error` status, so
-  // without this it read as success: the caller never threw, the loading toast
-  // never resolved, and the UI span forever on "Opening long…".
-  if (status && "rejectedInvalid" in status) {
-    const r = status.rejectedInvalid as { reason?: string };
-    throw new Error(`Bulk order error: ${r?.reason ?? "order rejected"}`);
+  // An order can also be turned away with a `rejected*` / `cancelled*` status.
+  // None of these are `error` statuses, so without this they read as SUCCESS:
+  // the caller never threw, the loading toast never resolved, and the UI span
+  // forever on "Opening long…" for an order that was never placed.
+  //
+  // Matched by PREFIX rather than by listing each name. Bulk has at least four
+  // rejection and six cancellation variants (rejectedInvalid, rejectedRiskLimit,
+  // rejectedCrossing, rejectedDuplicate; cancelledRiskLimit, cancelledIOC,
+  // cancelledSelfCrossing, cancelledReduceOnly, cancelledRiskVault, cancelled)
+  // and they have been added one at a time as each was hit in production —
+  // every one of those was a spinner that never stopped. Prefix matching means
+  // a variant we have never seen still surfaces as an error instead of hanging.
+  //
+  // `cancelled` is deliberately included: an order cancelled at submission
+  // leaves no position, so treating it as success is the same failure.
+  const rejectedKey = status
+    ? Object.keys(status).find(
+        (k) => k.startsWith("rejected") || k.startsWith("cancelled")
+      )
+    : undefined;
+  if (rejectedKey && status) {
+    const r = status[rejectedKey] as { reason?: string; message?: string };
+    const reason = r?.reason ?? r?.message;
+    throw new Error(
+      `Bulk order error: ${reason ?? humanizeStatusKey(rejectedKey)}`
+    );
   }
   // Non-order actions (e.g. approveBuilderCode) answer with an `ack` that can
   // carry ok:false — also a failure dressed as HTTP 200.

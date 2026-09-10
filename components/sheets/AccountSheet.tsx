@@ -35,6 +35,7 @@ import { SkeletonText } from "@/components/ui/Skeleton";
 import { SettingsPanel } from "./panels/SettingsPanel";
 import { SettingsMenuPanel } from "./panels/SettingsMenuPanel";
 import { HistoryPanel } from "./panels/HistoryPanel";
+import { DepositPanel } from "./panels/DepositPanel";
 import type { ShareSubject } from "@/components/share/ShareCardModal";
 import type { CompletedTrade, TradeEpisode } from "@/types";
 import { playSound } from "@/lib/sound";
@@ -50,7 +51,13 @@ import {
   type PnlRange,
 } from "@/hooks/usePnlSeries";
 
-type View = "menu" | "settings" | "settingsMenu" | "history" | "transfer";
+type View =
+  | "menu"
+  | "settings"
+  | "settingsMenu"
+  | "history"
+  | "transfer"
+  | "deposit";
 
 interface Props {
   open: boolean;
@@ -71,6 +78,7 @@ const TITLES: Record<View, string> = {
   settingsMenu: "Settings",
   history: "Trade history",
   transfer: "Transfer margin",
+  deposit: "Deposit",
 };
 
 // Central account hub. A single sheet with sub-views (menu → settings/history)
@@ -205,6 +213,7 @@ export function AccountSheet({
                 onTutorial={onOpenTutorial}
                 onInstall={onOpenInstall}
                 onLeaderboard={onOpenLeaderboard}
+                onDeposit={() => go("deposit")}
               />
             )}
             {view === "settings" && <SettingsPanel signer={agent.signer} />}
@@ -215,7 +224,10 @@ export function AccountSheet({
                 onReplay={onReplay}
               />
             )}
-            {view === "transfer" && (
+            {view === "deposit" && (
+            <DepositPanel address={agent.masterAddress} />
+          )}
+          {view === "transfer" && (
               <TransferPanel
                 collateral={collateral}
                 masterAddress={agent.masterAddress}
@@ -268,6 +280,7 @@ function Menu({
   onTutorial,
   onInstall,
   onLeaderboard,
+  onDeposit,
 }: {
   mode: "demo" | "live";
   demoBalance: number;
@@ -295,16 +308,12 @@ function Menu({
   onTutorial: () => void;
   onInstall: () => void;
   onLeaderboard: () => void;
+  /** Opens the receive-address panel — NOT the Privy card on-ramp. */
+  onDeposit: () => void;
 }) {
-  const { fundWallet } = useFundWallet();
   // Whether the P&L chart under the balance is expanded. Collapsed by default
   // so the balance card stays compact for users who just want the number.
   const [chartOpen, setChartOpen] = useState(false);
-  // Privy on-ramp: top up the user's OWN Solana wallet with USDC from outside.
-  const onFundWallet = () => {
-    if (!agent.masterAddress) return;
-    void fundWallet(agent.masterAddress);
-  };
 
   // Live trading balance = realized collateral + our MagicBlock-derived
   // unrealized PnL. Bulk already bakes ITS OWN unrealized figure into `equity`,
@@ -493,7 +502,7 @@ function Menu({
           icon={Download04Icon}
           label="Deposit"
           // primary
-          onClick={onFundWallet}
+          onClick={onDeposit}
         />
         <ActionButton
           icon={Upload04Icon}

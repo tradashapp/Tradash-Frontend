@@ -52,12 +52,7 @@ import {
 } from "@/hooks/usePnlSeries";
 
 type View =
-  | "menu"
-  | "settings"
-  | "settingsMenu"
-  | "history"
-  | "transfer"
-  | "deposit";
+  "menu" | "settings" | "settingsMenu" | "history" | "transfer" | "deposit";
 
 interface Props {
   open: boolean;
@@ -225,9 +220,9 @@ export function AccountSheet({
               />
             )}
             {view === "deposit" && (
-            <DepositPanel address={agent.masterAddress} />
-          )}
-          {view === "transfer" && (
+              <DepositPanel address={agent.masterAddress} />
+            )}
+            {view === "transfer" && (
               <TransferPanel
                 collateral={collateral}
                 masterAddress={agent.masterAddress}

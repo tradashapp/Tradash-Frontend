@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import QRCode from "qrcode";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -27,19 +27,20 @@ const COPIED_MS = 1800;
  * silently fails is worse than one that lands in the send screen with the
  * recipient pre-filled.
  */
-export function DepositPanel({ address }: { address: string | undefined }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+export function DepositPanel({ address }: { address: string | null }) {
   const [copied, setCopied] = useState(false);
+  const [qrSrc, setQrSrc] = useState<string | null>(null);
   const [qrFailed, setQrFailed] = useState(false);
 
-  // Draw the QR whenever the address resolves. Rendered locally to a canvas —
-  // an image service would leak the user's address to a third party.
+  // Encode the QR whenever the address resolves. Generated locally into a data
+  // URL — an image service would leak the user's address to a third party.
+  // `toDataURL` rather than `toCanvas` because the browser build of `qrcode`
+  // only ships the former, and it sidesteps ref-timing against the render.
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || !address) return;
+    if (!address) return;
     let cancelled = false;
 
-    QRCode.toCanvas(canvas, address, {
+    QRCode.toDataURL(address, {
       width: 200,
       margin: 1,
       // A white quiet zone regardless of the app's dark surface: scanners key
@@ -47,11 +48,13 @@ export function DepositPanel({ address }: { address: string | undefined }) {
       color: { dark: "#08090c", light: "#ffffff" },
       errorCorrectionLevel: "M",
     })
-      .then(() => {
-        if (!cancelled) setQrFailed(false);
+      .then((url) => {
+        if (cancelled) return;
+        setQrSrc(url);
+        setQrFailed(false);
       })
       .catch(() => {
-        // The address still copies, so a failed draw degrades rather than
+        // The address still copies, so a failed encode degrades rather than
         // blocking the deposit.
         if (!cancelled) setQrFailed(true);
       });
@@ -102,12 +105,16 @@ export function DepositPanel({ address }: { address: string | undefined }) {
           <div className="flex h-[200px] w-[200px] items-center justify-center px-4 text-center text-xs text-black/60">
             Couldn&rsquo;t draw the QR code — copy the address below instead.
           </div>
-        ) : (
-          <canvas
-            ref={canvasRef}
-            aria-label="QR code of your Solana deposit address"
+        ) : qrSrc ? (
+          /* eslint-disable-next-line @next/next/no-img-element -- a data URL,
+             so next/image would have nothing to optimise. */
+          <img
+            src={qrSrc}
+            alt="QR code of your Solana deposit address"
             className="block h-[200px] w-[200px]"
           />
+        ) : (
+          <div className="h-[200px] w-[200px] animate-pulse rounded bg-black/5" />
         )}
       </div>
 

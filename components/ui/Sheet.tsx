@@ -1,7 +1,13 @@
 "use client";
 
-import { useRef, useState, type PointerEvent, type ReactNode } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type PointerEvent,
+  type ReactNode,
+} from "react";
+import { AnimatePresence, motion, useMotionValue } from "framer-motion";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowLeft01Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
 
@@ -98,21 +104,75 @@ export function Sheet({
   const bodyRef = useRef<HTMLDivElement>(null);
   const [dragEnabled, setDragEnabled] = useState(true);
 
-  // Pointer-down anywhere in the sheet: the drag is allowed unless the gesture
-  // started inside a body that has somewhere to scroll back to.
+  // The sheet's vertical offset, owned explicitly instead of left to Framer's
+  // internal drag state. Dragging writes to the same `y` the exit animation
+  // targets, and a close landing mid-drag used to let the two fight over it: the
+  // exit tween could resolve instantly or be cancelled outright, AnimatePresence
+  // never got its completion callback, and the sheet stayed MOUNTED at y:100% —
+  // invisible except for its lit top rim and green glow bleeding up from the
+  // bottom edge, with the z-50 surface and the scrim still swallowing every
+  // click on the page beneath. Holding the value here lets us clear any leftover
+  // drag offset the moment a close begins, so the exit animation always starts
+  // from a known resting position and runs to completion.
+  const y = useMotionValue(0);
+
+  useEffect(() => {
+    // On close only: resetting on OPEN would fight the entrance animation,
+    // which drives this same value from "100%" to 0.
+    if (!open) {
+      y.set(0);
+      // Re-arm for next time — a sheet closed by drag left this false.
+      setDragEnabled(true);
+    }
+  }, [open, y]);
+
+  // Pointer-down anywhere in the sheet: the whole surface drags, so a downward
+  // swipe from the middle of the content dismisses just as a swipe on the
+  // grabber does. The one exception is a gesture that starts inside a scroll
+  // region which still has somewhere to scroll back UP to — that swipe belongs
+  // to the list, or a long sheet could never be read back through without
+  // dismissing itself. Once such a region is scrolled to its top, the next
+  // downward swipe drags the sheet, which is how native sheets behave.
+  //
+  // The scroller is found by walking up from the touched node rather than by
+  // reading `bodyRef.scrollTop`: sheets passing `scrollBody={false}` (the
+  // leaderboard, the market switcher) keep their scroll on an INNER element, so
+  // the body's own scrollTop is pinned at 0 and the old check silently allowed
+  // every gesture — including ones that should have scrolled the list.
   const armDrag = (e: PointerEvent) => {
     const body = bodyRef.current;
-    const insideBody = !!body && body.contains(e.target as Node);
-    setDragEnabled(!insideBody || body!.scrollTop <= 0);
+    let node = e.target as HTMLElement | null;
+
+    while (node && body && body.contains(node)) {
+      const canScroll =
+        node.scrollHeight > node.clientHeight + 1 &&
+        /auto|scroll/.test(getComputedStyle(node).overflowY);
+      if (canScroll) {
+        setDragEnabled(node.scrollTop <= 0);
+        return;
+      }
+      node = node.parentElement;
+    }
+
+    // Nothing scrollable under the finger — header, podium, padding, the body
+    // itself — so the sheet takes the gesture.
+    setDragEnabled(true);
   };
 
   // Released: a slow drag past the distance threshold OR a quick flick closes
   // the sheet; anything less springs back to rest.
   const endDrag = (
     _e: unknown,
-    info: { offset: { y: number }; velocity: { y: number } }
+    info: { offset: { y: number }; velocity: { y: number } },
   ) => {
-    if (info.offset.y > DRAG_CLOSE_PX || info.velocity.y > DRAG_CLOSE_VELOCITY) {
+    if (
+      info.offset.y > DRAG_CLOSE_PX ||
+      info.velocity.y > DRAG_CLOSE_VELOCITY
+    ) {
+      // Hand the gesture off cleanly: drop drag permission first so Framer's
+      // drag controller stops writing to `y`, then let the exit animation run
+      // from wherever the finger left the sheet.
+      setDragEnabled(false);
       onClose();
     }
   };
@@ -131,7 +191,7 @@ export function Sheet({
           />
           <motion.div
             className="glass-sheet fixed inset-x-0 bottom-0 z-50 mx-auto flex w-full flex-col rounded-t-[50px] p-4 pb-8"
-            style={{ maxHeight: MAX_H, minHeight: MIN_H, maxWidth: MAX_W }}
+            style={{ y, maxHeight: MAX_H, minHeight: MIN_H, maxWidth: MAX_W }}
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
             exit={{ y: "100%" }}

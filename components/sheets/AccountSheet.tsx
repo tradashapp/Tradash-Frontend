@@ -30,6 +30,7 @@ import { resetDemo } from "@/store/slices/tradingModeSlice";
 import { formatUsd } from "@/lib/format";
 import { MenuSection } from "@/components/ui/MenuSection";
 import { Sheet } from "@/components/ui/Sheet";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { SkeletonText } from "@/components/ui/Skeleton";
 import { SettingsPanel } from "./panels/SettingsPanel";
 import { SettingsMenuPanel } from "./panels/SettingsMenuPanel";
@@ -90,6 +91,9 @@ export function AccountSheet({
   // Which way the transfer panel starts out: "in" = wallet→trading (deposit),
   // "out" = trading→wallet (withdraw). Set by the action button that opened it.
   const [transferDir, setTransferDir] = useState<"in" | "out">("in");
+  // Logging out drops the session and the agent authorisation with it, so it
+  // asks first rather than firing on a stray tap next to the menu rows.
+  const [confirmLogout, setConfirmLogout] = useState(false);
 
   const mode = useAppSelector((s) => s.tradingMode.mode);
   const demoBalance = useAppSelector((s) => s.tradingMode.demo.balance);
@@ -118,7 +122,7 @@ export function AccountSheet({
         t.mode === mode && t.kind !== "add" && t.closedAt >= from
           ? sum + t.pnl
           : sum,
-      0
+      0,
     );
   }, [trades, mode, pnlRange]);
 
@@ -141,85 +145,103 @@ export function AccountSheet({
   };
 
   return (
-    <Sheet
-      open={open}
-      onClose={onClose}
-      // The menu leads with its own profile header, so only sub-views get a
-      // title bar (and the back chevron that returns to the menu).
-      title={view === "menu" ? undefined : TITLES[view]}
-      onBack={view === "menu" ? undefined : () => go("menu")}
-      // Settings is reachable from the menu's top-left rather than only from a
-      // row further down, because it is the one destination users look for by
-      // its icon.
-      headerLeft={
-        view === "menu" ? (
-          <button
-            type="button"
-            onClick={() => go("settingsMenu")}
-            aria-label="Settings"
-            className="glass-inset flex h-9 w-9 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-white/10 hover:text-text active:scale-90"
+    <>
+      <Sheet
+        open={open}
+        onClose={onClose}
+        // The menu leads with its own profile header, so only sub-views get a
+        // title bar (and the back chevron that returns to the menu).
+        title={view === "menu" ? undefined : TITLES[view]}
+        onBack={view === "menu" ? undefined : () => go("menu")}
+        // Settings is reachable from the menu's top-left rather than only from a
+        // row further down, because it is the one destination users look for by
+        // its icon.
+        headerLeft={
+          view === "menu" ? (
+            <button
+              type="button"
+              onClick={() => go("settingsMenu")}
+              aria-label="Settings"
+              className="glass-inset flex h-9 w-9 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-white/10 hover:text-text active:scale-90"
+            >
+              <HugeiconsIcon icon={Settings02Icon} size={18} />
+            </button>
+          ) : undefined
+        }
+      >
+        {/* Animated sub-views */}
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={view}
+            initial={{ opacity: 0, x: view === "menu" ? -20 : 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: view === "menu" ? 20 : -20 }}
+            transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
           >
-            <HugeiconsIcon icon={Settings02Icon} size={18} />
-          </button>
-        ) : undefined
-      }
-    >
-      {/* Animated sub-views */}
-      <AnimatePresence mode="wait" initial={false}>
-        <motion.div
-          key={view}
-          initial={{ opacity: 0, x: view === "menu" ? -20 : 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: view === "menu" ? 20 : -20 }}
-          transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-        >
-          {view === "menu" && (
-            <Menu
-              mode={mode}
-              demoBalance={demoBalance}
-              liveEquity={liveEquity}
-              bulkUnrealized={bulkUnrealized}
-              totalPnl={totalPnl}
-              realizedInRange={realizedInRange}
-              pnlRange={pnlRange}
-              onPnlRangeChange={setPnlRange}
-              collateral={collateral}
-              authenticated={authenticated}
-              agent={agent}
-              agentAuthorized={agentAuthorized}
-              builderApproved={builderApproved}
-              onResetDemo={() => dispatch(resetDemo())}
-              onLogin={login}
-              onLogout={logout}
-              onSettings={() => go("settings")}
-              onHistory={() => go("history")}
-              onTransfer={(dir) => {
-                setTransferDir(dir);
-                go("transfer");
-              }}
-              onTutorial={onOpenTutorial}
-              onInstall={onOpenInstall}
-              onLeaderboard={onOpenLeaderboard}
-            />
-          )}
-          {view === "settings" && <SettingsPanel signer={agent.signer} />}
-          {view === "settingsMenu" && <SettingsMenuPanel />}
-          {view === "history" && (
-            <HistoryPanel
-              onShare={(trade) => onShare({ kind: "trade", trade })}
-              onReplay={onReplay}
-            />
-          )}
-          {view === "transfer" && (
-            <TransferPanel
-              collateral={collateral}
-              masterAddress={agent.masterAddress}
-              initialDir={transferDir}
-            />
-          )}
-        </motion.div>
-      </AnimatePresence>
-    </Sheet>
+            {view === "menu" && (
+              <Menu
+                mode={mode}
+                demoBalance={demoBalance}
+                liveEquity={liveEquity}
+                bulkUnrealized={bulkUnrealized}
+                totalPnl={totalPnl}
+                realizedInRange={realizedInRange}
+                pnlRange={pnlRange}
+                onPnlRangeChange={setPnlRange}
+                collateral={collateral}
+                authenticated={authenticated}
+                agent={agent}
+                agentAuthorized={agentAuthorized}
+                builderApproved={builderApproved}
+                onResetDemo={() => dispatch(resetDemo())}
+                onLogin={login}
+                onLogout={() => setConfirmLogout(true)}
+                onSettings={() => go("settings")}
+                onHistory={() => go("history")}
+                onTransfer={(dir) => {
+                  setTransferDir(dir);
+                  go("transfer");
+                }}
+                onTutorial={onOpenTutorial}
+                onInstall={onOpenInstall}
+                onLeaderboard={onOpenLeaderboard}
+              />
+            )}
+            {view === "settings" && <SettingsPanel signer={agent.signer} />}
+            {view === "settingsMenu" && <SettingsMenuPanel />}
+            {view === "history" && (
+              <HistoryPanel
+                onShare={(trade) => onShare({ kind: "trade", trade })}
+                onReplay={onReplay}
+              />
+            )}
+            {view === "transfer" && (
+              <TransferPanel
+                collateral={collateral}
+                masterAddress={agent.masterAddress}
+                initialDir={transferDir}
+              />
+            )}
+          </motion.div>
+        </AnimatePresence>
+      </Sheet>
+
+      {/* Sibling of the sheet, not a child: nested inside it the confirm would be
+        clipped by the sheet's rounded, overflow-bounded surface. */}
+      <ConfirmModal
+        open={confirmLogout}
+        title="Log out?"
+        body="You'll need to sign in again to trade. Your positions stay open."
+        confirmLabel="Log out"
+        destructive
+        onCancel={() => setConfirmLogout(false)}
+        onConfirm={() => {
+          setConfirmLogout(false);
+          onClose();
+          void logout();
+        }}
+      />
+    </>
   );
 }
 
@@ -341,43 +363,47 @@ function Menu({
           side by side rather than one at a time: they fail independently, and
           burying the second one meant a user could finish step 1 and still have
           every order rejected with nothing on screen explaining why. */}
-      {mode === "live" && authenticated && (!agent.isReady || !builderApproved) && (
-        <div className="glass-inset mb-3 rounded-2xl p-4">
-          <div className="mb-3 flex items-start gap-2.5">
-            <HugeiconsIcon
-              icon={ShieldKeyIcon}
-              size={18}
-              className="mt-0.5 shrink-0 text-up"
-            />
-            <div>
-              <div className="text-sm font-semibold">Finish setup to trade</div>
-              <p className="mt-0.5 text-xs leading-relaxed text-text-muted">
-                Two one-time signatures. Live orders stay blocked until both are
-                done.
-              </p>
+      {mode === "live" &&
+        authenticated &&
+        (!agent.isReady || !builderApproved) && (
+          <div className="glass-inset mb-3 rounded-2xl p-4">
+            <div className="mb-3 flex items-start gap-2.5">
+              <HugeiconsIcon
+                icon={ShieldKeyIcon}
+                size={18}
+                className="mt-0.5 shrink-0 text-up"
+              />
+              <div>
+                <div className="text-sm font-semibold">
+                  Finish setup to trade
+                </div>
+                <p className="mt-0.5 text-xs leading-relaxed text-text-muted">
+                  Two one-time signatures. Live orders stay blocked until both
+                  are done.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <SetupAction
+                step={1}
+                label="Enable one-tap trading"
+                done={agent.isReady}
+                busy={agent.onboarding}
+                primary={!agent.isReady}
+                onClick={agent.onboard}
+              />
+              <SetupAction
+                step={2}
+                label="Approve builder code"
+                done={builderApproved}
+                busy={agent.onboarding}
+                primary={agent.isReady}
+                onClick={agent.approveBuilder}
+              />
             </div>
           </div>
-
-          <div className="flex flex-col gap-2">
-            <SetupAction
-              step={1}
-              label="Enable one-tap trading"
-              done={agent.isReady}
-              busy={agent.onboarding}
-              primary={!agent.isReady}
-              onClick={agent.onboard}
-            />
-            <SetupAction
-              step={2}
-              label="Approve builder code"
-              done={builderApproved}
-              busy={agent.onboarding}
-              primary={agent.isReady}
-              onClick={agent.approveBuilder}
-            />
-          </div>
-        </div>
-      )}
+        )}
 
       {/* Balance card: total on top, today's P&L beneath it, then the funding /
           trading split that adds up to the total. */}
@@ -461,32 +487,31 @@ function Menu({
         </div>
       </div>
 
-
-        {/* Money actions. Deposit leads in brand green; the rest are glass. */}
-        <div className="my-3 grid grid-cols-4 gap-2">
-          <ActionButton
-            icon={Download04Icon}
-            label="Deposit"
-            // primary
-            onClick={onFundWallet}
-          />
-          <ActionButton
-            icon={Upload04Icon}
-            label="Withdraw"
-            onClick={() => onTransfer("out")}
-          />
-          <ActionButton
-            icon={ArrowDataTransferHorizontalIcon}
-            label="Transfer"
-            onClick={() => onTransfer("in")}
-          />
-          <ActionButton
-            icon={Plant02Icon}
-            label="Earn"
-            disabled
-            onClick={() => { }}
-          />
-        </div>
+      {/* Money actions. Deposit leads in brand green; the rest are glass. */}
+      <div className="my-3 grid grid-cols-4 gap-2">
+        <ActionButton
+          icon={Download04Icon}
+          label="Deposit"
+          // primary
+          onClick={onFundWallet}
+        />
+        <ActionButton
+          icon={Upload04Icon}
+          label="Withdraw"
+          onClick={() => onTransfer("out")}
+        />
+        <ActionButton
+          icon={ArrowDataTransferHorizontalIcon}
+          label="Transfer"
+          onClick={() => onTransfer("in")}
+        />
+        <ActionButton
+          icon={Plant02Icon}
+          label="Earn"
+          disabled
+          onClick={() => {}}
+        />
+      </div>
 
       {/* Trading — what you reach for mid-session. */}
       <MenuSection title="Trading" className="mb-4">
@@ -508,7 +533,9 @@ function Menu({
             label="Agent authorization"
             detail={agentAuthorized ? "Authorized" : "Not set up"}
             status={agentAuthorized ? "done" : "pending"}
-            onClick={agentAuthorized || agent.onboarding ? undefined : agent.onboard}
+            onClick={
+              agentAuthorized || agent.onboarding ? undefined : agent.onboard
+            }
             disabled={agentAuthorized || agent.onboarding}
           />
           <NavRow
@@ -528,7 +555,11 @@ function Menu({
 
       {/* App — everything that isn't trading. */}
       <MenuSection title="App" className="mb-4">
-        <NavRow icon={HelpCircleIcon} label="How it works" onClick={onTutorial} />
+        <NavRow
+          icon={HelpCircleIcon}
+          label="How it works"
+          onClick={onTutorial}
+        />
         <NavRow icon={Download04Icon} label="Install app" onClick={onInstall} />
       </MenuSection>
 
@@ -549,7 +580,7 @@ function Menu({
           className="glass-inset mt-1 flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-sm font-medium text-text-muted transition-colors hover:text-down"
         >
           <HugeiconsIcon icon={Logout01Icon} size={18} />
-          Log out 
+          Log out
         </button>
       )}
     </div>
@@ -617,7 +648,11 @@ function SetupAction({
         {busy ? "Approve in wallet…" : label}
       </span>
       {busy ? (
-        <HugeiconsIcon icon={Loading03Icon} size={16} className="animate-spin" />
+        <HugeiconsIcon
+          icon={Loading03Icon}
+          size={16}
+          className="animate-spin"
+        />
       ) : (
         <HugeiconsIcon icon={ArrowRight01Icon} size={16} />
       )}
@@ -684,8 +719,9 @@ function ActionButton({
       className="flex flex-col items-center gap-1.5 transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
     >
       <span
-        className={`flex h-12 w-12 items-center justify-center rounded-full ${primary ? "bg-up text-black" : "glass text-text"
-          }`}
+        className={`flex h-12 w-12 items-center justify-center rounded-full ${
+          primary ? "bg-up text-black" : "glass text-text"
+        }`}
       >
         <HugeiconsIcon icon={icon} size={20} />
       </span>
@@ -805,7 +841,11 @@ function TransferPanel({
         className="flex w-full items-center justify-center gap-2 rounded-2xl bg-up py-3.5 font-semibold text-black transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-45"
       >
         {collateral.busy && (
-          <HugeiconsIcon icon={Loading03Icon} size={18} className="animate-spin" />
+          <HugeiconsIcon
+            icon={Loading03Icon}
+            size={18}
+            className="animate-spin"
+          />
         )}
         {isDeposit ? "Deposit" : "Withdraw"}
       </button>
@@ -870,10 +910,16 @@ function NavRow({
       disabled={disabled}
       className="flex w-full items-center gap-3 px-4 py-3 text-sm transition-colors hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-45"
     >
-      <HugeiconsIcon icon={icon} size={18} className="shrink-0 text-text-muted" />
+      <HugeiconsIcon
+        icon={icon}
+        size={18}
+        className="shrink-0 text-text-muted"
+      />
       <span className="flex-1 text-left">{label}</span>
       {detail && (
-        <span className="tabular shrink-0 text-xs text-text-muted">{detail}</span>
+        <span className="tabular shrink-0 text-xs text-text-muted">
+          {detail}
+        </span>
       )}
       {status ? (
         <HugeiconsIcon

@@ -14,6 +14,22 @@ import { haptic } from "@/lib/haptics";
 /** How long the copy button stays in its confirmed state before reverting. */
 const COPIED_MS = 1800;
 
+/** Characters kept either side of the ellipsis. */
+const HEAD = 10;
+const TAIL = 10;
+
+/**
+ * Middle-truncate a Solana address so it sits on one line beside the copy
+ * icon. More generous than the 4…4 used in compact chips elsewhere: this row is
+ * where a user verifies the destination before sending real funds, so it shows
+ * as much as fits. Short addresses are returned untouched rather than gaining a
+ * pointless ellipsis.
+ */
+function shortenAddress(addr: string) {
+  if (addr.length <= HEAD + TAIL + 1) return addr;
+  return `${addr.slice(0, HEAD)}…${addr.slice(-TAIL)}`;
+}
+
 /**
  * Receive USDC into the user's own Solana wallet.
  *
@@ -80,7 +96,8 @@ export function DepositPanel({ address }: { address: string | null }) {
       setCopied(true);
     } catch {
       // Clipboard is unavailable (insecure context, or permission refused).
-      // The address is on screen in full, so it stays selectable by hand.
+      // The row's `title` still carries the full address, so it remains
+      // recoverable by hand rather than being lost with the copy.
       setCopied(false);
     }
   };
@@ -118,16 +135,25 @@ export function DepositPanel({ address }: { address: string | null }) {
         )}
       </div>
 
-      {/* The address in full, wrapped rather than truncated: a user checking it
-          against their sending wallet needs to read every character. */}
+      {/* Middle-truncated so the address and the copy icon share one line. The
+          head and tail are what a user actually checks against their sending
+          wallet, and they're the characters an address collision would differ
+          in — so those are the ones kept. `title` carries the full string for
+          anyone who wants to read or select it. */}
       <button
         type="button"
         onClick={onCopy}
         aria-label="Copy deposit address"
-        className="glass-inset mt-4 flex w-full items-center gap-3 rounded-2xl p-3.5 text-left transition-colors hover:bg-white/[0.04] active:scale-[0.99]"
+        title={address}
+        className="glass-inset mt-4 flex w-full items-center gap-3 rounded-2xl p-3.5 transition-colors hover:bg-white/[0.04] active:scale-[0.99]"
       >
-        <span className="min-w-0 flex-1 break-all font-mono text-[13px] leading-relaxed">
-          {address}
+        {/* Spacer matching the icon's width. Centring the address inside its own
+            flex child would centre it in the space LEFT OVER beside the icon,
+            leaving it visibly off-centre in the row; balancing both ends puts it
+            on the row's true centre line. */}
+        <span className="h-9 w-9 shrink-0" aria-hidden />
+        <span className="min-w-0 flex-1 whitespace-nowrap text-center font-mono text-[13px] leading-relaxed">
+          {shortenAddress(address)}
         </span>
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full">
           <HugeiconsIcon

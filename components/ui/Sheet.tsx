@@ -7,7 +7,7 @@ import {
   type PointerEvent,
   type ReactNode,
 } from "react";
-import { AnimatePresence, motion, useMotionValue } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowLeft01Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
 
@@ -104,27 +104,13 @@ export function Sheet({
   const bodyRef = useRef<HTMLDivElement>(null);
   const [dragEnabled, setDragEnabled] = useState(true);
 
-  // The sheet's vertical offset, owned explicitly instead of left to Framer's
-  // internal drag state. Dragging writes to the same `y` the exit animation
-  // targets, and a close landing mid-drag used to let the two fight over it: the
-  // exit tween could resolve instantly or be cancelled outright, AnimatePresence
-  // never got its completion callback, and the sheet stayed MOUNTED at y:100% —
-  // invisible except for its lit top rim and green glow bleeding up from the
-  // bottom edge, with the z-50 surface and the scrim still swallowing every
-  // click on the page beneath. Holding the value here lets us clear any leftover
-  // drag offset the moment a close begins, so the exit animation always starts
-  // from a known resting position and runs to completion.
-  const y = useMotionValue(0);
-
+  // Re-arm dragging whenever the sheet reopens. `armDrag` may have left this
+  // false from a gesture that started inside a scrolled list, and a sheet closed
+  // in that state would otherwise reopen undraggable until the next
+  // pointer-down happened to re-evaluate it.
   useEffect(() => {
-    // On close only: resetting on OPEN would fight the entrance animation,
-    // which drives this same value from "100%" to 0.
-    if (!open) {
-      y.set(0);
-      // Re-arm for next time — a sheet closed by drag left this false.
-      setDragEnabled(true);
-    }
-  }, [open, y]);
+    if (open) setDragEnabled(true);
+  }, [open]);
 
   // Pointer-down anywhere in the sheet: the whole surface drags, so a downward
   // swipe from the middle of the content dismisses just as a swipe on the
@@ -140,6 +126,12 @@ export function Sheet({
   // the body's own scrollTop is pinned at 0 and the old check silently allowed
   // every gesture — including ones that should have scrolled the list.
   const armDrag = (e: PointerEvent) => {
+    // A sheet on its way out must not have its `drag` prop swapped underneath
+    // it — that tears down the drag controller mid-exit, which is what used to
+    // strand the sheet on screen. Nothing here is interactive during the exit
+    // anyway.
+    if (!open) return;
+
     const body = bodyRef.current;
     let node = e.target as HTMLElement | null;
 
@@ -161,6 +153,16 @@ export function Sheet({
 
   // Released: a slow drag past the distance threshold OR a quick flick closes
   // the sheet; anything less springs back to rest.
+  //
+  // Deliberately does NOT flip `dragEnabled` here. Setting it false on this tick
+  // would swap the motion element's `drag` prop to false at the same moment the
+  // exit begins, tearing down Framer's drag controller mid-gesture — which left
+  // the element's transform pinned and the exit animation cancelled, so
+  // AnimatePresence never unmounted it. The sheet then sat at its dragged
+  // offset: invisible except for the lit top rim and green glow along the bottom
+  // edge, with the z-50 surface and the scrim still swallowing every click on
+  // the page beneath. Letting the drag prop stay put lets the gesture finish and
+  // hand off to the exit cleanly.
   const endDrag = (
     _e: unknown,
     info: { offset: { y: number }; velocity: { y: number } },
@@ -169,10 +171,6 @@ export function Sheet({
       info.offset.y > DRAG_CLOSE_PX ||
       info.velocity.y > DRAG_CLOSE_VELOCITY
     ) {
-      // Hand the gesture off cleanly: drop drag permission first so Framer's
-      // drag controller stops writing to `y`, then let the exit animation run
-      // from wherever the finger left the sheet.
-      setDragEnabled(false);
       onClose();
     }
   };
@@ -191,10 +189,15 @@ export function Sheet({
           />
           <motion.div
             className="glass-sheet fixed inset-x-0 bottom-0 z-50 mx-auto flex w-full flex-col rounded-t-[50px] p-4 pb-8"
-            style={{ y, maxHeight: MAX_H, minHeight: MIN_H, maxWidth: MAX_W }}
+            style={{ maxHeight: MAX_H, minHeight: MIN_H, maxWidth: MAX_W }}
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
-            exit={{ y: "100%" }}
+            // A tween with an explicit duration, not a spring: a spring's
+            // settle time depends on the velocity it inherits from the drag, and
+            // a fast flick could leave it converging slowly enough that the
+            // sheet lingered on screen. A fixed tween always completes, so
+            // AnimatePresence always gets its callback and unmounts the node.
+            exit={{ y: "100%", transition: { duration: 0.25, ease: "easeIn" } }}
             transition={{ type: "spring", damping: 30, stiffness: 300 }}
             onPointerDown={armDrag}
             drag={dragEnabled ? "y" : false}
@@ -204,6 +207,12 @@ export function Sheet({
             dragConstraints={{ top: 0, bottom: 0 }}
             dragElastic={{ top: 0, bottom: 0.5 }}
             dragDirectionLock
+            // Framer's release animation (the elastic snap back to rest) must
+            // not outlive the sheet: left running, it keeps writing to the
+            // transform after the exit has started and the two fight over the
+            // same value. Momentum is unwanted here anyway — the sheet either
+            // closes or returns to a fixed resting position.
+            dragMomentum={false}
             onDragEnd={endDrag}
           >
             {/* Grabber. Sits in a tall, wide hit area that never scrolls, so

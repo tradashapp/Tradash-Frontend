@@ -50,6 +50,16 @@ const MIN_H = "50dvh";
 const MAX_W = "28rem";
 
 /**
+ * How far down the sheet travels to leave the screen, in pixels.
+ *
+ * A fixed number rather than "100%" so the drag and the exit animate the same
+ * unit (see the note on `y` below). It only has to exceed the sheet's own
+ * height — capped at MAX_H, itself under one viewport — and overshooting is
+ * free, because the sheet is unmounted the moment the animation ends.
+ */
+const EXIT_PX = 1200;
+
+/**
  * Drag-to-dismiss thresholds. Either one alone closes the sheet: a slow drag
  * past DRAG_CLOSE_PX, or a quick flick regardless of distance — matching how
  * native sheets behave, where a fast short swipe still dismisses.
@@ -113,13 +123,34 @@ export function Sheet({
   const bodyRef = useRef<HTMLDivElement>(null);
   const [dragEnabled, setDragEnabled] = useState(true);
 
+  // The sheet's vertical offset, owned here rather than left to Framer's
+  // internal value.
+  //
+  // This is what stops a dragged sheet getting stranded on screen. Dragging
+  // writes PIXELS to `y`; the exit used to animate `y` to the STRING "100%".
+  // Those are different units on the same value, and the handoff between them
+  // is not something Framer can interpolate — so a sheet released mid-drag
+  // could finish its exit at a nonsense offset, or not visibly move at all,
+  // while AnimatePresence still waited on an animation that never reached its
+  // target. The node stayed mounted: a z-50 surface and a full-screen scrim
+  // over the page, which is the "gradient at the bottom that eats every click"
+  // this kept causing. Animating to a measured pixel height keeps one unit
+  // throughout, so the exit always completes and the node always unmounts.
+  const y = useMotionValue(0);
+
   // Re-arm dragging whenever the sheet reopens. `armDrag` may have left this
   // false from a gesture that started inside a scrolled list, and a sheet closed
   // in that state would otherwise reopen undraggable until the next
   // pointer-down happened to re-evaluate it.
   useEffect(() => {
-    if (open) setDragEnabled(true);
-  }, [open]);
+    if (open) {
+      setDragEnabled(true);
+      // Clear any offset left behind by the drag that closed it last time, so
+      // the enter animation starts from the bottom rather than from wherever
+      // the finger let go.
+      y.set(0);
+    }
+  }, [open, y]);
 
   // Pointer-down anywhere in the sheet: the whole surface drags, so a downward
   // swipe from the middle of the content dismisses just as a swipe on the
@@ -188,25 +219,40 @@ export function Sheet({
     <AnimatePresence>
       {open && (
         <>
-          {/* Scrim — tap anywhere outside the sheet to dismiss. */}
+          {/* Scrim — tap anywhere outside the sheet to dismiss.
+              `pointer-events-none` during its own exit: the scrim covers the
+              whole page, so if anything ever delays its unmount it would go on
+              swallowing every click on the app beneath. Fading out is purely
+              cosmetic, and a scrim on its way out has no reason to keep taking
+              input. */}
           <motion.div
             className="fixed inset-0 z-40 bg-black/50"
             initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            animate={{ opacity: 1, pointerEvents: "auto" }}
+            exit={{ opacity: 0, pointerEvents: "none" }}
             onClick={onClose}
           />
           <motion.div
             className="glass-sheet fixed inset-x-0 bottom-0 z-50 mx-auto flex w-full flex-col rounded-t-[50px] p-4 pb-8"
-            style={{ maxHeight: MAX_H, minHeight: MIN_H, maxWidth: MAX_W }}
-            initial={{ y: "100%" }}
+            // `y` is the motion value owned above, so the drag and both
+            // animations all write the same pixel-valued property.
+            style={{ y, maxHeight: MAX_H, minHeight: MIN_H, maxWidth: MAX_W }}
+            // Stops taking input the instant it starts leaving, for the same
+            // reason as the scrim: this is the z-50 surface that was catching
+            // the taps, so it must never outlive its own exit as a live target.
+            exitpointerevents-marker
+            initial={{ y: EXIT_PX }}
             animate={{ y: 0 }}
             // A tween with an explicit duration, not a spring: a spring's
             // settle time depends on the velocity it inherits from the drag, and
             // a fast flick could leave it converging slowly enough that the
             // sheet lingered on screen. A fixed tween always completes, so
             // AnimatePresence always gets its callback and unmounts the node.
-            exit={{ y: "100%", transition: { duration: 0.25, ease: "easeIn" } }}
+            //
+            // The target is a PIXEL distance past the bottom of the screen, not
+            // "100%": see the note on `y`. One viewport height always clears a
+            // sheet, which is at most MAX_H tall.
+            exit={{ y: EXIT_PX, transition: { duration: 0.25, ease: "easeIn" } }}
             transition={{ type: "spring", damping: 30, stiffness: 300 }}
             onPointerDown={armDrag}
             drag={dragEnabled ? "y" : false}

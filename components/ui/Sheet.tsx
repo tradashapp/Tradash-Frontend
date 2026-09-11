@@ -7,7 +7,7 @@ import {
   type PointerEvent,
   type ReactNode,
 } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useMotionValue } from "framer-motion";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowLeft01Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
 
@@ -33,8 +33,17 @@ import { ArrowLeft01Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
  * overlay lands on the same column.
  */
 
-/** Tallest a sheet gets — a sliver of page stays visible above it. */
-const MAX_H = "98dvh";
+/**
+ * Tallest a sheet gets — a sliver of page stays visible above it.
+ *
+ * The safe-area inset is subtracted rather than assumed to be zero: in an
+ * installed PWA the page runs full-screen behind the status bar, so a flat
+ * `98dvh` put the sheet's top edge (and its grabber) underneath the clock and
+ * battery. Browsers report a 0px inset, where this collapses back to the plain
+ * percentage. The extra 12px keeps a visible gap rather than having the sheet
+ * butt right up against the status bar.
+ */
+const MAX_H = "calc(96dvh - env(safe-area-inset-top) - 12px)";
 /** Shortest a sheet gets, however little content it holds. */
 const MIN_H = "50dvh";
 /** Widest a sheet gets — below this it stays full-bleed, above it it centres. */

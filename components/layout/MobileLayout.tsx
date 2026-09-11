@@ -66,7 +66,12 @@ export function MobileLayout({
 
       <div className="pointer-events-none relative z-20 flex-1" />
 
-      <footer className="relative z-20 px-4 pb-6">
+      {/* `pb-3`, not `pb-6`: the BODY already adds
+          `padding-bottom: env(safe-area-inset-bottom)` (globals.css), so in an
+          installed PWA the two stacked and left the trade buttons floating well
+          clear of the home indicator. The body's inset alone is the safe space;
+          this is just the small visual gap on top of it. */}
+      <footer className="relative z-20 px-4 pb-3">
         <TradeControls
           position={trade.position}
           trailActive={trade.trailActive}

@@ -233,7 +233,11 @@ export function Sheet({
             onClick={onClose}
           />
           <motion.div
-            className="glass-sheet fixed inset-x-0 bottom-0 z-50 mx-auto flex w-full flex-col rounded-t-[50px] p-4 pb-8"
+            // `pb` adds the home-indicator inset to the sheet's own bottom
+            // padding, so the last row of content clears it in an installed PWA
+            // without leaving a visible gap under the surface in a browser
+            // (where the inset is 0 and this is just the original pb-8).
+            className="glass-sheet fixed inset-x-0 bottom-0 z-50 mx-auto flex w-full flex-col rounded-t-[50px] p-4 pb-[calc(env(safe-area-inset-bottom)+2rem)]"
             // `y` is the motion value owned above, so the drag and both
             // animations all write the same pixel-valued property.
             style={{ y, maxHeight: MAX_H, minHeight: MIN_H, maxWidth: MAX_W }}

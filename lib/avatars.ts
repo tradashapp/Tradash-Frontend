@@ -8,6 +8,32 @@ export function isPhotoAvatar(avatar: string): boolean {
   return avatar.startsWith("data:");
 }
 
+/**
+ * Prefix of a generated (DiceBear) avatar URL. Kept in step with
+ * `src/lib/dicebearAvatar.ts` on the backend, which is the authority — this
+ * copy only needs to RECOGNISE such a URL, never to build one: the picker
+ * sends a seed and the server returns the URL it stored.
+ */
+const GENERATED_PREFIX = "https://api.dicebear.com/9.x/adventurer/svg";
+
+/** True when the avatar is a generated face rather than an uploaded photo. */
+export function isGeneratedAvatar(url: string | null | undefined): boolean {
+  return !!url?.startsWith(GENERATED_PREFIX);
+}
+
+/**
+ * The seed inside a generated avatar URL, or null when it isn't one — lets the
+ * picker tick the face the user currently has.
+ */
+export function seedOfAvatar(url: string | null | undefined): string | null {
+  if (!isGeneratedAvatar(url)) return null;
+  try {
+    return new URL(url!).searchParams.get("seed");
+  } catch {
+    return null;
+  }
+}
+
 /** Longest side of a stored avatar photo, in px. */
 const AVATAR_PX = 256;
 

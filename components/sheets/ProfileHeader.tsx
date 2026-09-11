@@ -22,6 +22,7 @@ import { useProfile } from "@/hooks/useProfile";
 import { USERNAME_PATTERN } from "@/lib/username";
 import { twitterHandle } from "@/lib/twitter";
 import { ProfileAvatar } from "@/components/ui/ProfileAvatar";
+import { AvatarPicker } from "@/components/sheets/AvatarPicker";
 import { XLink } from "@/components/ui/XLink";
 
 /**
@@ -150,7 +151,13 @@ function EditProfilePanel({
     }
   };
 
-  const photo = profile.avatarUrl ?? (isPhotoAvatar(avatar) ? avatar : null);
+  // The published avatar wins over the local device copy: every user now has
+  // one (a generated face at signup, if nothing else), so preferring the local
+  // photo would show a stale picture to anyone who later picked a face here or
+  // uploaded from another device. The local copy is only a fallback for the
+  // beat before the profile loads.
+  const photo =
+    profile.avatarUrl ?? (isPhotoAvatar(avatar) ? avatar : null);
 
   return (
     <div className="glass-inset mt-3 flex flex-col gap-3 rounded-2xl p-3">
@@ -186,6 +193,23 @@ function EditProfilePanel({
           }}
         />
       </div>
+
+      {/* Generated faces, under the upload row: picking one is the zero-effort
+          path, uploading is the deliberate one. Both write the same field, so
+          choosing a face replaces an uploaded photo and vice versa. */}
+      <AvatarPicker
+        currentUrl={profile.avatarUrl}
+        saving={profile.savingAvatar}
+        onSelect={async (seed) => {
+          // Drop the local device photo: it takes precedence in `photo` below,
+          // so leaving it would keep showing the old picture in this panel even
+          // though the chosen face is what everyone else now sees.
+          dispatch(updateSettings({ avatar: "" }));
+          if (!(await profile.selectAvatar(seed))) {
+            toast("Couldn't save that avatar", { type: "error" });
+          }
+        }}
+      />
 
       <UsernameForm
         current={profile.username}

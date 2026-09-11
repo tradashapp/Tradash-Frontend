@@ -16,14 +16,21 @@ body {
   /* Prevent the page from ever scrolling — the chart owns the viewport. */
   overflow: hidden;
   overscroll-behavior: none;
-  /* Respect mobile safe areas so trade buttons clear the home indicator. */
-  padding-bottom: env(safe-area-inset-bottom);
+  /* NO padding-bottom here. It used to carry the home-indicator inset, but a
+     `position: fixed` element resolves `bottom: 0` against the padding edge —
+     so every bottom sheet stopped short of the screen and the black body strip
+     showed through beneath it, reading as a border under the sheet.
+
+     The inset is applied per-element instead, by whatever actually needs to
+     clear the home indicator: the trade footer (MobileLayout) and the sheet's
+     own bottom padding (Sheet.tsx). That lets a sheet run to the true bottom of
+     the screen while its CONTENT still sits above the indicator. */
 }
 
 /* The landing page is one full-height hero whose inner column scrolls when the
-   viewport is too short for the phone mockup. The body stays non-scrolling (the
-   fixed header/footer depend on that); this just removes the safe-area padding
-   that would otherwise push the fixed footer's spacing off. */
+   viewport is too short for the phone mockup. Nothing to reset here any more —
+   the body no longer carries safe-area padding (see above) — but the rule is
+   kept as the documented hook for landing-specific body overrides. */
 body:has(.landing-root) {
   padding-bottom: 0;
 }

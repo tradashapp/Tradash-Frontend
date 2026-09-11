@@ -7,6 +7,9 @@ build/
 .env
 .env.local
 .env*.local
+# Production env template. Holds no secrets (values are blank), but kept out of
+# the repo by choice so the mainnet setup isn't documented publicly.
+.env.production.example
 .vercel
 next-env.d.ts
 tsconfig.tsbuildinfo

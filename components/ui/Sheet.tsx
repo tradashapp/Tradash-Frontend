@@ -250,11 +250,9 @@ export function Sheet({
             // AnimatePresence always gets its callback and unmounts the node.
             //
             // The target is a PIXEL distance past the bottom of the screen, not
-            // "100%": see the note on `y`. One viewport height always clears a
-            // sheet, which is at most MAX_H tall.
-            // Stops taking input the instant it starts leaving, for the same
-            // reason as the scrim: this is the z-50 surface that was catching
-            // the taps, so it must never outlive its own exit as a live target.
+            // "100%": see the note on `y`. `pointerEvents: none` goes with it so
+            // this z-50 surface — the one that was catching the taps — stops
+            // being a live target the instant it starts leaving.
             exit={{
               y: EXIT_PX,
               pointerEvents: "none",

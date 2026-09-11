@@ -237,10 +237,6 @@ export function Sheet({
             // `y` is the motion value owned above, so the drag and both
             // animations all write the same pixel-valued property.
             style={{ y, maxHeight: MAX_H, minHeight: MIN_H, maxWidth: MAX_W }}
-            // Stops taking input the instant it starts leaving, for the same
-            // reason as the scrim: this is the z-50 surface that was catching
-            // the taps, so it must never outlive its own exit as a live target.
-            exitpointerevents-marker
             initial={{ y: EXIT_PX }}
             animate={{ y: 0 }}
             // A tween with an explicit duration, not a spring: a spring's
@@ -252,7 +248,14 @@ export function Sheet({
             // The target is a PIXEL distance past the bottom of the screen, not
             // "100%": see the note on `y`. One viewport height always clears a
             // sheet, which is at most MAX_H tall.
-            exit={{ y: EXIT_PX, transition: { duration: 0.25, ease: "easeIn" } }}
+            // Stops taking input the instant it starts leaving, for the same
+            // reason as the scrim: this is the z-50 surface that was catching
+            // the taps, so it must never outlive its own exit as a live target.
+            exit={{
+              y: EXIT_PX,
+              pointerEvents: "none",
+              transition: { duration: 0.25, ease: "easeIn" },
+            }}
             transition={{ type: "spring", damping: 30, stiffness: 300 }}
             onPointerDown={armDrag}
             drag={dragEnabled ? "y" : false}

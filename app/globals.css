@@ -70,10 +70,20 @@ body:has(.landing-root) {
     linear-gradient(to bottom, #0b0e11 0%, #08090c 55%, #060709 100%);
   backdrop-filter: blur(24px) saturate(140%);
   -webkit-backdrop-filter: blur(24px) saturate(140%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  /* The lit top rim: a brand hairline along the rounded top edge only, so the
-     50px radius catches the light instead of reading as a flat cut-off. */
-  border-top-color: rgba(114, 233, 18, 0.28);
+  /* Sides and top only. A full `border` also drew a hairline across the BOTTOM,
+     which the sheet's own rounded top can't hide: the sheet is anchored to the
+     bottom of the viewport, so that line sat just above the home indicator and
+     read as the sheet's "end" — a visible edge on desktop and mobile alike,
+     as if the surface were a floating card that had been cut off. Leaving the
+     bottom border off lets the surface run off the bottom of the screen, which
+     is what a bottom sheet should look like.
+
+     The bottom CORNERS keep their radius at 0 for the same reason (set on the
+     element as `rounded-t-*`), so nothing curves away from the screen edge. */
+  border-top: 1px solid rgba(114, 233, 18, 0.28);
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: none;
   box-shadow:
     inset 0 1px 0 rgba(114, 233, 18, 0.14),
     0 -24px 60px -24px rgba(114, 233, 18, 0.18);

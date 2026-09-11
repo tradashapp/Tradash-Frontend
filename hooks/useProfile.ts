@@ -171,6 +171,23 @@ export function useProfile() {
     [privyId]
   );
 
+  /** Adopt one of the generated avatars, by seed. */
+  const selectAvatar = useCallback(
+    async (seed: string): Promise<boolean> => {
+      if (!privyId) return false;
+      setState({ savingAvatar: true });
+      try {
+        setState({ avatarUrl: await api.selectAvatar(privyId, seed) });
+        return true;
+      } catch {
+        return false;
+      } finally {
+        setState({ savingAvatar: false });
+      }
+    },
+    [privyId]
+  );
+
   return {
     username: snapshot.username,
     avatarUrl: snapshot.avatarUrl,
@@ -180,6 +197,7 @@ export function useProfile() {
     claimUsername,
     uploadAvatar,
     importAvatar,
+    selectAvatar,
   };
 }
 

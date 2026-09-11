@@ -260,6 +260,25 @@ export const api = {
     return avatarUrl;
   },
 
+  /**
+   * Pick one of the generated avatars. Sends the SEED rather than the URL: the
+   * backend owns the mapping from seed to image, and validates it against the
+   * list it serves, so the client can't write an arbitrary URL into a field
+   * every other user's browser will load as an <img src>.
+   */
+  selectAvatar: async (privyId: string, seed: string): Promise<string> => {
+    const { avatarUrl } = await req<{ avatarUrl: string }>(
+      `/users/${encodeURIComponent(privyId)}/avatar`,
+      { method: "PUT", body: JSON.stringify({ seed }) }
+    );
+    return avatarUrl;
+  },
+
+  /** The generated avatars offered by the picker. */
+  fetchAvatarChoices: (): Promise<{
+    avatars: { seed: string; url: string }[];
+  }> => req<{ avatars: { seed: string; url: string }[] }>(`/avatars`),
+
   /** The stored profile (handle + avatar URL) for a user. */
   fetchProfile: async (privyId: string): Promise<ApiUserProfile> => {
     const user = await req<ApiUserProfile>(

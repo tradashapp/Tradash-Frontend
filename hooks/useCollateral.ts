@@ -5,6 +5,7 @@ import { useAppSelector } from "@/store/hooks";
 import { marginHealth } from "@/lib/perp";
 import { depositCollateral, withdrawCollateral } from "@/lib/bulk/onboarding";
 import { readUsdcBalance } from "@/lib/solana/usdc";
+import { config } from "@/lib/config";
 import { useToast } from "@/components/toast/ToastProvider";
 import type { MasterSignBytes } from "@/lib/bulk/onboarding";
 
@@ -77,11 +78,28 @@ export function useCollateral(
         toast("Connect wallet to deposit", { type: "error" });
         return;
       }
-      // NOTE: no wallet-USDC guard. On testnet the account is faucet-funded and
-      // there is no real Privy-wallet USDC to move, so blocking on walletUsdc
-      // gave a false "not enough" even with collateral available. When mainnet
-      // deposits go live (real wallet→Bulk transfer), re-add a guard against the
-      // wallet balance there.
+      // Guard the deposit against the wallet balance on MAINNET only.
+      //
+      // Not on testnet: there the account is faucet-funded and holds no real
+      // Privy-wallet USDC, so this check reported "not enough" even when the
+      // user had plenty of collateral. On mainnet the transfer moves actual
+      // funds, and Bulk rejects an over-balance deposit with an opaque error —
+      // so catching it here is the difference between a clear message and an
+      // unexplained failure. `walletUsdc` is null when the balance is unknown
+      // (RPC hiccup), and an unknown balance must not block a legitimate
+      // deposit — so only a KNOWN, insufficient balance stops it.
+      if (
+        config.bulk.network === "mainnet" &&
+        walletUsdc !== null &&
+        amount > walletUsdc
+      ) {
+        toast("Not enough USDC", {
+          type: "error",
+          description: `Your wallet holds ${fmtUsd(walletUsdc)}.`,
+        });
+        return;
+      }
+
       setBusy(true);
       toast(`Depositing ${fmtUsd(amount)}…`, { type: "loading", id: "collateral" });
       try {
@@ -104,7 +122,7 @@ export function useCollateral(
         setBusy(false);
       }
     },
-    [mode, masterAddress, masterSign, toast, refreshWallet]
+    [mode, masterAddress, masterSign, toast, refreshWallet, walletUsdc]
   );
 
   const withdraw = useCallback(

@@ -222,21 +222,26 @@ export function useAgentWallet() {
     toast("Setting up one-tap trading…", { type: "loading", id: TID });
     try {
       // 0. Fund + create the Bulk account. A fresh Privy wallet has NO Bulk
-      //    account until funded — this creates it. On testnet that's the faucet;
-      //    on mainnet it's a real USDC deposit (config.bulk.network switches it).
-      //    Tolerate failure on testnet (already funded / 24h rate limit); on
-      //    mainnet a failed deposit should surface, so only swallow on testnet.
-      try {
-        await fundAccount(masterAddress, masterSign, {
-          network: config.bulk.network,
-          // TODO(mainnet): collect the deposit amount from the user first.
-          depositAmount: undefined,
-        });
-      } catch (e) {
-        if (config.bulk.network === "mainnet") throw e;
-        // testnet: usually "already funded" / 24h rate limit — non-fatal, but
-        // surface it so a real faucet problem isn't invisible.
-        console.warn("[onboard] faucet step skipped/failed:", e);
+      //    account until funded — on testnet the faucet both creates and funds
+      //    it in one step.
+      //
+      //    MAINNET IS DIFFERENT and deliberately does nothing here: funding
+      //    means moving the user's real USDC, which needs an amount they chose.
+      //    That flow already exists as the Wallet → Trading transfer in the
+      //    account sheet (useCollateral.deposit), so onboarding sets up the
+      //    agent and builder code — everything that costs nothing — and leaves
+      //    the deposit to the user. Calling fundAccount with no amount would
+      //    just throw and strand onboarding before the agent was authorized.
+      if (config.bulk.network !== "mainnet") {
+        try {
+          await fundAccount(masterAddress, masterSign, {
+            network: config.bulk.network,
+          });
+        } catch (e) {
+          // Usually "already funded" / 24h rate limit — non-fatal, but surface
+          // it so a real faucet problem isn't invisible.
+          console.warn("[onboard] faucet step skipped/failed:", e);
+        }
       }
 
       // 1. Agent keypair (reuse if present).

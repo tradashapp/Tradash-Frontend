@@ -93,13 +93,14 @@ export { buildDepositTx, buildWithdrawIntentTx } from "@/lib/solana/bulkVault";
 export async function fundAccount(
   masterAccount: string,
   signBytes: MasterSignBytes,
-  opts: { network: BulkNetwork; depositAmount?: number }
+  opts: { network: BulkNetwork }
 ): Promise<OrderResponse> {
   if (opts.network === "mainnet") {
-    if (!opts.depositAmount || opts.depositAmount <= 0) {
-      throw new Error("A USDC deposit amount is required to fund on mainnet");
-    }
-    return depositCollateral(masterAccount, opts.depositAmount, signBytes);
+    // Mainnet funding is an on-chain vault deposit signed by the wallet, not a
+    // keychain action, so it cannot be done from here — and it needs an amount
+    // the user chose. Onboarding calls this only on testnet; the deposit is the
+    // account sheet's Wallet -> Trading transfer.
+    throw new Error("On mainnet, fund the account with a vault deposit.");
   }
   return claimFaucet(masterAccount, signBytes);
 }

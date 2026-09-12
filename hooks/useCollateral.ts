@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAppSelector } from "@/store/hooks";
 import { marginHealth } from "@/lib/perp";
-import { depositCollateral, withdrawCollateral } from "@/lib/bulk/onboarding";
+import { buildDepositTx, buildWithdrawIntentTx } from "@/lib/solana/bulkVault";
+import { PublicKey } from "@solana/web3.js";
+import { useSendTransaction } from "@privy-io/react-auth/solana";
 import { readUsdcBalance } from "@/lib/solana/usdc";
 import { config } from "@/lib/config";
 import { useToast } from "@/components/toast/ToastProvider";
@@ -34,6 +36,9 @@ export function useCollateral(
   masterSign: MasterSignBytes | null
 ) {
   const { toast } = useToast();
+  // Deposits are on-chain transactions signed by the user's wallet, not Bulk
+  // API calls — see lib/solana/bulkVault.ts for why.
+  const { sendTransaction } = useSendTransaction();
   const mode = useAppSelector((s) => s.tradingMode.mode);
   const liveBalance = useAppSelector((s) => s.user.balance);
   const demoBalance = useAppSelector((s) => s.tradingMode.demo.balance);
@@ -103,13 +108,18 @@ export function useCollateral(
       setBusy(true);
       toast(`Depositing ${fmtUsd(amount)}…`, { type: "loading", id: "collateral" });
       try {
-        await depositCollateral(masterAddress, amount, masterSign);
+        const { tx, connection } = await buildDepositTx(
+          new PublicKey(masterAddress),
+          amount
+        );
+        await sendTransaction({ transaction: tx, connection });
         toast(`Deposited ${fmtUsd(amount)}`, {
           type: "success",
           id: "collateral",
           description: "Added to your trading collateral.",
         });
-        // Wallet balance dropped; refresh it. Bulk equity updates via the WS.
+        // Wallet balance dropped; refresh it. Bulk credits the account from the
+        // on-chain deposit, so equity follows over the WS a moment later.
         void refreshWallet();
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Deposit failed";

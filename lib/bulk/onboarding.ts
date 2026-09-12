@@ -61,70 +61,30 @@ export async function claimFaucet(
 /**
  * MAINNET deposit: wallet USDC -> Bulk trading collateral.
  *
- * NOT IMPLEMENTED, and deliberately fails loudly rather than pretending.
+ * Deposits do NOT go through Bulk's signed REST API. The `transfer` action
+ * moves margin BETWEEN EXISTING BULK ACCOUNTS, so the old implementation --
+ * `prepareTransfer(master, master, ...)` -- was rejected with
+ * `transferFailed: "transfer source and destination must differ"`, inside an
+ * HTTP 200 that nothing inspected. Real money enters the protocol by an
+ * on-chain instruction to Bulk's vault program, signed by the user's WALLET.
  *
- * This used to call `prepareTransfer(master, master, ...)`. That is the wrong
- * primitive twice over. `prepareTransfer` is a MARGIN TRANSFER BETWEEN BULK
- * ACCOUNTS, so passing the same pubkey as both ends is rejected outright --
- * mainnet answers `transferFailed: "transfer source and destination must
- * differ"` inside an HTTP 200, which until now was not inspected, so the UI
- * announced a successful deposit that moved nothing.
+ * See `lib/solana/bulkVault.ts` for the program id, PDAs and instruction
+ * layout (ported from Bulk's own client SDK and verified against mainnet).
+ * This module keeps the keychain-signed Bulk actions; the vault rail lives
+ * there because it is a plain Solana transaction, not a Bulk envelope.
  *
- * The real rail is a plain on-chain SPL transfer of USDC from the user's wallet
- * to Bulk's deposit vault, signed by the WALLET (Privy), not by the keychain.
- * The keychain has no deposit function at all, while it does have
- * `prepareWithdraw(amount, blockhash, user, vault, recipientTokenAccount)` --
- * that asymmetry is the tell: Bulk must sign money LEAVING its vault, but
- * anyone can send money INTO it.
- *
- * What is missing is the vault address. It is not derivable from anything we
- * hold, `/config?which=...` did not yield it on probing, and guessing an
- * address to send real USDC to is not an acceptable failure mode -- funds sent
- * to a wrong address are gone. Get the mainnet vault pubkey (and the deposit
- * flow it expects) from Bulk, then implement this as:
- *   1. resolve the user's USDC ATA and the vault's USDC ATA,
- *   2. build an SPL `transferChecked` for `amount`,
- *   3. have Privy sign + send it,
- *   4. poll `fetchAccount` until `totalMargin` reflects the credit.
+ * Kept as a re-export so callers have ONE deposit entry point rather than
+ * choosing between two, and so the old name keeps working.
  */
-export async function depositCollateral(
-  _masterAccount: string,
-  _amount: number,
-  _signBytes: MasterSignBytes
-): Promise<OrderResponse> {
-  throw new Error(
-    "Deposits aren't live yet. Fund your account from Bulk directly for now."
-  );
-}
+export { buildDepositTx, buildWithdrawIntentTx } from "@/lib/solana/bulkVault";
 
 /**
- * Withdraw USDC collateral from the user's Bulk trading account back to their
- * Solana wallet (external transfer, master-signed) — the reverse of
- * depositCollateral. Bulk bounds the withdrawable amount by
- * `min(equity − 1.05 × maintenanceMargin, marginPnl)` and rejects a transfer
- * that would push the account toward liquidation, so only free collateral can
- * leave. `amount` is a plain number (USDC).
- *
- * NOT IMPLEMENTED, for the same reason as `depositCollateral` above: this was
- * built on `prepareTransfer(master, master, ...)`, which Bulk rejects with
- * `transfer source and destination must differ` -- the note here always said
- * the shape was unverified, and it is now confirmed wrong.
- *
- * The keychain's actual withdrawal primitive is
- *   prepareWithdraw(amount, blockhash, user, vault, recipientTokenAccount)
- * which needs a recent Solana blockhash, Bulk's vault pubkey, and the user's
- * USDC token account. The vault address is the same missing piece that blocks
- * deposits; the rest we can derive. Implement alongside the deposit rail.
+ * Withdrawals are the mirror of the deposit above and also go on-chain, as a
+ * withdrawal INTENT: `buildWithdrawIntentTx` (exported above) signals the
+ * request, moving no tokens itself -- Bulk observes the intent and pays out
+ * from the vault. The old keychain `prepareTransfer(master, master, ...)`
+ * version was broken in exactly the same way as the old deposit.
  */
-export async function withdrawCollateral(
-  _masterAccount: string,
-  _amount: number,
-  _signBytes: MasterSignBytes
-): Promise<OrderResponse> {
-  throw new Error(
-    "Withdrawals aren't live yet. Withdraw from Bulk directly for now."
-  );
-}
 
 /**
  * Fund + create the Bulk account for a fresh wallet, using the right method for

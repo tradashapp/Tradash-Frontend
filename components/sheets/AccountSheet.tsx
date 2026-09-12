@@ -855,7 +855,7 @@ function TransferPanel({
       </button>
 
       {/* Secondary — Privy on-ramp to top up the Privy wallet itself. */}
-      <button
+      {/* <button
         type="button"
         onClick={() => {
           if (!masterAddress) return;
@@ -867,7 +867,7 @@ function TransferPanel({
       >
         <HugeiconsIcon icon={Wallet01Icon} size={18} />
         Fund wallet
-      </button>
+      </button> */}
     </div>
   );
 }

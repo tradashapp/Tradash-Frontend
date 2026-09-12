@@ -59,24 +59,42 @@ export async function claimFaucet(
 }
 
 /**
- * MAINNET: deposit USDC collateral from the user's wallet into Bulk (external
- * transfer), which creates + funds the account. Master-signed. `amount` is a
- * plain number (USDC).
+ * MAINNET deposit: wallet USDC -> Bulk trading collateral.
+ *
+ * NOT IMPLEMENTED, and deliberately fails loudly rather than pretending.
+ *
+ * This used to call `prepareTransfer(master, master, ...)`. That is the wrong
+ * primitive twice over. `prepareTransfer` is a MARGIN TRANSFER BETWEEN BULK
+ * ACCOUNTS, so passing the same pubkey as both ends is rejected outright --
+ * mainnet answers `transferFailed: "transfer source and destination must
+ * differ"` inside an HTTP 200, which until now was not inspected, so the UI
+ * announced a successful deposit that moved nothing.
+ *
+ * The real rail is a plain on-chain SPL transfer of USDC from the user's wallet
+ * to Bulk's deposit vault, signed by the WALLET (Privy), not by the keychain.
+ * The keychain has no deposit function at all, while it does have
+ * `prepareWithdraw(amount, blockhash, user, vault, recipientTokenAccount)` --
+ * that asymmetry is the tell: Bulk must sign money LEAVING its vault, but
+ * anyone can send money INTO it.
+ *
+ * What is missing is the vault address. It is not derivable from anything we
+ * hold, `/config?which=...` did not yield it on probing, and guessing an
+ * address to send real USDC to is not an acceptable failure mode -- funds sent
+ * to a wrong address are gone. Get the mainnet vault pubkey (and the deposit
+ * flow it expects) from Bulk, then implement this as:
+ *   1. resolve the user's USDC ATA and the vault's USDC ATA,
+ *   2. build an SPL `transferChecked` for `amount`,
+ *   3. have Privy sign + send it,
+ *   4. poll `fetchAccount` until `totalMargin` reflects the credit.
  */
 export async function depositCollateral(
-  masterAccount: string,
-  amount: number,
-  signBytes: MasterSignBytes
+  _masterAccount: string,
+  _amount: number,
+  _signBytes: MasterSignBytes
 ): Promise<OrderResponse> {
-  const kc = await ensureKeychain();
-  // Deposit into the user's own Bulk account (from == to == master wallet).
-  const prepared = kc.prepareTransfer(
-    masterAccount, // from: user's Solana wallet
-    masterAccount, // to: their Bulk trading account
-    amount,
-    { ...signOpts(masterAccount), kind: "external", marginSymbol: "USDC" }
+  throw new Error(
+    "Deposits aren't live yet. Fund your account from Bulk directly for now."
   );
-  return prepareSignSubmit(prepared, signBytes);
 }
 
 /**
@@ -87,24 +105,25 @@ export async function depositCollateral(
  * that would push the account toward liquidation, so only free collateral can
  * leave. `amount` is a plain number (USDC).
  *
- * NOTE: mirrors depositCollateral's verified external-transfer shape
- * (from == to == master, kind "external"); the keychain resolves the wallet↔
- * account direction. If a live test shows withdraw needs distinct from/to
- * pubkeys, adjust here.
+ * NOT IMPLEMENTED, for the same reason as `depositCollateral` above: this was
+ * built on `prepareTransfer(master, master, ...)`, which Bulk rejects with
+ * `transfer source and destination must differ` -- the note here always said
+ * the shape was unverified, and it is now confirmed wrong.
+ *
+ * The keychain's actual withdrawal primitive is
+ *   prepareWithdraw(amount, blockhash, user, vault, recipientTokenAccount)
+ * which needs a recent Solana blockhash, Bulk's vault pubkey, and the user's
+ * USDC token account. The vault address is the same missing piece that blocks
+ * deposits; the rest we can derive. Implement alongside the deposit rail.
  */
 export async function withdrawCollateral(
-  masterAccount: string,
-  amount: number,
-  signBytes: MasterSignBytes
+  _masterAccount: string,
+  _amount: number,
+  _signBytes: MasterSignBytes
 ): Promise<OrderResponse> {
-  const kc = await ensureKeychain();
-  const prepared = kc.prepareTransfer(
-    masterAccount, // from: their Bulk trading account
-    masterAccount, // to: user's Solana wallet
-    amount,
-    { ...signOpts(masterAccount), kind: "external", marginSymbol: "USDC" }
+  throw new Error(
+    "Withdrawals aren't live yet. Withdraw from Bulk directly for now."
   );
-  return prepareSignSubmit(prepared, signBytes);
 }
 
 /**

@@ -90,6 +90,20 @@ export async function submitSigned(
     const msg = (status.agentWalletFailed as { message?: string }).message;
     throw new Error(`Agent wallet authorization failed: ${msg}`);
   }
+  // Any other `*Failed` status. Matched by SUFFIX for the same reason the
+  // rejections below are matched by prefix: `transferFailed` was not handled
+  // here, so a deposit that Bulk refused ("transfer source and destination must
+  // differ") returned HTTP 200, fell through to `return res`, and the UI
+  // reported a successful deposit that had moved nothing. Anything Bulk names
+  // `<action>Failed` is a failure, including variants not seen yet.
+  const failedKey = status
+    ? Object.keys(status).find((k) => k.endsWith("Failed"))
+    : undefined;
+  if (failedKey && status) {
+    const f = status[failedKey] as { message?: string; reason?: string };
+    const msg = f?.message ?? f?.reason ?? humanizeStatusKey(failedKey);
+    throw new Error(`Bulk order error: ${msg}`);
+  }
   // An order can also be turned away with a `rejected*` / `cancelled*` status.
   // None of these are `error` statuses, so without this they read as SUCCESS:
   // the caller never threw, the loading toast never resolved, and the UI span

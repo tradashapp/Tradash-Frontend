@@ -132,7 +132,15 @@ export function useCollateral(
         setBusy(false);
       }
     },
-    [mode, masterAddress, masterSign, toast, refreshWallet, walletUsdc]
+    [
+      mode,
+      masterAddress,
+      masterSign,
+      toast,
+      refreshWallet,
+      walletUsdc,
+      sendTransaction,
+    ]
   );
 
   const withdraw = useCallback(
@@ -156,13 +164,21 @@ export function useCollateral(
       setBusy(true);
       toast(`Withdrawing ${fmtUsd(amount)}…`, { type: "loading", id: "collateral" });
       try {
-        await withdrawCollateral(masterAddress, amount, masterSign);
-        toast(`Withdrew ${fmtUsd(amount)}`, {
+        const { tx, connection } = await buildWithdrawIntentTx(
+          new PublicKey(masterAddress),
+          amount
+        );
+        await sendTransaction({ transaction: tx, connection });
+        // A withdrawal INTENT: the instruction signals the request and moves no
+        // tokens itself, so the wallet balance does not change on this tick —
+        // Bulk pays out from the vault after observing it. Worded as "on its
+        // way" rather than "moved" so the user isn't told to expect funds that
+        // have not landed yet.
+        toast("Withdrawal requested", {
           type: "success",
           id: "collateral",
-          description: "Moved to your wallet.",
+          description: `${fmtUsd(amount)} is on its way to your wallet.`,
         });
-        // Wallet balance grew; refresh it. Bulk equity updates via the WS.
         void refreshWallet();
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Withdraw failed";
@@ -175,7 +191,15 @@ export function useCollateral(
         setBusy(false);
       }
     },
-    [mode, masterAddress, masterSign, health.maxWithdrawable, toast, refreshWallet]
+    [
+      mode,
+      masterAddress,
+      masterSign,
+      health.maxWithdrawable,
+      toast,
+      refreshWallet,
+      sendTransaction,
+    ]
   );
 
   return {

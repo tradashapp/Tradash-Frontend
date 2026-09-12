@@ -40,8 +40,8 @@ const PROGRAM_ID = new PublicKey("BULK2CNYn3mbgfYXEXiBBFxmmDChznpjQ4oRfce8w6R4")
  * A bare "vault" seed derives a DIFFERENT address, and depositing to it would
  * send real USDC to an address nothing controls.
  */
-const VAULT_SEED = Buffer.from([0x76, 0x61, 0x75, 0x6c, 0x74, 0, 0, 0]);
-const VAULT_ATA_SEED = Buffer.from("vault_ata");
+const VAULT_SEED = new Uint8Array([0x76, 0x61, 0x75, 0x6c, 0x74, 0, 0, 0]);
+const VAULT_ATA_SEED = new TextEncoder().encode("vault_ata");
 
 /** Instruction discriminators (first byte of the data blob). */
 const IX_DEPOSIT = 2;
@@ -66,12 +66,29 @@ export function vaultTokenAccount(mint: PublicKey): PublicKey {
   )[0];
 }
 
-/** Encode a u8 opcode followed by a little-endian u64 amount. */
+/**
+ * Encode a u8 opcode followed by a little-endian u64 amount.
+ *
+ * Written against DataView / Uint8Array rather than Node's Buffer. In the
+ * browser `Buffer` is a bundler polyfill, and the one Next ships does NOT
+ * implement `writeBigUInt64LE` — calling it threw
+ * "data.writeBigUInt64LE is not a function" at deposit time, which is a
+ * runtime-only failure that typechecks perfectly (the @types/node signature
+ * exists even though the shipped polyfill lacks the method).
+ *
+ * `setBigUint64` is native in every browser that supports BigInt, and
+ * TransactionInstruction takes a Uint8Array, so nothing here needs a polyfill.
+ */
 function ixData(opcode: number, baseUnits: bigint): Buffer {
-  const data = Buffer.alloc(9);
-  data.writeUInt8(opcode, 0);
-  data.writeBigUInt64LE(baseUnits, 1);
-  return data;
+  const data = new Uint8Array(9);
+  data[0] = opcode;
+  // littleEndian: true — the program reads the amount as LE u64.
+  new DataView(data.buffer).setBigUint64(1, baseUnits, true);
+  // web3.js types `TransactionInstruction.data` as Buffer, but Buffer IS a
+  // Uint8Array subclass and the runtime only ever reads it as bytes (verified:
+  // a plain Uint8Array serializes to the SDK's exact instruction bytes). The
+  // cast keeps the value polyfill-free while satisfying that stale signature.
+  return data as Buffer;
 }
 
 /** Whole USDC (12.5) -> base units (12_500_000), rounded to the mint's decimals. */

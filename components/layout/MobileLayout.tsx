@@ -77,7 +77,7 @@ export function MobileLayout({
           else — `max()` picks the inset when it is the larger value — while a
           browser (inset 0) still gets a flat 12px so the buttons don't sit flush
           against the bottom edge of the window. */}
-      <footer className="relative z-20 px-4 pb-[max(env(safe-area-inset-bottom),0.75rem)]">
+      <footer className="relative z-20 px-4 pb-[max(env(safe-area-inset-bottom),0.3rem)]">
         <TradeControls
           position={trade.position}
           trailActive={trade.trailActive}

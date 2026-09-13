@@ -245,7 +245,7 @@ export function Sheet({
             // 12px in a browser (inset 0) so content doesn't touch the window
             // edge. Same expression as the trade footer, so the sheet and the
             // UP/DOWN buttons end on the same rhythm.
-            className="glass-sheet fixed inset-x-0 bottom-0 z-50 mx-auto flex w-full flex-col rounded-t-[50px] p-4 pb-[max(env(safe-area-inset-bottom),0.75rem)]"
+            className="glass-sheet fixed inset-x-0 bottom-0 z-50 mx-auto flex w-full flex-col rounded-t-[50px] p-4 pb-[max(env(safe-area-inset-bottom),0.3rem)]"
             // `y` is the motion value owned above, so the drag and both
             // animations all write the same pixel-valued property.
             style={{ y, maxHeight: MAX_H, minHeight: MIN_H, maxWidth: MAX_W }}

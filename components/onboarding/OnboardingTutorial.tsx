@@ -181,7 +181,7 @@ export function OnboardingTutorial({ open, onClose }: Props) {
               buttons have to clear the home indicator themselves. `max()` keeps
               the generous 40px the browser gets while letting the PWA's ~34px
               inset stand in for it rather than stacking on top. */}
-          <div className="relative z-10 px-6 pb-[max(env(safe-area-inset-bottom),2.5rem)]">
+          <div className="relative z-10 px-6 pb-[max(env(safe-area-inset-bottom),1.5rem)]">
             {!isLast ? (
               <button
                 type="button"

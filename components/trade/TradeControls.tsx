@@ -127,7 +127,7 @@ function ActivePosition({
         <button
           type="button"
           onClick={onViewPositions}
-          className="glass flex items-center gap-3 rounded-full px-4 py-3 text-left transition-colors active:scale-[0.99]"
+          className="glass-inset flex items-center gap-3 rounded-full px-4 py-3 text-left transition-colors active:scale-[0.99]"
         >
           <span
             className={`flex h-7 w-7 items-center justify-center rounded-full ${

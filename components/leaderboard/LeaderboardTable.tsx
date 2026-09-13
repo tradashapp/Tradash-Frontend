@@ -159,8 +159,8 @@ function Row({ entry, metric, isMe, floating, onSelect, ref }: RowProps & {
         floating
           ? "bg-up-soft ring-1 ring-up/40 backdrop-blur"
           : isMe
-            ? "bg-up-soft ring-1 ring-up/25"
-            : "glass-inset"
+            ? "bg-up-soft"
+            : ""
       }`}
     >
       {/* Rank 0 means "traded, but doesn't qualify for this board" (see the

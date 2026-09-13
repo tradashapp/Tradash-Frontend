@@ -6,7 +6,7 @@ Mobile-first, tap-to-trade perpetuals UI. The homepage **is** the trading screen
 - **Tailwind CSS** (dark-first tokens) · **Framer Motion** (animations)  
 - **Redux Toolkit** — six isolated slices (`market`, `price`, `position`, `user`, `trading`, `settings`)
 - **Privy** — wallet connect / master-account auth  
-- **Hugeicons** — all UI icons
+- **Hugeicons** — all UI icons 
 - **Custom canvas chart engine** (no chart library) — Phase 1
 - Price from the **MagicBlock oracle** (direct ER account reads); execution + live account
   data from **Bulk Exchange** (REST + account WS). Our revenue: Bulk **builder codes**.

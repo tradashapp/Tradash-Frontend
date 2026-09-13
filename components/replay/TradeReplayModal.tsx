@@ -142,8 +142,16 @@ function ReplayInner({
         exit={{ scale: 0.97, y: 10, opacity: 0 }}
         transition={{ type: "spring", stiffness: 320, damping: 28 }}
       >
-        {/* Header — mirrors the real trade screen's chrome. */}
-        <header className="relative z-20 flex items-start justify-between px-3 pt-3">
+        {/* Header — mirrors the real trade screen's chrome.
+
+            On a phone this modal is full-bleed (`h-full w-full`, no rounding),
+            so in an installed PWA it runs behind the status bar and a flat
+            `pt-3` hid the price pill and the close button under the clock. The
+            inset is added here the same way the live trade screen's header does
+            it. From `sm:` up the modal is an inset card with the page visible
+            around it, so the inset is no longer the modal's problem — but it
+            also reports 0 on those viewports, so one expression covers both. */}
+        <header className="relative z-20 flex items-start justify-between px-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] sm:pt-3">
           <div className="flex items-center gap-2 rounded-full bg-bg-overlay/50 px-1.5 py-1">
             {market && (
               <Image
@@ -202,8 +210,12 @@ function ReplayInner({
           </div>
         </div>
 
-        {/* Scrubber + transport. */}
-        <div className="relative z-20 flex flex-col gap-3 px-4 pb-5 pt-3">
+        {/* Scrubber + transport. Full-bleed on a phone (see the header note),
+            so the transport row carries its own home-indicator clearance:
+            `max()` keeps the browser's 20px and lets the PWA's larger inset
+            replace it instead of adding to it. Reset at `sm:`, where the modal
+            is an inset card. */}
+        <div className="relative z-20 flex flex-col gap-3 px-4 pb-[max(env(safe-area-inset-bottom),1.25rem)] pt-3 sm:pb-5">
           <div className="relative">
             <input
               type="range"

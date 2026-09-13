@@ -110,8 +110,16 @@ export function OnboardingTutorial({ open, onClose }: Props) {
           {/* Dim + glass backdrop */}
           <div className="glass absolute inset-0" />
 
-          {/* Top bar: back + skip + progress dots */}
-          <div className="relative z-10 flex items-center justify-between px-5 pt-6">
+          {/* Top bar: back + skip + progress dots.
+
+              This is a full-screen `fixed inset-0` overlay, not a sheet, so
+              nothing above it reserves the status bar: in an installed PWA the
+              page owns the whole screen and a flat `pt-6` put the back chevron,
+              the progress dots and the Skip button underneath the clock and
+              battery. The inset is added to that padding so the row clears the
+              status bar; in a browser the inset is 0 and this stays the original
+              24px. */}
+          <div className="relative z-10 flex items-center justify-between px-5 pt-[calc(env(safe-area-inset-top)+1.5rem)]">
             <button
               type="button"
               onClick={() => (i === 0 ? skip() : go(i - 1))}
@@ -169,8 +177,11 @@ export function OnboardingTutorial({ open, onClose }: Props) {
             </AnimatePresence>
           </div>
 
-          {/* Bottom actions */}
-          <div className="relative z-10 px-6 pb-10">
+          {/* Bottom actions. Same full-screen caveat as the top bar — the
+              buttons have to clear the home indicator themselves. `max()` keeps
+              the generous 40px the browser gets while letting the PWA's ~34px
+              inset stand in for it rather than stacking on top. */}
+          <div className="relative z-10 px-6 pb-[max(env(safe-area-inset-bottom),2.5rem)]">
             {!isLast ? (
               <button
                 type="button"

@@ -270,7 +270,12 @@ function ShareCardInner({
     >
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
       <motion.div
-        className="glass relative z-10 flex max-h-[92dvh] w-full max-w-2xl flex-col gap-4 rounded-3xl p-5"
+        // The card is vertically centred, so both insets are subtracted from
+        // its height budget rather than padded onto it: at a flat 92dvh an
+        // installed PWA left only ~4% of the screen above the card — less than
+        // the status-bar inset — so a tall share card slid under the clock. Both
+        // insets report 0 in a browser, where this stays the original 92dvh.
+        className="glass relative z-10 flex max-h-[calc(92dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom))] w-full max-w-2xl flex-col gap-4 rounded-3xl p-5"
         initial={{ scale: 0.94, y: 12 }}
         animate={{ scale: 1, y: 0 }}
         exit={{ scale: 0.96, y: 8, opacity: 0 }}

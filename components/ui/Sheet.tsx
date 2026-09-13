@@ -233,11 +233,19 @@ export function Sheet({
             onClick={onClose}
           />
           <motion.div
-            // `pb` adds the home-indicator inset to the sheet's own bottom
-            // padding, so the last row of content clears it in an installed PWA
-            // without leaving a visible gap under the surface in a browser
-            // (where the inset is 0 and this is just the original pb-8).
-            className="glass-sheet fixed inset-x-0 bottom-0 z-50 mx-auto flex w-full flex-col rounded-t-[50px] p-4 pb-[calc(env(safe-area-inset-bottom)+2rem)]"
+            // `pb` clears the home indicator so the last row of content isn't
+            // sitting under it — and nothing more than that.
+            //
+            // It used to add a full 2rem ON TOP of the inset. In an installed
+            // PWA the inset is already ~34px, so the sheet ended in ~66px of
+            // empty surface that read as a black bar across the bottom — and on
+            // a sheet whose body scrolls (the account sheet) that bar covered
+            // the last menu rows. `max()` takes the inset alone in the PWA,
+            // where it is already enough clearance, and falls back to a flat
+            // 12px in a browser (inset 0) so content doesn't touch the window
+            // edge. Same expression as the trade footer, so the sheet and the
+            // UP/DOWN buttons end on the same rhythm.
+            className="glass-sheet fixed inset-x-0 bottom-0 z-50 mx-auto flex w-full flex-col rounded-t-[50px] p-4 pb-[max(env(safe-area-inset-bottom),0.75rem)]"
             // `y` is the motion value owned above, so the drag and both
             // animations all write the same pixel-valued property.
             style={{ y, maxHeight: MAX_H, minHeight: MIN_H, maxWidth: MAX_W }}

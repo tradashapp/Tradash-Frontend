@@ -69,9 +69,15 @@ export function MobileLayout({
       {/* The home-indicator inset lives HERE rather than on <body>: body
           padding moved every fixed-position sheet up off the bottom of the
           screen, leaving a black strip under them. So the footer carries its
-          own safe area — inset + a small visual gap, which is 12px flat in a
-          browser where the inset is 0. */}
-      <footer className="relative z-20 px-4 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
+          own safe area.
+
+          In an installed PWA the inset is already ~34px of clearance on its own,
+          so stacking a further 12px on top left a visibly tall empty band under
+          the UP/DOWN buttons. The PWA case therefore gets the inset and nothing
+          else — `max()` picks the inset when it is the larger value — while a
+          browser (inset 0) still gets a flat 12px so the buttons don't sit flush
+          against the bottom edge of the window. */}
+      <footer className="relative z-20 px-4 pb-[max(env(safe-area-inset-bottom),0.75rem)]">
         <TradeControls
           position={trade.position}
           trailActive={trade.trailActive}

@@ -212,7 +212,7 @@ export interface LeaderboardEntry {
   /** Linked X handle WITHOUT the leading "@". Null when X isn't linked. */
   twitterHandle: string | null;
   pnl: number;
-  /** Capital-weighted return over the window: sum(pnl) / sum(size). */
+  /** Capital-weighted return over the window: sum(pnl) / sum(USD notional). */
   roi: number;
   volume: number;
   trades: number;

@@ -31,6 +31,38 @@ export function roi(pnl: number, marginUsd: number): number {
 }
 
 /**
+ * USD notional an event traded — the inverse of `computeSize`.
+ *
+ * `size` is BASE ASSET (0.009 BTC, 5 SOL), never dollars, so it must never be
+ * summed or formatted as money directly: 0.009 BTC + 5 SOL = "5.009" is adding
+ * incommensurable units, and the result is dominated by whichever market has
+ * the cheapest unit. Volume totals therefore have to convert per row, at that
+ * row's own price, BEFORE summing — which is what this is for.
+ *
+ * Priced at entry rather than exit: volume measures the size of the bet that
+ * was placed, so it shouldn't move with the outcome. (Exchanges that count both
+ * legs of a round trip report roughly double this; one trade counted once is
+ * the more honest reading of "volume traded" for a single account, and it keeps
+ * `add`/`reduce`/`close` rows summing to the notional each one actually moved.)
+ */
+export function notionalUsd(size: number, entryPrice: number): number {
+  return Math.abs(size) * entryPrice;
+}
+
+/**
+ * USD margin an event put up = notional / leverage. The capital actually at
+ * risk, as opposed to the leveraged exposure `notionalUsd` reports.
+ */
+export function marginUsd(
+  size: number,
+  entryPrice: number,
+  leverage: number
+): number {
+  if (leverage <= 0) return 0;
+  return notionalUsd(size, entryPrice) / leverage;
+}
+
+/**
  * DEMO display PnL at the current MagicBlock price. (Live uses livePnlAt.)
  */
 export function demoPnlAt(pos: Position, currentPrice: number | undefined): number {

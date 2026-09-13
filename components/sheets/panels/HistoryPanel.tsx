@@ -11,6 +11,7 @@ import {
 import { useAppSelector } from "@/store/hooks";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { formatUsd } from "@/lib/format";
+import { marginUsd, notionalUsd } from "@/lib/perp";
 import { isReplayable } from "@/lib/replay/path";
 import type { CompletedTrade, TradeEpisode } from "@/types";
 import { playSound } from "@/lib/sound";
@@ -178,7 +179,7 @@ function TradeRow({
         {isAdd ? (
           // An add has no realized PnL — show the margin moved, muted.
           <div className="tabular font-semibold text-text-muted">
-            +{formatUsd(Math.abs(trade.size * trade.entryPrice / trade.leverage))}
+            +{formatUsd(marginUsd(trade.size, trade.entryPrice, trade.leverage))}
           </div>
         ) : (
           <>
@@ -279,7 +280,11 @@ function computeStats(allTrades: CompletedTrade[]): Stats {
       streak = 0;
     }
     lifetimePnl += t.pnl;
-    volume += t.size;
+    // Convert to USD at THIS row's entry price before adding. `size` is base
+    // asset, so summing it raw added BTC to SOL to ETH — a number that was not
+    // dollars and not even one unit, and which under-reported BTC rows by ~5
+    // orders of magnitude while SOL rows dominated the total.
+    volume += notionalUsd(t.size, t.entryPrice);
   }
   return {
     total: trades.length,

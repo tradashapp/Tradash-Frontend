@@ -119,7 +119,7 @@ export function PositionDock({ trade }: Props) {
             animate={{ opacity: 1, x: peeked ? 0 : 4 }}
             exit={{ opacity: 0, x: -12 }}
             transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-            className="glass flex flex-col items-center gap-1 rounded-r-2xl !border !border-dashed !border-l-0 !border-white/40 py-3 pl-2 pr-3 shadow-lg transition-transform active:scale-95"
+            className="glass-inset flex flex-col items-center gap-1 rounded-2xl py-3 pl-2 pr-3 shadow-lg transition-transform active:scale-95"
             aria-label="Adjust position size"
           >
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-up-soft text-up">
@@ -136,14 +136,14 @@ export function PositionDock({ trade }: Props) {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -16 }}
             transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-            className="glass relative flex w-44 flex-col gap-2 rounded-r-2xl !border !border-dashed !border-l-0 !border-white/40 p-2 shadow-2xl"
+            className="glass-inset relative flex w-44 flex-col gap-2 rounded-r-2xl p-2 shadow-2xl"
           >
             {/* Collapse — a small protrusion on the RIGHT-MIDDLE edge, away from
                 the Reduce button so it can't be mis-tapped. */}
             <button
               type="button"
               onClick={toggle}
-              className="glass absolute -right-10 top-1/2 flex h-9 w-10 -translate-y-1/2 items-center justify-center rounded-r-lg !border !border-dashed !border-l-0 !border-white/40 text-text-muted shadow-lg transition-colors hover:text-text active:scale-95"
+              className="glass absolute -right-10 top-1/2 flex h-9 w-10 -translate-y-1/2 items-center justify-center rounded-r-2xl text-text-muted shadow-lg transition-colors hover:text-text active:scale-95"
               aria-label="Collapse"
             >
               <HugeiconsIcon icon={Cancel01Icon} size={14} />

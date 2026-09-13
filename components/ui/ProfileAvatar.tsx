@@ -6,9 +6,10 @@
  *
  * Initials rather than an emoji because the handle is now guaranteed — every
  * user is seeded one at signup — so the fallback identifies the person instead
- * of being a decoration they had to pick. Distinct from the leaderboard's
- * `Avatar`, which still renders other people's rows (including legacy emoji
- * avatars) and takes its size from the table it sits in.
+ * of being a decoration they had to pick. With no photo AND no handle nobody is
+ * signed in, and that renders a muted "?" instead: see the note below. Distinct
+ * from the leaderboard's `Avatar`, which still renders other people's rows
+ * (including legacy emoji avatars) and takes its size from the table it sits in.
  *
  * `className` carries BOTH the box size and the text size, because the initials
  * have to scale with the circle: `h-28 w-28 text-4xl` for the account sheet,
@@ -32,8 +33,6 @@ export function ProfileAvatar({
    */
   loading?: boolean;
 }) {
-  const initials = initialsOf(name);
-
   if (loading && !src) {
     return (
       <span
@@ -43,6 +42,13 @@ export function ProfileAvatar({
     );
   }
 
+  // Nobody signed in (no photo AND no handle): a muted "?" on the plain glass
+  // circle, matching how the balance pill renders an unknown value. Initials
+  // are for identifying a PERSON, so inventing a letter here — from a stale
+  // email or an "@trader" placeholder — labels the empty state with someone
+  // who isn't there. A question mark reads as "not signed in".
+  const unknown = !src && !name;
+
   return (
     <div
       className={`flex shrink-0 items-center h-12 w-12 justify-center overflow-hidden rounded-full bg-white/[0.06] ${className}`}
@@ -51,9 +57,13 @@ export function ProfileAvatar({
       {src ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={src} alt="" className="h-full w-full object-cover" />
+      ) : unknown ? (
+        <span aria-hidden className="font-semibold leading-none text-text-muted">
+          ?
+        </span>
       ) : (
         <span aria-hidden className="font-bold leading-none text-black/70">
-          {initials}
+          {initialsOf(name)}
         </span>
       )}
     </div>
@@ -64,6 +74,9 @@ export function ProfileAvatar({
  * The leading letters of a handle. Two when the name splits on a separator
  * (`jane_doe` → JD), otherwise just the first — `satoshi` reads better as "S"
  * than as "SA".
+ *
+ * Only called with a non-empty name; the "?" guard covers a whitespace-only or
+ * "@"-only handle, which would otherwise render an empty circle.
  */
 function initialsOf(name: string | null | undefined): string {
   const clean = name?.trim().replace(/^@/, "") ?? "";

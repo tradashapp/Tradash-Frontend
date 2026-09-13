@@ -425,15 +425,22 @@ export const api = {
       body: JSON.stringify({ to, amount }),
     }),
 
-  /** Step 2: hand back the user-signed transaction for broadcast. */
+  /**
+   * Step 2: hand back the user-signed transaction for broadcast.
+   *
+   * `idempotencyKey` is what makes a retry safe. If the response is lost after
+   * the broadcast succeeded, resending with the SAME key returns the original
+   * signature instead of transferring a second time.
+   */
   submitWithdrawal: (
     signedTransaction: string,
     to: string,
-    amount: number
-  ): Promise<{ signature: string }> =>
-    req<{ signature: string }>("/withdrawals/submit", {
+    amount: number,
+    idempotencyKey: string
+  ): Promise<{ signature: string; replayed?: boolean }> =>
+    req<{ signature: string; replayed?: boolean }>("/withdrawals/submit", {
       method: "POST",
-      body: JSON.stringify({ signedTransaction, to, amount }),
+      body: JSON.stringify({ signedTransaction, to, amount, idempotencyKey }),
     }),
 
   /** Deposits, wallet<->trading transfers and withdrawals, newest first. */

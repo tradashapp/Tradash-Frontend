@@ -28,6 +28,24 @@ const fmtUsd = (n: number) =>
     maximumFractionDigits: 2,
   })}`;
 
+/**
+ * A UUID for the idempotency key.
+ *
+ * `crypto.randomUUID` needs a secure context, which localhost and https both
+ * provide — the fallback covers an http preview host, where it is undefined.
+ */
+function uuid(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (c) =>
+    (
+      Number(c) ^
+      (crypto.getRandomValues(new Uint8Array(1))[0]! & (15 >> (Number(c) / 4)))
+    ).toString(16)
+  );
+}
+
 /** Human-readable message for an API failure. */
 function apiMessage(e: unknown, fallback: string): string {
   if (e instanceof ApiError) {
@@ -99,6 +117,10 @@ export function useWithdrawal() {
       setBusy(true);
       toast(`Sending ${fmtUsd(amount)}…`, { type: "loading", id: "withdraw" });
 
+      // One key for this whole attempt, minted before the first network call so
+      // every retry inside it carries the same value.
+      const key = uuid();
+
       try {
         // Step 1 — the backend builds it and signs the fee. Nothing has moved.
         const prepared = await api.prepareWithdrawal(to, amount);
@@ -123,10 +145,15 @@ export function useWithdrawal() {
         for (const byte of serialized) binary += String.fromCharCode(byte);
 
         // Step 3 — broadcast, audit and record.
+        //
+        // The key is minted ONCE per attempt and reused if this call is retried,
+        // which is the whole point: a key regenerated per try would defeat the
+        // protection, since the backend would see each retry as a new transfer.
         const { signature } = await api.submitWithdrawal(
           btoa(binary),
           to,
-          amount
+          amount,
+          key
         );
 
         toast(`Sent ${fmtUsd(amount)}`, {

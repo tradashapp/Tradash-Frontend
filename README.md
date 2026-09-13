@@ -9,7 +9,7 @@ Mobile-first, tap-to-trade perpetuals UI. The homepage **is** the trading screen
 - **Hugeicons** — all UI icons 
 - **Custom canvas chart engine** (no chart library) — Phase 1
 - Price from the **MagicBlock oracle** (direct ER account reads); execution + live account
-  data from **Bulk Exchange** (REST + account WS). Our revenue: Bulk **builder codes**.
+  data from **Bulk Exchange** (REST + account WS). Our revenue: Bulk **builder codes**. 
 
 ## Getting started
 

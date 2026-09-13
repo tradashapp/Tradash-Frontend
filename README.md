@@ -2,7 +2,7 @@
 
 Mobile-first, tap-to-trade perpetuals UI. The homepage **is** the trading screen.     
     
-- **Next.js 16** (App Router) · React 19 · TypeScript       
+- **Next.js 16** (App Router) · React 19 · TypeScript        
 - **Tailwind CSS** (dark-first tokens) · **Framer Motion** (animations)  
 - **Redux Toolkit** — six isolated slices (`market`, `price`, `position`, `user`, `trading`, `settings`)
 - **Privy** — wallet connect / master-account auth  

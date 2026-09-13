@@ -36,6 +36,9 @@ import { SettingsPanel } from "./panels/SettingsPanel";
 import { SettingsMenuPanel } from "./panels/SettingsMenuPanel";
 import { HistoryPanel } from "./panels/HistoryPanel";
 import { DepositPanel } from "./panels/DepositPanel";
+import { WithdrawPanel } from "./panels/WithdrawPanel";
+import { MoneyHistoryPanel } from "./panels/MoneyHistoryPanel";
+import { useWithdrawal } from "@/hooks/useWithdrawal";
 import type { ShareSubject } from "@/components/share/ShareCardModal";
 import type { CompletedTrade, TradeEpisode } from "@/types";
 import { playSound } from "@/lib/sound";
@@ -52,7 +55,14 @@ import {
 } from "@/hooks/usePnlSeries";
 
 type View =
-  "menu" | "settings" | "settingsMenu" | "history" | "transfer" | "deposit";
+  | "menu"
+  | "settings"
+  | "settingsMenu"
+  | "history"
+  | "transfer"
+  | "deposit"
+  | "withdraw"
+  | "money";
 
 interface Props {
   open: boolean;
@@ -74,6 +84,8 @@ const TITLES: Record<View, string> = {
   history: "Trade history",
   transfer: "Transfer margin",
   deposit: "Deposit",
+  withdraw: "Withdraw USDC",
+  money: "Transfers",
 };
 
 // Central account hub. A single sheet with sub-views (menu → settings/history)
@@ -105,6 +117,9 @@ export function AccountSheet({
   const agentAuthorized = useAppSelector((s) => s.trading.agentAuthorized);
   const builderApproved = useAppSelector((s) => s.trading.builderApproved);
   const collateral = useCollateral(agent.masterAddress, agent.masterSign);
+  // External withdrawals + address book + money history. Separate from
+  // `collateral`, which only moves funds between the user's own two balances.
+  const withdrawal = useWithdrawal();
   // Unrealized PnL across every open position, re-derived each price tick — this
   // is what makes the trading (and so the total) balance move in real time.
   const { totalPnl } = useAllPositions();
@@ -205,6 +220,8 @@ export function AccountSheet({
                   setTransferDir(dir);
                   go("transfer");
                 }}
+                onWithdraw={() => go("withdraw")}
+                onMoneyHistory={() => go("money")}
                 onTutorial={onOpenTutorial}
                 onInstall={onOpenInstall}
                 onLeaderboard={onOpenLeaderboard}
@@ -221,6 +238,15 @@ export function AccountSheet({
             )}
             {view === "deposit" && (
               <DepositPanel address={agent.masterAddress} />
+            )}
+            {view === "withdraw" && (
+              <WithdrawPanel
+                withdrawal={withdrawal}
+                walletUsdc={collateral.walletUsdc}
+              />
+            )}
+            {view === "money" && (
+              <MoneyHistoryPanel withdrawal={withdrawal} />
             )}
             {view === "transfer" && (
               <TransferPanel
@@ -272,6 +298,8 @@ function Menu({
   onSettings,
   onHistory,
   onTransfer,
+  onWithdraw,
+  onMoneyHistory,
   onTutorial,
   onInstall,
   onLeaderboard,
@@ -300,6 +328,10 @@ function Menu({
   onSettings: () => void;
   onHistory: () => void;
   onTransfer: (dir: "in" | "out") => void;
+  /** Open the external-withdrawal panel (wallet → outside address). */
+  onWithdraw: () => void;
+  /** Open the money-movement history (deposits, transfers, withdrawals). */
+  onMoneyHistory: () => void;
   onTutorial: () => void;
   onInstall: () => void;
   onLeaderboard: () => void;
@@ -502,7 +534,7 @@ function Menu({
         <ActionButton
           icon={Upload04Icon}
           label="Withdraw"
-          onClick={() => onTransfer("out")}
+          onClick={onWithdraw}
         />
         <ActionButton
           icon={ArrowDataTransferHorizontalIcon}
@@ -520,6 +552,11 @@ function Menu({
       {/* Trading — what you reach for mid-session. */}
       <MenuSection title="Trading" className="mb-4">
         <NavRow icon={Clock01Icon} label="Trade history" onClick={onHistory} />
+        <NavRow
+          icon={ArrowDataTransferHorizontalIcon}
+          label="Transfers"
+          onClick={onMoneyHistory}
+        />
         <NavRow
           icon={ChampionIcon}
           label="Leaderboard"

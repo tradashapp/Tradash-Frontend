@@ -96,7 +96,7 @@ export function TraderProfileModal({ subject, period, onClose }: Props) {
             role="dialog"
             aria-modal="true"
             aria-label={`@${subject.username} profile`}
-            className="fixed inset-x-4 top-1/2 z-[61] mx-auto flex max-h-[80dvh] max-w-md -translate-y-1/2 flex-col overflow-hidden rounded-3xl bg-bg-elevated p-5 ring-1 ring-white/10"
+            className="fixed inset-x-4 top-1/2 z-[61] mx-auto flex max-h-[80dvh] max-w-md -translate-y-1/2 flex-col overflow-hidden rounded-3xl glass-sheet p-5 ring-1 ring-white/10"
             initial={{ opacity: 0, scale: 0.94, y: "-46%" }}
             animate={{ opacity: 1, scale: 1, y: "-50%" }}
             exit={{ opacity: 0, scale: 0.94, y: "-46%" }}

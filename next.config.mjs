@@ -64,23 +64,60 @@ const SOLANA_RPC = [
   "wss://devnet.magicblock.app",
   "wss://rpc.magicblock.app",
 ];
-const TRADASH_API = ["https://api.tradash.xyz"];
+// Our backend. Read from the same env the client uses, so whatever the app is
+// actually pointed at is allowed — otherwise a deploy against a staging API,
+// or a local `npm run dev` against localhost:4000, is blocked by a CSP that
+// only ever names production. Falls back to the prod host when unset.
+// A production build must never allowlist a plain-http or localhost API, even
+// if the build machine's .env.local still points there — that would ship a
+// header trusting an origin no user can reach and silently weaken the policy.
+const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://api.tradash.xyz";
+const apiIsLocal = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])/.test(apiUrl);
+const TRADASH_API =
+  apiIsLocal && process.env.NODE_ENV === "production"
+    ? ["https://api.tradash.xyz"]
+    : [apiUrl];
+
+// Vercel Web Analytics (<Analytics /> in app/layout.tsx) loads its script from
+// this host and beacons back to it. Without both entries the script is blocked
+// and the console fills with a failure that looks like an ad-blocker problem.
+const VERCEL_ANALYTICS = [
+  "https://va.vercel-scripts.com",
+  "https://vitals.vercel-insights.com",
+];
+
+// Dev-only allowances. `next dev` talks to its HMR websocket on the page's own
+// origin, and the local backend is plain http — neither belongs in a production
+// header, so they are added only when building for development.
+const isDev = process.env.NODE_ENV !== "production";
+const DEV_CONNECT = isDev
+  ? ["ws://localhost:*", "http://localhost:*", "https://localhost:*"]
+  : [];
 
 // Generated avatars are served straight from DiceBear (see lib/dicebearAvatar).
-const AVATARS = ["https://api.dicebear.com"];
+const AVATARS = ["https://api.dicebear.com", "https://pewxmadlhipexjnwqijx.supabase.co"];
 
 const csp = [
   `default-src 'self'`,
   // 'unsafe-eval' is required by the bulk-keychain WASM module; 'unsafe-inline'
   // covers Next's inline bootstrap scripts.
-  `script-src 'self' 'unsafe-eval' 'unsafe-inline' ${TURNSTILE.join(" ")}`,
+  `script-src 'self' 'unsafe-eval' 'unsafe-inline' ${[
+    ...TURNSTILE,
+    ...VERCEL_ANALYTICS,
+  ].join(" ")}`,
   `style-src 'self' 'unsafe-inline'`,
   `img-src 'self' data: blob: ${AVATARS.join(" ")}`,
   `font-src 'self' data:`,
   `object-src 'none'`,
   `base-uri 'self'`,
   `form-action 'self'`,
-  // Clickjacking defence, and the modern replacement for X-Frame-Options.
+  // Clickjacking defence: nobody may embed US.
+  //
+  // Note this governs who can frame THIS document — it is unrelated to the
+  // Privy iframe we host (that is `frame-src`/`child-src` below). Privy sends
+  // its OWN frame-ancestors on auth.privy.io naming the app's allowed domains,
+  // which is why a login popup fails with a frame-ancestors error until the
+  // origin is registered in the Privy dashboard — nothing here can fix that.
   `frame-ancestors 'none'`,
   `child-src 'self' blob: ${[...PRIVY_FRAME, ...WALLETCONNECT_FRAME].join(" ")}`,
   `frame-src 'self' ${[
@@ -97,6 +134,8 @@ const csp = [
     ...SOLANA_RPC,
     ...TRADASH_API,
     ...AVATARS,
+    ...VERCEL_ANALYTICS,
+    ...DEV_CONNECT,
   ].join(" ")}`,
   // WASM instantiates from a blob URL.
   `worker-src 'self' blob:`,

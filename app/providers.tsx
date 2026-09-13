@@ -50,8 +50,12 @@ export function Providers({ children }: { children: ReactNode }) {
         appearance: {
           theme: "#08090C",
           accentColor: "#72E912",
-          logo: "https://tradash.xyz/images/logos/tradash-full.png",
-
+          // Relative, not an absolute https://tradash.xyz URL. The file is our
+          // own `/public` asset, so pointing at the canonical domain made the
+          // browser fetch it cross-origin — blocked by `img-src 'self'` on
+          // every other origin (localhost, preview deploys, app.tradash.xyz).
+          // A relative path resolves against whatever host is serving the page.
+          logo: "/images/logos/tradash-full.png",
         },
         embeddedWallets: {
           solana: {

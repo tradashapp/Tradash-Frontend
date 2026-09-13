@@ -26,10 +26,43 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Supplies the caller's Privy access token.
+ *
+ * Set once from React-land (see `AuthTokenBridge`), because `getAccessToken`
+ * lives on a Privy hook and this module is plain TypeScript with no React
+ * context. Null until login, and for the endpoints that are genuinely public
+ * (leaderboard, trader profiles) it stays unused.
+ */
+let tokenProvider: (() => Promise<string | null>) | null = null;
+
+export function setAuthTokenProvider(fn: () => Promise<string | null>): void {
+  tokenProvider = fn;
+}
+
+async function authHeader(): Promise<Record<string, string>> {
+  if (!tokenProvider) return {};
+  try {
+    const token = await tokenProvider();
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  } catch {
+    // A token we cannot mint is the same as no token — let the request go and
+    // let the backend answer 401, rather than throwing a different error here.
+    return {};
+  }
+}
+
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
+  // Privy refreshes the token on its own; asking per request means we always
+  // send a live one instead of caching one that expires mid-session.
+  const auth = await authHeader();
   const res = await fetch(`${BASE}${path}`, {
-    headers: { "Content-Type": "application/json" },
     ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...auth,
+      ...(init?.headers as Record<string, string> | undefined),
+    },
   });
   // `status: 0` marks a network-level failure (offline, DNS, CORS) — the outbox
   // treats it as retryable, unlike a real 4xx.
@@ -166,6 +199,56 @@ export interface ApiUserProfile {
 /** Raw trade rows come back with ISO timestamps; the UI wants ms epoch. */
 interface ApiTraderProfile extends Omit<TraderProfile, "recentTrades"> {
   recentTrades: (ApiTrade & { id?: string })[];
+}
+
+/** What the backend knows about a withdrawal recipient before funds move. */
+export interface RecipientCheck {
+  /** Parses as a base58 address AND sits on the ed25519 curve. */
+  valid: boolean;
+  onCurve: boolean;
+  /** We only withdraw to addresses that already hold USDC — see the backend. */
+  hasUsdcAccount: boolean;
+  usdcBalance: number | null;
+  /** Not in the user's address book: worth a confirmation step. */
+  firstTime: boolean;
+  /** Human-readable explanation when something is wrong; null when fine. */
+  reason: string | null;
+}
+
+/** A gas-sponsored transfer, built and fee-payer-signed but not yet sent. */
+export interface PreparedWithdrawal {
+  /** base64 transaction awaiting the user's signature. */
+  transaction: string;
+  blockhash: string;
+  lastValidBlockHeight: number;
+  /** The wallet the funds leave from (resolved server-side from the token). */
+  from: string;
+  feeSponsored: boolean;
+}
+
+/** A row in the money history: deposits, transfers and withdrawals. */
+export interface Movement {
+  id: string;
+  kind: "deposit" | "transfer_in" | "transfer_out" | "withdrawal";
+  amount: number;
+  signature: string | null;
+  recipient: string | null;
+  status: "pending" | "confirmed" | "failed";
+  sponsored: boolean;
+  network: string;
+  error: string | null;
+  createdAt: string;
+  confirmedAt: string | null;
+}
+
+/** A saved withdrawal address. */
+export interface SavedAddress {
+  id: string;
+  address: string;
+  label: string;
+  network: string;
+  createdAt: string;
+  lastUsedAt: string | null;
 }
 
 export const api = {
@@ -319,4 +402,61 @@ export const api = {
     );
     return rows.map(fromApiTrade);
   },
+
+  // --- Money movement: external withdrawals, address book, history ---------
+  //
+  // All of these are authenticated: the backend takes the user from the access
+  // token, which is why none of them pass a privyId.
+
+  /** Check a recipient before the user commits an amount. */
+  inspectRecipient: (address: string): Promise<RecipientCheck> =>
+    req<RecipientCheck>(
+      `/withdrawals/recipient/${encodeURIComponent(address)}`
+    ),
+
+  /**
+   * Step 1: ask the backend to build a gas-sponsored transfer. Moves nothing —
+   * the returned transaction carries only the fee payer's signature and is
+   * inert until the user's wallet signs it too.
+   */
+  prepareWithdrawal: (to: string, amount: number): Promise<PreparedWithdrawal> =>
+    req<PreparedWithdrawal>("/withdrawals/prepare", {
+      method: "POST",
+      body: JSON.stringify({ to, amount }),
+    }),
+
+  /** Step 2: hand back the user-signed transaction for broadcast. */
+  submitWithdrawal: (
+    signedTransaction: string,
+    to: string,
+    amount: number
+  ): Promise<{ signature: string }> =>
+    req<{ signature: string }>("/withdrawals/submit", {
+      method: "POST",
+      body: JSON.stringify({ signedTransaction, to, amount }),
+    }),
+
+  /** Deposits, wallet<->trading transfers and withdrawals, newest first. */
+  fetchMovements: (limit = 50): Promise<Movement[]> =>
+    req<Movement[]>(`/movements?limit=${limit}`),
+
+  fetchAddressBook: (): Promise<SavedAddress[]> =>
+    req<SavedAddress[]>("/address-book"),
+
+  saveAddress: (address: string, label: string): Promise<SavedAddress> =>
+    req<SavedAddress>("/address-book", {
+      method: "POST",
+      body: JSON.stringify({ address, label }),
+    }),
+
+  deleteAddress: async (id: string): Promise<void> => {
+    // 204 No Content — nothing to parse, so this bypasses `req`.
+    const auth = await authHeader();
+    const res = await fetch(`${BASE}/address-book/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      headers: auth,
+    });
+    if (!res.ok) throw new ApiError(`/address-book/${id}`, res.status);
+  },
+
 };

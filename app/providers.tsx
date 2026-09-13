@@ -8,6 +8,7 @@ import { wireSettingsPersistence } from "@/store/persist";
 import { ToastProvider } from "@/components/toast/ToastProvider";
 import { config } from "@/lib/config";
 import { startOutbox } from "@/lib/outbox";
+import { AuthTokenBridge } from "@/components/auth/AuthTokenBridge";
 
 // Single client-side provider tree: Redux (with settings persistence wired
 // once) + Toasts, wrapped by Privy for wallet connect / master-account auth.
@@ -66,6 +67,9 @@ export function Providers({ children }: { children: ReactNode }) {
         loginMethods: ["email", "google", "twitter", "wallet"],
       }}
     >
+      {/* Inside PrivyProvider: gives lib/api.ts a live access-token source so
+          backend requests are authenticated. Renders nothing. */}
+      <AuthTokenBridge />
       {tree}
     </PrivyProvider>
   );

@@ -1,4 +1,4 @@
-# Tradash — Frontend
+# Tradash — Frontend 
 
 Mobile-first, tap-to-trade perpetuals UI. The homepage **is** the trading screen.    
    

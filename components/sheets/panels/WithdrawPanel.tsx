@@ -241,9 +241,9 @@ export function WithdrawPanel({
         {withdrawal.busy ? "Sending…" : (blocker ?? "Send USDC")}
       </button>
 
-      <p className="text-center text-[10px] text-text-muted">
+      {/* <p className="text-center text-[10px] text-text-muted">
         Network fee paid by Tradash — no SOL needed.
-      </p>
+      </p> */}
 
       {/* Post-send: save this address to the book under a name. */}
       {savePrompt && (

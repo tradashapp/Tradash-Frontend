@@ -214,8 +214,10 @@ function ReplayInner({
             so the transport row carries its own home-indicator clearance:
             `max()` keeps the browser's 20px and lets the PWA's larger inset
             replace it instead of adding to it. Reset at `sm:`, where the modal
-            is an inset card. */}
-        <div className="relative z-20 flex flex-col gap-3 px-4 pb-[max(env(safe-area-inset-bottom),1rem)] pt-3 sm:pb-5">
+            is an inset card.
+             pb-[max(env(safe-area-inset-bottom),1rem)]
+             */}
+        <div className="relative z-20 flex flex-col gap-3 px-4 pt-3 sm:pb-5">
           <div className="relative">
             <input
               type="range"

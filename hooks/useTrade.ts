@@ -53,7 +53,7 @@ const profitStepFor = (marginUsd: number) => Math.max(marginUsd * 0.05, 1);
  * therefore lands fractionally over the market cap and is rejected outright, so
  * we leave 2% of slack for that drift.
  */
-const MARGIN_HEADROOM = 0.98;
+export const MARGIN_HEADROOM = 0.98;
 
 /**
  * Don't submit an order below this margin. Bulk enforces a per-market

@@ -8,6 +8,7 @@ import { PositionsPanel } from "@/components/trade/PositionsPanel";
 import { MARKETS, maxLeverageFor } from "@/lib/markets";
 import { config } from "@/lib/config";
 import { useAllPositions } from "@/hooks/useAllPositions";
+import { MARGIN_HEADROOM } from "@/hooks/useTrade";
 import { haptic } from "@/lib/haptics";
 import { playSound } from "@/lib/sound";
 import type { useLeverage } from "@/hooks/useLeverage";
@@ -79,10 +80,21 @@ export function MarketSettingsSheet({
   const lev = leverage.leverageOf(symbol);
   const size = s.defaultPositionSize;
 
+  // What the order will ACTUALLY post as margin.
+  //
+  // `useTrade.open()` caps margin at a fraction of free balance (Bulk margins
+  // against its own equity at fill time, and sizing to 100% is rejected for the
+  // drift). Mirroring that here — rather than echoing the configured size — is
+  // what stops the sheet promising a $40,000 position that gets filled at
+  // $19,600. The same expression is used, from the same constant.
+  const effectiveSize =
+    available != null ? Math.min(size, available * MARGIN_HEADROOM) : size;
+  const trimmed = effectiveSize < size - 0.005;
+
   // Notional is DISPLAY ONLY. The order carries margin and Bulk derives the
   // rest; showing this is what makes a leverage change legible — the margin at
   // risk holds still while the position grows.
-  const notional = size * lev;
+  const notional = effectiveSize * lev;
 
   // Builder fee, charged on notional. Read from config (Bulk caps it at 1–15
   // bps) rather than hard-coded, so the number shown is the one actually sent.
@@ -317,8 +329,14 @@ export function MarketSettingsSheet({
         {/* ---- What the next order costs ----------------------------------- */}
         <section className="glass-inset flex flex-col gap-2 rounded-2xl p-4">
           <SummaryRow label="Trade size" value={usd2(notional)} />
-          <SummaryRow label="Margin at risk" value={usd2(size)} />
+          <SummaryRow label="Margin at risk" value={usd2(effectiveSize)} />
           <SummaryRow label={`Fee (${feeBps}bps)`} value={usd2(feeUsd)} muted />
+          {trimmed && (
+            <p className="mt-1 text-[11px] leading-snug text-text-muted">
+              Capped at {usd2(effectiveSize)} — your size of {usd2(size)} is
+              more than the free margin this order can use.
+            </p>
+          )}
         </section>
 
         {/* ---- Positions ---------------------------------------------------

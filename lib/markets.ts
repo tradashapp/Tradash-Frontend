@@ -218,14 +218,22 @@ export function clampLeverage(symbol: MarketSymbol, leverage: number): number {
 
 /**
  * The leverage to actually trade a market at: the user's choice for that
- * market, else the default — clamped either way, so a stored value can never
- * exceed a cap (e.g. after Bulk lowers one).
+ * market, else that market's OWN MAXIMUM — clamped either way, so a stored
+ * value can never exceed a cap (e.g. after Bulk lowers one).
+ *
+ * The unset default is the cap rather than a flat 10× on purpose: this is a
+ * one-tap degen app, and the market settings sheet presents leverage as
+ * "maxed unless you pull it back". A flat 10× also silently MEANT different
+ * things per market — the cap on an alt, a quarter of it on BTC.
+ *
+ * Note this only affects markets the user has never set. An explicit choice is
+ * still honoured, which is why the sheet writes one as soon as it is touched.
  */
 export function leverageFor(
   symbol: MarketSymbol,
   byMarket: Partial<Record<MarketSymbol, number>>
 ): number {
-  return clampLeverage(symbol, byMarket[symbol] ?? DEFAULT_LEVERAGE);
+  return clampLeverage(symbol, byMarket[symbol] ?? maxLeverageFor(symbol));
 }
 
 /** Category filter pills shown above the market list, in display order. */

@@ -20,7 +20,7 @@ import {
   HelpCircleIcon,
   Download04Icon,
   Upload04Icon,
-  Plant02Icon,
+  ClockArrowUpIcon,
   ShieldKeyIcon,
   CodeIcon,
   ChampionIcon,
@@ -85,7 +85,7 @@ const TITLES: Record<View, string> = {
   transfer: "Transfer margin",
   deposit: "Deposit",
   withdraw: "Withdraw USDC",
-  money: "Transfers",
+  money: "Account history",
 };
 
 // Central account hub. A single sheet with sub-views (menu → settings/history)
@@ -542,21 +542,15 @@ function Menu({
           onClick={() => onTransfer("in")}
         />
         <ActionButton
-          icon={Plant02Icon}
-          label="Earn"
-          disabled
-          onClick={() => {}}
+          icon={ClockArrowUpIcon}
+          label="History"
+          onClick={onMoneyHistory}
         />
       </div>
 
       {/* Trading — what you reach for mid-session. */}
       <MenuSection title="Trading" className="mb-4">
         <NavRow icon={Clock01Icon} label="Trade history" onClick={onHistory} />
-        <NavRow
-          icon={ArrowDataTransferHorizontalIcon}
-          label="Transfers"
-          onClick={onMoneyHistory}
-        />
         <NavRow
           icon={ChampionIcon}
           label="Leaderboard"

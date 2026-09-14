@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAppSelector } from "@/store/hooks";
 import { marginHealth } from "@/lib/perp";
-import { buildDepositTx, buildWithdrawIntentTx } from "@/lib/solana/bulkVault";
-import { PublicKey } from "@solana/web3.js";
-import { useSendTransaction } from "@privy-io/react-auth/solana";
+import { Connection, Transaction } from "@solana/web3.js";
+import { useSignTransaction } from "@privy-io/react-auth/solana";
+import { api } from "@/lib/api";
+import { solanaRpcUrl } from "@/lib/config";
 import { readUsdcBalance } from "@/lib/solana/usdc";
 import { config } from "@/lib/config";
 import { useToast } from "@/components/toast/ToastProvider";
@@ -31,6 +32,19 @@ const fmtUsd = (n: number) =>
  * transfers (master-signed). In demo mode there is no external wallet, so
  * deposit/withdraw are informational.
  */
+/** A UUID for the idempotency key, with a fallback for non-secure contexts. */
+function uuid(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (c) =>
+    (
+      Number(c) ^
+      (crypto.getRandomValues(new Uint8Array(1))[0]! & (15 >> (Number(c) / 4)))
+    ).toString(16)
+  );
+}
+
 export function useCollateral(
   masterAddress: string | null,
   masterSign: MasterSignBytes | null
@@ -38,7 +52,11 @@ export function useCollateral(
   const { toast } = useToast();
   // Deposits are on-chain transactions signed by the user's wallet, not Bulk
   // API calls — see lib/solana/bulkVault.ts for why.
-  const { sendTransaction } = useSendTransaction();
+  //
+  // `signTransaction`, not `sendTransaction`: the backend builds and
+  // fee-payer-signs these, so the user adds a signature and the BACKEND
+  // broadcasts. Sending from here would drop the sponsor's signature.
+  const { signTransaction } = useSignTransaction();
   const mode = useAppSelector((s) => s.tradingMode.mode);
   const liveBalance = useAppSelector((s) => s.user.balance);
   const demoBalance = useAppSelector((s) => s.tradingMode.demo.balance);
@@ -68,6 +86,37 @@ export function useCollateral(
     const id = setInterval(() => walletRef.current(), 30_000);
     return () => clearInterval(id);
   }, [masterAddress, mode]);
+
+  /**
+   * Run one sponsored vault transfer end to end.
+   *
+   * The backend builds the instruction and signs the fee; the wallet signs as
+   * the vault owner; the backend broadcasts. The user needs no SOL, which is
+   * the whole point — before this, a wallet funded only with USDC could not
+   * move it into trading at all.
+   */
+  const sponsoredTransfer = useCallback(
+    async (amount: number, direction: "deposit" | "withdraw") => {
+      // Minted once per attempt so a retry inside it reuses the same key.
+      const key = uuid();
+      const prepared = await api.prepareTransfer(amount, direction);
+      const tx = Transaction.from(
+        Uint8Array.from(atob(prepared.transaction), (c) => c.charCodeAt(0))
+      );
+      const connection = new Connection(solanaRpcUrl(), "confirmed");
+      const signed = await signTransaction({ transaction: tx, connection });
+      const serialized = (signed as Transaction).serialize({
+        requireAllSignatures: false,
+        verifySignatures: false,
+      });
+      // Built byte by byte: String.fromCharCode(...bytes) blows the call stack
+      // on a large transaction.
+      let binary = "";
+      for (const byte of serialized) binary += String.fromCharCode(byte);
+      return api.submitTransfer(btoa(binary), amount, direction, key);
+    },
+    [signTransaction]
+  );
 
   const deposit = useCallback(
     async (amount: number) => {
@@ -108,15 +157,11 @@ export function useCollateral(
       setBusy(true);
       toast(`Depositing ${fmtUsd(amount)}…`, { type: "loading", id: "collateral" });
       try {
-        const { tx, connection } = await buildDepositTx(
-          new PublicKey(masterAddress),
-          amount
-        );
-        await sendTransaction({ transaction: tx, connection });
+        await sponsoredTransfer(amount, "deposit");
         toast(`Deposited ${fmtUsd(amount)}`, {
           type: "success",
           id: "collateral",
-          description: "Added to your trading collateral.",
+          description: "Added to your trading collateral. Fee paid by Tradash.",
         });
         // Wallet balance dropped; refresh it. Bulk credits the account from the
         // on-chain deposit, so equity follows over the WS a moment later.
@@ -139,7 +184,7 @@ export function useCollateral(
       toast,
       refreshWallet,
       walletUsdc,
-      sendTransaction,
+      sponsoredTransfer,
     ]
   );
 

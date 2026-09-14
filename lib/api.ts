@@ -463,6 +463,36 @@ export const api = {
       body: JSON.stringify({ signedTransaction, to, amount, idempotencyKey }),
     }),
 
+  /**
+   * Step 1 of a sponsored collateral transfer. Note there is no recipient: the
+   * destination is Bulk's vault, derived server-side.
+   */
+  prepareTransfer: (
+    amount: number,
+    direction: "deposit" | "withdraw"
+  ): Promise<PreparedWithdrawal> =>
+    req<PreparedWithdrawal>("/transfers/prepare", {
+      method: "POST",
+      body: JSON.stringify({ amount, direction }),
+    }),
+
+  /** Step 2: hand back the user-signed collateral transfer for broadcast. */
+  submitTransfer: (
+    signedTransaction: string,
+    amount: number,
+    direction: "deposit" | "withdraw",
+    idempotencyKey: string
+  ): Promise<{ signature: string; replayed?: boolean }> =>
+    req<{ signature: string; replayed?: boolean }>("/transfers/submit", {
+      method: "POST",
+      body: JSON.stringify({
+        signedTransaction,
+        amount,
+        direction,
+        idempotencyKey,
+      }),
+    }),
+
   /** Deposits, wallet<->trading transfers and withdrawals, newest first. */
   fetchMovements: (limit = 50): Promise<Movement[]> =>
     req<Movement[]>(`/movements?limit=${limit}`),

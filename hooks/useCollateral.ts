@@ -79,6 +79,40 @@ export function useCollateral(
     }
   }, [mode, masterAddress]);
 
+  /**
+   * Re-read the wallet until it reflects a transfer that just landed.
+   *
+   * A single read right after the toast races the RPC's own view: the node may
+   * still serve the pre-transfer balance. Meanwhile trading collateral updates
+   * instantly over the WS, so the total (trading + funding) briefly counted the
+   * moved amount TWICE — $10 + $5 showing as $15 before settling back to $10.
+   *
+   * Polling until the value actually moves closes that window. It gives up
+   * after a few tries and leaves the 30s poll to correct it, rather than
+   * spinning forever on a transfer whose size we cannot predict exactly.
+   */
+  const refreshWalletUntilChanged = useCallback(
+    async (previous: number | null) => {
+      for (let attempt = 0; attempt < 6; attempt++) {
+        if (mode !== "live" || !masterAddress) return;
+        try {
+          const next = await readUsdcBalance(masterAddress);
+          if (previous == null || next !== previous) {
+            setWalletUsdc(next);
+            return;
+          }
+        } catch {
+          // Transient RPC failure — keep the last known value and try again.
+        }
+        await new Promise((r) => setTimeout(r, 800));
+      }
+      // Never changed: take whatever the chain says now rather than holding a
+      // value we know is stale.
+      void refreshWallet();
+    },
+    [mode, masterAddress, refreshWallet]
+  );
+
   const walletRef = useRef(refreshWallet);
   walletRef.current = refreshWallet;
   useEffect(() => {
@@ -163,15 +197,17 @@ export function useCollateral(
       setBusy(true);
       toast(`Depositing ${fmtUsd(amount)}…`, { type: "loading", id: "collateral" });
       try {
+        const before = walletUsdc;
         await sponsoredTransfer(amount, "deposit");
         toast(`Deposited ${fmtUsd(amount)}`, {
           type: "success",
           id: "collateral",
-          description: "Added to your trading collateral. Fee paid by Tradash.",
+          description: "Added to your trading collateral.",
         });
-        // Wallet balance dropped; refresh it. Bulk credits the account from the
-        // on-chain deposit, so equity follows over the WS a moment later.
-        void refreshWallet();
+        // Wallet balance dropped; poll until the RPC agrees. Bulk credits the
+        // account from the on-chain deposit, so equity follows over the WS a
+        // moment later — reading once here would race that and double-count.
+        void refreshWalletUntilChanged(before);
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Deposit failed";
         toast("Deposit failed", {
@@ -188,7 +224,7 @@ export function useCollateral(
       masterAddress,
       masterSign,
       toast,
-      refreshWallet,
+      refreshWalletUntilChanged,
       walletUsdc,
       sponsoredTransfer,
     ]

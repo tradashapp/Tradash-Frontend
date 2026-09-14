@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Loading03Icon,
@@ -8,6 +9,7 @@ import {
   CheckmarkCircle02Icon,
   Delete02Icon,
   BookmarkAdd02Icon,
+  ArrowDown01Icon,
 } from "@hugeicons/core-free-icons";
 import { formatUsd } from "@/lib/format";
 import { playSound } from "@/lib/sound";
@@ -45,6 +47,8 @@ export function WithdrawPanel({
   const [label, setLabel] = useState("");
   // A first-time address requires an explicit acknowledgement before sending.
   const [acknowledged, setAcknowledged] = useState(false);
+  // The address book is collapsed by default — see the toggle below.
+  const [bookOpen, setBookOpen] = useState(false);
 
   const amt = Number(amount) || 0;
   const trimmed = recipient.trim();
@@ -131,46 +135,77 @@ export function WithdrawPanel({
 
   return (
     <div className="flex flex-col gap-3">
-      {/* Saved addresses — tap to fill. */}
+      {/* Address book — collapsed to a single row. The full list pushed the
+          amount field off screen on a phone, so it expands only on request. */}
       {saved.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <div className="text-xs text-text-muted">Saved addresses</div>
-          <div className="flex flex-col gap-1.5">
-            {saved.map((a) => (
-              <div
-                key={a.id}
-                className="glass-inset flex items-center justify-between rounded-2xl px-4 py-3"
-              >
-                <button
-                  type="button"
-                  onClick={() => {
-                    playSound("tap");
-                    haptic("tap");
-                    setRecipient(a.address);
-                  }}
-                  className="flex min-w-0 flex-1 flex-col items-start text-left"
+        <div className="flex flex-col gap-1.5">
+          <button
+            type="button"
+            onClick={() => {
+              playSound("tap");
+              haptic("tap");
+              setBookOpen((v) => !v);
+            }}
+            aria-expanded={bookOpen}
+            className="glass-inset flex items-center justify-between rounded-2xl px-4 py-3 text-left"
+          >
+            <span className="flex items-center gap-2 text-sm font-medium text-text">
+              <HugeiconsIcon icon={BookmarkAdd02Icon} size={15} />
+              Address book
+              <span className="text-[11px] font-normal text-text-muted">
+                {saved.length}
+              </span>
+            </span>
+            <HugeiconsIcon
+              icon={ArrowDown01Icon}
+              size={16}
+              className={`text-text-muted transition-transform ${
+                bookOpen ? "rotate-180" : ""
+              }`}
+            />
+          </button>
+
+          {bookOpen && (
+            <div className="flex flex-col gap-1.5">
+              {saved.map((a) => (
+                <div
+                  key={a.id}
+                  className="glass-inset flex items-center justify-between rounded-2xl px-4 py-3"
                 >
-                  <span className="truncate text-sm font-semibold text-text">
-                    {a.label}
-                  </span>
-                  <span className="tabular truncate text-[11px] text-text-muted">
-                    {short(a.address)}
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    haptic("tap");
-                    void withdrawal.deleteAddress(a.id);
-                  }}
-                  aria-label={`Remove ${a.label}`}
-                  className="ml-2 shrink-0 rounded-lg p-2 text-text-muted transition-colors hover:text-down"
-                >
-                  <HugeiconsIcon icon={Delete02Icon} size={16} />
-                </button>
-              </div>
-            ))}
-          </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playSound("tap");
+                      haptic("tap");
+                      setRecipient(a.address);
+                      // Picking one is the point of opening the list, so close
+                      // it again and leave the amount field in view.
+                      setBookOpen(false);
+                    }}
+                    className="flex min-w-0 flex-1 flex-col items-start text-left"
+                  >
+                    <span className="truncate text-sm font-semibold text-text">
+                      {a.label}
+                    </span>
+                    <span className="tabular truncate text-[11px] text-text-muted">
+                      {short(a.address)}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      haptic("tap");
+                      void withdrawal.deleteAddress(a.id);
+                    }}
+                    aria-label={`Remove ${a.label}`}
+                    className="ml-2 shrink-0 rounded-lg p-2 text-text-muted transition-colors hover:text-down"
+                  >
+                    <HugeiconsIcon icon={Delete02Icon} size={16} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -268,57 +303,118 @@ export function WithdrawPanel({
         {withdrawal.busy ? "Sending…" : (blocker ?? "Send USDC")}
       </button>
 
-      {/* <p className="text-center text-[10px] text-text-muted">
-        Network fee paid by Tradash — no SOL needed.
-      </p> */}
-
-      {/* Post-send: save this address to the book under a name. */}
-      {savePrompt && (
-        <div className="glass-inset flex flex-col gap-2 rounded-2xl p-4">
-          <div className="flex items-center gap-2 text-xs text-text">
-            <HugeiconsIcon icon={BookmarkAdd02Icon} size={15} />
-            Save this address?
-          </div>
-          <div className="tabular text-[11px] text-text-muted">
-            {short(savePrompt)}
-          </div>
-          <input
-            type="text"
-            value={label}
-            onChange={(e) => setLabel(e.target.value)}
-            maxLength={40}
-            placeholder="Name (e.g. Coinbase)"
-            className="w-full rounded-xl bg-white/5 px-3 py-2 text-sm text-text outline-none placeholder:text-text-muted/50"
-          />
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setSavePrompt(null);
-                setLabel("");
-              }}
-              className="flex-1 rounded-xl bg-white/5 py-2.5 text-sm font-medium text-text-muted transition-colors hover:text-text"
-            >
-              Not now
-            </button>
-            <button
-              type="button"
-              disabled={!label.trim()}
-              onClick={async () => {
-                playSound("tap");
-                haptic("tap");
-                await withdrawal.saveAddress(savePrompt, label.trim());
-                setSavePrompt(null);
-                setLabel("");
-              }}
-              className="flex-1 rounded-xl bg-up py-2.5 text-sm font-semibold text-black transition-transform active:scale-95 disabled:opacity-45"
-            >
-              Save
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Post-send: save this address to the book under a name. Raised as its
+          own modal rather than appended below the form — inline, it landed
+          under the fold right after the panel reset, so it was easy to miss. */}
+      <SaveAddressModal
+        address={savePrompt}
+        label={label}
+        onLabelChange={setLabel}
+        onDismiss={() => {
+          setSavePrompt(null);
+          setLabel("");
+        }}
+        onSave={async () => {
+          if (!savePrompt) return;
+          playSound("tap");
+          haptic("tap");
+          await withdrawal.saveAddress(savePrompt, label.trim());
+          setSavePrompt(null);
+          setLabel("");
+        }}
+      />
     </div>
+  );
+}
+
+/**
+ * "Save this address?" after a successful send.
+ *
+ * Sits at z-[71], matching ConfirmModal: it is raised BY the account sheet
+ * (z-50) and must sit above its own opener.
+ */
+function SaveAddressModal({
+  address,
+  label,
+  onLabelChange,
+  onDismiss,
+  onSave,
+}: {
+  /** The address to save, or null when the modal is closed. */
+  address: string | null;
+  label: string;
+  onLabelChange: (v: string) => void;
+  onDismiss: () => void;
+  onSave: () => void;
+}) {
+  // Escape dismisses, matching a scrim tap — never the action.
+  useEffect(() => {
+    if (!address) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onDismiss();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [address, onDismiss]);
+
+  return (
+    <AnimatePresence>
+      {address && (
+        <>
+          <motion.div
+            className="fixed inset-0 z-[70] bg-black/60"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onDismiss}
+          />
+          <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Save this address"
+            className="fixed inset-x-6 top-1/2 z-[71] mx-auto flex max-w-xs -translate-y-1/2 flex-col rounded-3xl bg-bg-elevated p-5 ring-1 ring-white/10"
+            initial={{ opacity: 0, scale: 0.94, y: "-46%" }}
+            animate={{ opacity: 1, scale: 1, y: "-50%" }}
+            exit={{ opacity: 0, scale: 0.94, y: "-46%" }}
+            transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <h2 className="flex items-center justify-center gap-2 text-center text-base font-semibold">
+              <HugeiconsIcon icon={BookmarkAdd02Icon} size={16} />
+              Save this address?
+            </h2>
+            <p className="tabular mt-2 text-center text-[11px] text-text-muted">
+              {short(address)}
+            </p>
+            <input
+              type="text"
+              value={label}
+              onChange={(e) => onLabelChange(e.target.value)}
+              maxLength={40}
+              autoFocus
+              placeholder="Name (e.g. Coinbase)"
+              className="mt-4 w-full rounded-xl bg-white/5 px-3 py-2.5 text-sm text-text outline-none placeholder:text-text-muted/50"
+            />
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={onDismiss}
+                className="glass-inset flex-1 rounded-2xl py-3 text-sm font-medium text-text-muted transition-colors hover:text-text active:scale-95"
+              >
+                Not now
+              </button>
+              <button
+                type="button"
+                disabled={!label.trim()}
+                onClick={onSave}
+                className="flex-1 rounded-2xl bg-up py-3 text-sm font-bold text-black transition-transform active:scale-95 disabled:opacity-45"
+              >
+                Save
+              </button>
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
   );
 }
 

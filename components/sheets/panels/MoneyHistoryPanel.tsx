@@ -152,9 +152,6 @@ function MovementRow({ movement: m }: { movement: Movement }) {
           </span>
         )}
         {failed && <span className="text-[10px] text-down">Failed</span>}
-        {m.sponsored && m.status === "confirmed" && (
-          <span className="text-[10px] text-text-muted">Fee paid by us</span>
-        )}
       </div>
     </div>
   );

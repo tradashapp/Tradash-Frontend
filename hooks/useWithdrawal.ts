@@ -178,7 +178,7 @@ export function useWithdrawal() {
         toast(`Sent ${fmtUsd(amount)}`, {
           type: "success",
           id: "withdraw",
-          description: "Network fee paid by Tradash.",
+          description: `${fmtUsd(amount)} is on its way to ${to.slice(0, 4)}…${to.slice(-4)}.`,
         });
         void refreshMovements();
         void refreshAddresses();

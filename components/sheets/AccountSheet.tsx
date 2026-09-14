@@ -79,7 +79,7 @@ interface Props {
 // The menu view has no title — it leads with the profile header instead.
 const TITLES: Record<View, string> = {
   menu: "",
-  settings: "Trade settings",
+  settings: "Settings",
   settingsMenu: "Settings",
   history: "Trade history",
   transfer: "Transfer margin",
@@ -228,7 +228,7 @@ export function AccountSheet({
                 onDeposit={() => go("deposit")}
               />
             )}
-            {view === "settings" && <SettingsPanel signer={agent.signer} />}
+            {view === "settings" && <SettingsPanel />}
             {view === "settingsMenu" && <SettingsMenuPanel />}
             {view === "history" && (
               <HistoryPanel

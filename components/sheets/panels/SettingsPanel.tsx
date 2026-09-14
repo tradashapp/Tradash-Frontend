@@ -1,30 +1,23 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { MinusSignIcon, PlusSignIcon } from "@hugeicons/core-free-icons";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { updateSettings } from "@/store/slices/settingsSlice";
 import { setMode } from "@/store/slices/tradingModeSlice";
 import { ToggleSwitch } from "@/components/ui/ToggleSwitch";
 import { MenuSection } from "@/components/ui/MenuSection";
-import { LeverageSettings } from "./LeverageSettings";
-import { useLeverage } from "@/hooks/useLeverage";
-import type { AgentSigner } from "@/lib/bulk/signing";
-import { playSound } from "@/lib/sound";
-import { haptic } from "@/lib/haptics";
 
 // Settings content, rendered inside the AccountSheet as a sub-view. Edits the
 // settings slice (persisted). No sheet chrome here — the host provides it.
 //
-// `signer` comes from the host because leverage is not a purely local setting:
-// Bulk keeps it per market on the ACCOUNT, so a change has to be signed and
-// pushed there (the agent key can do it — no wallet popup).
-export function SettingsPanel({ signer }: { signer: AgentSigner | null }) {
+// Order defaults (size, leverage, trailing) deliberately do NOT live here any
+// more. They are per-market and are set from the market settings sheet, opened
+// from the dock on the chart — next to the market they apply to, and next to
+// the balance that bounds them. What is left is genuinely global: which mode
+// you are trading, and how the app responds to a tap.
+export function SettingsPanel() {
   const dispatch = useAppDispatch();
   const s = useAppSelector((st) => st.settings);
   const mode = useAppSelector((st) => st.tradingMode.mode);
-  const leverage = useLeverage(signer);
 
   return (
     <div className="flex flex-col">
@@ -47,33 +40,6 @@ export function SettingsPanel({ signer }: { signer: AgentSigner | null }) {
         </div>
       </MenuSection>
 
-      {/* Defaults applied to every new trade. */}
-      <MenuSection title="Trade defaults" className="mb-4">
-        <Stepper
-          label="Position size"
-          value={s.defaultPositionSize}
-          suffix="$"
-          step={25}
-          min={5}
-          onChange={(v) => dispatch(updateSettings({ defaultPositionSize: v }))}
-        />
-        <Stepper
-          label="Trailing stop distance"
-          value={+(s.defaultTrailPct * 100).toFixed(2)}
-          suffix="%"
-          step={0.1}
-          min={0.1}
-          decimals={1}
-          onChange={(v) => dispatch(updateSettings({ defaultTrailPct: v / 100 }))}
-        />
-      </MenuSection>
-
-      {/* Leverage is per market — each has its own cap on Bulk — so it gets its
-          own section rather than a row in "Trade defaults". */}
-      <div className="mb-4">
-        <LeverageSettings leverage={leverage} />
-      </div>
-
       {/* Feedback on interaction. */}
       <MenuSection title="Feedback">
         <ToggleRow
@@ -87,106 +53,6 @@ export function SettingsPanel({ signer }: { signer: AgentSigner | null }) {
           onChange={(on) => dispatch(updateSettings({ hapticsEnabled: on }))}
         />
       </MenuSection>
-    </div>
-  );
-}
-
-function Stepper({
-  label,
-  value,
-  onChange,
-  step,
-  min = 0,
-  max = Infinity,
-  suffix,
-  decimals = 0,
-}: {
-  label: string;
-  value: number;
-  onChange: (v: number) => void;
-  step: number;
-  min?: number;
-  max?: number;
-  suffix?: string;
-  decimals?: number;
-}) {
-  const clamp = (v: number) =>
-    +Math.min(max, Math.max(min, v)).toFixed(decimals);
-
-  // Tap the number itself to type it manually (instead of only +/− stepping).
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState("");
-  const inputRef = useRef<HTMLInputElement | null>(null);
-
-  const commit = () => {
-    const v = Number(draft);
-    if (!Number.isNaN(v) && draft.trim() !== "") onChange(clamp(v));
-    setEditing(false);
-  };
-  const startEdit = () => {
-    setDraft(String(value));
-    setEditing(true);
-    requestAnimationFrame(() => inputRef.current?.select());
-  };
-
-  return (
-    <div className="flex items-center justify-between px-4 py-3">
-      <span className="text-sm">{label}</span>
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={() => {
-            playSound("tap");
-            haptic("tap");
-            onChange(clamp(value - step));
-          }}
-          className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-text transition-colors hover:bg-white/15 active:scale-90"
-        >
-          <HugeiconsIcon icon={MinusSignIcon} size={16} />
-        </button>
-        {editing ? (
-          <input
-            ref={inputRef}
-            type="number"
-            inputMode="decimal"
-            value={draft}
-            autoFocus
-            onChange={(e) => setDraft(e.target.value)}
-            onBlur={commit}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") commit();
-              if (e.key === "Escape") setEditing(false);
-            }}
-            className="tabular w-16 bg-transparent text-center text-sm font-semibold text-text outline-none"
-          />
-        ) : (
-          <button
-            type="button"
-            onClick={() => {
-              playSound("tap");
-              haptic("tap");
-              startEdit();
-            }}
-            className="tabular w-16 text-center text-sm font-semibold text-text"
-            aria-label={`Edit ${label}`}
-          >
-            {suffix === "$" ? "$" : ""}
-            {value}
-            {suffix && suffix !== "$" ? suffix : ""}
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={() => {
-            playSound("tap");
-            haptic("tap");
-            onChange(clamp(value + step));
-          }}
-          className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-text transition-colors hover:bg-white/15 active:scale-90"
-        >
-          <HugeiconsIcon icon={PlusSignIcon} size={16} />
-        </button>
-      </div>
     </div>
   );
 }

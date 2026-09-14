@@ -31,8 +31,8 @@ interface SettingsEntry {
 const ENTRIES: SettingsEntry[] = [
   {
     icon: SlidersHorizontalIcon,
-    label: "Trade Settings",
-    description: "Order defaults, leverage, trailing stops",
+    label: "Settings",
+    description: "Mode, sound and haptics",
   },
   {
     icon: Wallet01Icon,

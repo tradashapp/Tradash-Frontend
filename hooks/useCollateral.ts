@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAppSelector } from "@/store/hooks";
 import { marginHealth } from "@/lib/perp";
 import { buildDepositTx, buildWithdrawIntentTx } from "@/lib/solana/bulkVault";
@@ -202,18 +202,38 @@ export function useCollateral(
     ]
   );
 
-  return {
-    mode,
-    walletUsdc, // user's own Privy wallet USDC (live) or null
-    equity: mode === "live" ? liveBalance?.equity ?? null : demoBalance,
-    available: health.available,
-    inUse: health.inUse,
-    health: health.ratio,
-    maxWithdrawable: health.maxWithdrawable,
-    busy,
-    deposit,
-    withdraw,
-    withdrawEnabled: WITHDRAW_ENABLED,
-    refreshWallet,
-  };
+  // Memoised for the same reason as `useWithdrawal`: consumers put this object
+  // in dependency arrays, and a new literal every render turned the 30s wallet
+  // poll above into a re-render that reset unrelated timers elsewhere in the
+  // sheet.
+  return useMemo(
+    () => ({
+      mode,
+      walletUsdc, // user's own Privy wallet USDC (live) or null
+      equity: mode === "live" ? liveBalance?.equity ?? null : demoBalance,
+      available: health.available,
+      inUse: health.inUse,
+      health: health.ratio,
+      maxWithdrawable: health.maxWithdrawable,
+      busy,
+      deposit,
+      withdraw,
+      withdrawEnabled: WITHDRAW_ENABLED,
+      refreshWallet,
+    }),
+    [
+      mode,
+      walletUsdc,
+      liveBalance?.equity,
+      demoBalance,
+      health.available,
+      health.inUse,
+      health.ratio,
+      health.maxWithdrawable,
+      busy,
+      deposit,
+      withdraw,
+      refreshWallet,
+    ]
+  );
 }

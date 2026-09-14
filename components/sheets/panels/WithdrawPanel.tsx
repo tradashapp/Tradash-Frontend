@@ -52,6 +52,16 @@ export function WithdrawPanel({
   // Validate the recipient, debounced. Each check is an RPC round trip, so it
   // must not fire per keystroke; the guard also drops responses that arrive
   // after the input changed again.
+  //
+  // The effect depends on the ADDRESS ALONE. `inspect` is reached through a ref
+  // so that nothing else about the hook can retrigger it: this effect's cleanup
+  // cancels the pending timer, so any unrelated re-render that re-ran it would
+  // push the lookup back another 450ms. With `withdrawal` itself in the deps,
+  // the hook's own `checking` flag and the 30s wallet poll in the sibling
+  // collateral hook did exactly that, starving the request indefinitely.
+  const inspectRef = useRef(withdrawal.inspect);
+  inspectRef.current = withdrawal.inspect;
+
   const latest = useRef(0);
   useEffect(() => {
     if (!trimmed) {
@@ -62,15 +72,14 @@ export function WithdrawPanel({
     // discarded rather than overwriting the answer for what is now on screen.
     const seq = ++latest.current;
     const t = setTimeout(async () => {
-      const result = await withdrawal.inspect(trimmed);
+      const result = await inspectRef.current(trimmed);
       if (seq === latest.current) {
         setLookup(result);
         setAcknowledged(false);
       }
     }, 450);
     return () => clearTimeout(t);
-    // `withdrawal.inspect` is stable (useCallback with no deps).
-  }, [trimmed, withdrawal]);
+  }, [trimmed]);
 
   const saved = withdrawal.addresses;
   const overBalance = walletUsdc != null && amt > walletUsdc;

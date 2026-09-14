@@ -23,6 +23,7 @@ import { useTradeRecorder } from "@/hooks/useTradeRecorder";
 import { useFeedback } from "@/hooks/useFeedback";
 import { useAllPrices } from "@/hooks/useAllPrices";
 import { useTrade } from "@/hooks/useTrade";
+import { useLeverage } from "@/hooks/useLeverage";
 import { useIsDesktop } from "@/hooks/useIsDesktop";
 import type { PositionOverlay } from "@/lib/chart/engine";
 import type { CompletedTrade, MarketSymbol, TradeEpisode } from "@/types";
@@ -122,10 +123,16 @@ export function TradeScreen({ initialMarket }: Props) {
     if (!tutorialSeen) setTutorialOpen(true);
   }, [tutorialSeen]);
 
+  // Per-market leverage, owned here so the market-settings sheet (inside the
+  // layout) and the order path agree on one instance — it debounces its push to
+  // Bulk, and two copies would each run their own timer for the same market.
+  const leverage = useLeverage(agent.signer);
+
   const layoutProps = {
     symbol: activeSymbol,
     chartPosition,
     trade,
+    leverage,
     onOpenMarket: () => setSwitcherOpen(true),
     onOpenAccount: () => setAccountOpen(true),
     onShare: (subject: ShareSubject) => setShareSubject(subject),

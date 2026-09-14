@@ -7,16 +7,18 @@ import { MarketHeader } from "@/components/trade/MarketHeader";
 import { BalancePill } from "@/components/trade/BalancePill";
 import { TradeControls } from "@/components/trade/TradeControls";
 import { PositionDock } from "@/components/trade/PositionDock";
-import { PositionsSheet } from "@/components/sheets/PositionsSheet";
+import { MarketSettingsSheet } from "@/components/sheets/MarketSettingsSheet";
 import type { ChartFrame, PositionOverlay } from "@/lib/chart/engine";
 import type { MarketSymbol } from "@/types";
 import type { useTrade } from "@/hooks/useTrade";
+import type { useLeverage } from "@/hooks/useLeverage";
 import type { ShareSubject } from "@/components/share/ShareCardModal";
 
 interface Props {
   symbol: MarketSymbol;
   chartPosition: PositionOverlay | null;
   trade: ReturnType<typeof useTrade>;
+  leverage: ReturnType<typeof useLeverage>;
   onOpenMarket: () => void;
   onOpenAccount: () => void;
   onShare: (subject: ShareSubject) => void;
@@ -28,12 +30,13 @@ export function MobileLayout({
   symbol,
   chartPosition,
   trade,
+  leverage,
   onOpenMarket,
   onOpenAccount,
   onShare,
 }: Props) {
   const gridRef = useRef<DotGridHandle | null>(null);
-  const [positionsOpen, setPositionsOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const handleFrame = useCallback((f: ChartFrame) => {
     gridRef.current?.react(f);
   }, []);
@@ -51,9 +54,11 @@ export function MobileLayout({
         />
       </div>
 
-      {/* Position dock — docked to the chart's left-center. Shown while a
-          position is open (add more size / reduce it). */}
-      {trade.position && <PositionDock trade={trade} />}
+      {/* Market dock — docked to the chart's left-center. ALWAYS shown: it
+          reads out the size / leverage / trailing the next order will use, so
+          it is just as relevant on a flat account. Tapping opens the market
+          settings sheet. */}
+      <PositionDock symbol={symbol} onOpen={() => setSettingsOpen(true)} />
 
       {/* pt clears the status bar / notch. Needs `viewportFit: "cover"` in the
           root viewport export for the inset to be non-zero — in an installed
@@ -87,13 +92,15 @@ export function MobileLayout({
           onShort={trade.openShort}
           onToggleTrail={trade.toggleTrail}
           onClose={trade.close}
-          onViewPositions={() => setPositionsOpen(true)}
+          onViewPositions={() => setSettingsOpen(true)}
         />
       </footer>
 
-      <PositionsSheet
-        open={positionsOpen}
-        onClose={() => setPositionsOpen(false)}
+      <MarketSettingsSheet
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        symbol={symbol}
+        leverage={leverage}
         onShare={onShare}
         onCloseAll={trade.closeAll}
       />

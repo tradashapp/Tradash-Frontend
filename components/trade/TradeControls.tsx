@@ -12,6 +12,7 @@ import {
   Cancel01Icon,
 } from "@hugeicons/core-free-icons";
 import { roi } from "@/lib/perp";
+import { useAllPositions } from "@/hooks/useAllPositions";
 import { Odometer } from "@/components/ui/Odometer";
 import { playSound } from "@/lib/sound";
 import { haptic } from "@/lib/haptics";
@@ -27,9 +28,11 @@ interface Props {
   onToggleTrail: () => void;
   onClose: () => void;
   /**
-   * Mobile only: open the positions sheet. When provided, a "View positions"
-   * pill replaces the old inline detail strip. Desktop omits it (the right panel
-   * already shows the full positions view), so the pill isn't rendered there.
+   * Mobile only: open the market settings sheet (which carries the positions
+   * list). When provided, a "View positions" pill is shown above the trade
+   * buttons WHENEVER ANY position is open — including ones on other markets.
+   * Desktop omits it (the right panel already shows the full positions view),
+   * so the pill isn't rendered there.
    */
   onViewPositions?: () => void;
 }
@@ -47,8 +50,25 @@ export function TradeControls({
   onClose,
   onViewPositions,
 }: Props) {
+  // Positions across EVERY market, not just the one on screen. The pill used to
+  // live inside the "in a position" branch, which meant a user holding ETH
+  // while looking at the BTC chart had no way back to their own position — the
+  // sheet it opens has always listed every market.
+  const { items, totalPnl, totalMargin } = useAllPositions();
+  const anyOpen = items.length > 0;
+
   return (
-    <AnimatePresence mode="wait" initial={false}>
+    <div className="flex flex-col gap-2">
+      {onViewPositions && anyOpen && (
+        <ViewPositionsPill
+          count={items.length}
+          totalPnl={totalPnl}
+          totalMargin={totalMargin}
+          onClick={onViewPositions}
+        />
+      )}
+
+      <AnimatePresence mode="wait" initial={false}>
       {!position ? (
         <motion.div
           key="flat"
@@ -90,11 +110,67 @@ export function TradeControls({
             trailPct={trailPct}
             onToggleTrail={onToggleTrail}
             onClose={onClose}
-            onViewPositions={onViewPositions}
           />
         </motion.div>
       )}
-    </AnimatePresence>
+      </AnimatePresence>
+    </div>
+  );
+}
+
+/**
+ * The "View positions" pill, shown above the trade buttons whenever anything is
+ * open anywhere. Summarises the WHOLE book (count + aggregate ROI) rather than
+ * one position, because it can now appear while the user is looking at a market
+ * they hold nothing on — a single position's ROI would be a number with no
+ * visible referent.
+ */
+function ViewPositionsPill({
+  count,
+  totalPnl,
+  totalMargin,
+  onClick,
+}: {
+  count: number;
+  totalPnl: number;
+  totalMargin: number;
+  onClick: () => void;
+}) {
+  const isProfit = totalPnl >= 0;
+  const roiPct = totalMargin > 0 ? (totalPnl / totalMargin) * 100 : 0;
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="glass-inset flex items-center gap-3 rounded-full px-4 py-3 text-left transition-colors active:scale-[0.99]"
+    >
+      <span
+        className={`flex h-7 w-7 items-center justify-center rounded-full ${
+          isProfit ? "bg-up-soft text-up" : "bg-down-soft text-down"
+        }`}
+      >
+        <HugeiconsIcon
+          icon={isProfit ? ArrowUpRight01Icon : ArrowDownRight01Icon}
+          size={16}
+        />
+      </span>
+      <span className="text-sm font-semibold">
+        {count === 1 ? "View position" : `View ${count} positions`}
+      </span>
+      <span
+        className={`ml-1 text-sm font-bold ${isProfit ? "text-up" : "text-down"}`}
+      >
+        <Odometer
+          value={`${isProfit ? "+" : "−"}${Math.abs(roiPct).toFixed(1)}%`}
+        />
+      </span>
+      <HugeiconsIcon
+        icon={ArrowRight01Icon}
+        size={18}
+        className="ml-auto text-text-muted"
+      />
+    </button>
   );
 }
 
@@ -105,7 +181,6 @@ function ActivePosition({
   trailPct,
   onToggleTrail,
   onClose,
-  onViewPositions,
 }: {
   position: Position;
   trailActive: boolean;
@@ -113,49 +188,9 @@ function ActivePosition({
   trailPct: number;
   onToggleTrail: () => void;
   onClose: () => void;
-  onViewPositions?: () => void;
 }) {
-  const isProfit = position.unrealizedPnl >= 0;
-  const roiPct = roi(position.unrealizedPnl, position.marginUsed) * 100;
-  const up = position.direction === "long";
-
   return (
     <div className="flex flex-col gap-2">
-      {/* "View positions" pill (mobile only) — opens the positions sheet with the
-          full details. Desktop omits onViewPositions, so nothing renders here. */}
-      {onViewPositions && (
-        <button
-          type="button"
-          onClick={onViewPositions}
-          className="glass-inset flex items-center gap-3 rounded-full px-4 py-3 text-left transition-colors active:scale-[0.99]"
-        >
-          <span
-            className={`flex h-7 w-7 items-center justify-center rounded-full ${
-              up ? "bg-up-soft text-up" : "bg-down-soft text-down"
-            }`}
-          >
-            <HugeiconsIcon
-              icon={up ? ArrowUpRight01Icon : ArrowDownRight01Icon}
-              size={16}
-            />
-          </span>
-          <span className="text-sm font-semibold">View positions</span>
-          <span
-            className={`ml-1 text-sm font-bold ${
-              isProfit ? "text-up" : "text-down"
-            }`}
-          >
-            <Odometer
-              value={`${isProfit ? "+" : "−"}${Math.abs(roiPct).toFixed(1)}%`}
-            />
-          </span>
-          <HugeiconsIcon
-            icon={ArrowRight01Icon}
-            size={18}
-            className="ml-auto text-text-muted"
-          />
-        </button>
-      )}
 
       {/* Trail (lock profits) / Close (100%) */}
       {/* Trail can only be armed once in enough profit that the stop lands above

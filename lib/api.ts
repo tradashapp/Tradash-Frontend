@@ -215,6 +215,26 @@ export interface RecipientCheck {
   reason: string | null;
 }
 
+/**
+ * A base58 Solana address is 32-44 characters. Checked client-side so a
+ * half-typed address never reaches the backend, whose schema rejects anything
+ * shorter with a 400 that carries no usable message.
+ */
+export const looksLikeAddress = (a: string): boolean =>
+  /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(a.trim());
+
+/**
+ * The outcome of a recipient lookup.
+ *
+ * A failed lookup is NOT the same as an invalid address, and the UI must be
+ * able to tell them apart: an invalid address is the user's to fix, a failed
+ * lookup is ours. Collapsing both into null is what left the send button
+ * disabled with nothing on screen to explain it.
+ */
+export type RecipientLookup =
+  | { status: "ok"; check: RecipientCheck }
+  | { status: "error"; message: string };
+
 /** A gas-sponsored transfer, built and fee-payer-signed but not yet sent. */
 export interface PreparedWithdrawal {
   /** base64 transaction awaiting the user's signature. */

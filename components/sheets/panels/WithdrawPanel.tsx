@@ -12,7 +12,7 @@ import {
 import { formatUsd } from "@/lib/format";
 import { playSound } from "@/lib/sound";
 import { haptic } from "@/lib/haptics";
-import type { RecipientCheck } from "@/lib/api";
+import type { RecipientLookup } from "@/lib/api";
 import type { useWithdrawal } from "@/hooks/useWithdrawal";
 
 /**
@@ -39,7 +39,7 @@ export function WithdrawPanel({
 }) {
   const [recipient, setRecipient] = useState("");
   const [amount, setAmount] = useState("");
-  const [check, setCheck] = useState<RecipientCheck | null>(null);
+  const [lookup, setLookup] = useState<RecipientLookup | null>(null);
   // After a successful send: offer to save the address under a name.
   const [savePrompt, setSavePrompt] = useState<string | null>(null);
   const [label, setLabel] = useState("");
@@ -55,14 +55,16 @@ export function WithdrawPanel({
   const latest = useRef(0);
   useEffect(() => {
     if (!trimmed) {
-      setCheck(null);
+      setLookup(null);
       return;
     }
+    // Bumped here so a response that arrives after the input changed again is
+    // discarded rather than overwriting the answer for what is now on screen.
     const seq = ++latest.current;
     const t = setTimeout(async () => {
       const result = await withdrawal.inspect(trimmed);
       if (seq === latest.current) {
-        setCheck(result);
+        setLookup(result);
         setAcknowledged(false);
       }
     }, 450);
@@ -72,20 +74,36 @@ export function WithdrawPanel({
 
   const saved = withdrawal.addresses;
   const overBalance = walletUsdc != null && amt > walletUsdc;
+  // The verified recipient, or null when the lookup is pending or failed.
+  const check = lookup?.status === "ok" ? lookup.check : null;
 
-  // Every condition that must hold before money can leave.
+  /**
+   * Every condition that must hold before money can leave.
+   *
+   * This must account for EVERY state in which the send is refused, including
+   * the ones where we simply have no answer yet. A gap here is invisible: the
+   * button renders its idle label while staying disabled, which reads as the
+   * app being broken rather than as a step still outstanding.
+   */
   const blocker = useMemo(() => {
     if (!trimmed) return "Enter a recipient address";
-    if (check && !check.valid) return check.reason ?? "Invalid address";
-    if (check && !check.hasUsdcAccount)
+    if (withdrawal.checking) return "Checking address…";
+    if (!lookup) return "Checking address…";
+    if (lookup.status === "error") return lookup.message;
+    if (!lookup.check.valid) return lookup.check.reason ?? "Invalid address";
+    if (!lookup.check.hasUsdcAccount)
       return "Recipient needs a USDC account first";
     if (amt <= 0) return "Enter an amount";
     if (overBalance) return "Exceeds wallet balance";
-    if (check?.firstTime && !acknowledged) return "Confirm the address first";
+    if (lookup.check.firstTime && !acknowledged)
+      return "Confirm the address first";
     return null;
-  }, [trimmed, check, amt, overBalance, acknowledged]);
+  }, [trimmed, lookup, withdrawal.checking, amt, overBalance, acknowledged]);
 
-  const canSubmit = !blocker && !withdrawal.busy && !!check?.valid;
+  // `blocker` now covers the unverified cases on its own, so no extra term is
+  // needed here — one that `blocker` did not also cover is exactly what
+  // produced a disabled button labelled "Send USDC".
+  const canSubmit = !blocker && !withdrawal.busy;
 
   const submit = async () => {
     if (!canSubmit) return;
@@ -97,7 +115,7 @@ export function WithdrawPanel({
       if (check?.firstTime) setSavePrompt(trimmed);
       setAmount("");
       setRecipient("");
-      setCheck(null);
+      setLookup(null);
       setAcknowledged(false);
     }
   };
@@ -159,7 +177,7 @@ export function WithdrawPanel({
           placeholder="Solana address"
           className="w-full bg-transparent font-mono text-sm text-text outline-none placeholder:text-text-muted/50"
         />
-        <RecipientStatus checking={withdrawal.checking} check={check} />
+        <RecipientStatus checking={withdrawal.checking} lookup={lookup} />
       </div>
 
       {/* Amount */}
@@ -298,10 +316,10 @@ export function WithdrawPanel({
 /** Inline verdict under the recipient field. */
 function RecipientStatus({
   checking,
-  check,
+  lookup,
 }: {
   checking: boolean;
-  check: RecipientCheck | null;
+  lookup: RecipientLookup | null;
 }) {
   if (checking) {
     return (
@@ -311,7 +329,20 @@ function RecipientStatus({
       </div>
     );
   }
-  if (!check) return null;
+  if (!lookup) return null;
+
+  // A lookup that never completed. Rendering nothing here is what made the
+  // disabled send button look unexplained, so it gets a line of its own.
+  if (lookup.status === "error") {
+    return (
+      <div className="mt-2 flex items-start gap-1.5 text-[10px] leading-relaxed text-down">
+        <HugeiconsIcon icon={Alert02Icon} size={11} className="mt-px shrink-0" />
+        <span>{lookup.message}</span>
+      </div>
+    );
+  }
+
+  const check = lookup.check;
 
   // Invalid, or valid-but-unusable (no USDC account). Both block the send.
   if (!check.valid || !check.hasUsdcAccount) {

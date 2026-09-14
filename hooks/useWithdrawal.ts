@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Connection, Transaction } from "@solana/web3.js";
 import { useSignTransaction } from "@privy-io/react-auth/solana";
 import { api, ApiError } from "@/lib/api";
-import type { Movement, RecipientCheck, SavedAddress } from "@/lib/api";
+import { looksLikeAddress } from "@/lib/api";
+import type { Movement, RecipientLookup, SavedAddress } from "@/lib/api";
 import { solanaRpcUrl } from "@/lib/config";
 import { useToast } from "@/components/toast/ToastProvider";
 
@@ -52,6 +53,7 @@ function apiMessage(e: unknown, fallback: string): string {
     if (e.status === 429) return "Daily withdrawal limit reached. Try tomorrow.";
     if (e.status === 503) return "Withdrawals are temporarily unavailable.";
     if (e.status === 401) return "Please sign in again.";
+    if (e.status === 400) return "Not a valid Solana address.";
   }
   return e instanceof Error ? e.message : fallback;
 }
@@ -90,15 +92,32 @@ export function useWithdrawal() {
   /**
    * Validate a recipient. Debounced by the caller — this hits the chain to see
    * whether the address has a USDC account, so it should not run per keystroke.
+   *
+   * Returns a tagged result rather than null-on-failure. The panel gates the
+   * send button on this, so "the lookup broke" has to be distinguishable from
+   * "the address is bad" — otherwise the button just goes dead with no reason
+   * shown anywhere.
    */
   const inspect = useCallback(
-    async (address: string): Promise<RecipientCheck | null> => {
-      if (!address.trim()) return null;
+    async (address: string): Promise<RecipientLookup | null> => {
+      const trimmed = address.trim();
+      if (!trimmed) return null;
+      // A half-typed address would earn a 400 from the backend's schema, whose
+      // body carries no usable message. Answer locally instead of round-tripping.
+      if (!looksLikeAddress(trimmed)) {
+        return {
+          status: "error",
+          message: "Not a valid Solana address.",
+        };
+      }
       setChecking(true);
       try {
-        return await api.inspectRecipient(address.trim());
-      } catch {
-        return null;
+        return { status: "ok", check: await api.inspectRecipient(trimmed) };
+      } catch (e) {
+        return {
+          status: "error",
+          message: apiMessage(e, "Could not verify this address. Try again."),
+        };
       } finally {
         setChecking(false);
       }
@@ -206,16 +225,38 @@ export function useWithdrawal() {
     [refreshAddresses, toast]
   );
 
-  return {
-    busy,
-    checking,
-    addresses,
-    movements,
-    inspect,
-    withdraw,
-    saveAddress,
-    deleteAddress,
-    refreshMovements,
-    refreshAddresses,
-  };
+  /**
+   * Memoised because consumers put this object in effect dependency arrays.
+   *
+   * A fresh literal every render made any such effect re-run on every state
+   * change — including the `checking` flag this hook sets itself. In the
+   * withdraw panel that reset the debounce timer mid-flight, so the recipient
+   * lookup was rescheduled instead of firing and could be starved indefinitely.
+   */
+  return useMemo(
+    () => ({
+      busy,
+      checking,
+      addresses,
+      movements,
+      inspect,
+      withdraw,
+      saveAddress,
+      deleteAddress,
+      refreshMovements,
+      refreshAddresses,
+    }),
+    [
+      busy,
+      checking,
+      addresses,
+      movements,
+      inspect,
+      withdraw,
+      saveAddress,
+      deleteAddress,
+      refreshMovements,
+      refreshAddresses,
+    ]
+  );
 }

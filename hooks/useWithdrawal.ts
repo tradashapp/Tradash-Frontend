@@ -85,6 +85,26 @@ export function useWithdrawal() {
     }
   }, []);
 
+  /**
+   * Ask the backend to look for USDC that arrived from outside, then refresh.
+   *
+   * Deposits are discovered by scanning the chain rather than reported by
+   * whoever sent them, so nothing records one until someone looks. Returns
+   * how many new rows were found, which lets a caller poll until a deposit
+   * shows up instead of guessing at a delay.
+   */
+  const scanDeposits = useCallback(async (): Promise<number> => {
+    try {
+      const { found } = await api.scanDeposits();
+      if (found > 0) await refreshMovements();
+      return found;
+    } catch {
+      // Best-effort: the history read scans too, so a failure here only means
+      // the deposit surfaces a little later.
+      return 0;
+    }
+  }, [refreshMovements]);
+
   useEffect(() => {
     void refreshAddresses();
   }, [refreshAddresses]);
@@ -245,6 +265,7 @@ export function useWithdrawal() {
       deleteAddress,
       refreshMovements,
       refreshAddresses,
+      scanDeposits,
     }),
     [
       busy,
@@ -257,6 +278,7 @@ export function useWithdrawal() {
       deleteAddress,
       refreshMovements,
       refreshAddresses,
+      scanDeposits,
     ]
   );
 }

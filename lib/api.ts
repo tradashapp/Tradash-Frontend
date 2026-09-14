@@ -497,6 +497,18 @@ export const api = {
   fetchMovements: (limit = 50): Promise<Movement[]> =>
     req<Movement[]>(`/movements?limit=${limit}`),
 
+  /**
+   * Force a scan of the in-app wallet for USDC that arrived from outside.
+   *
+   * Deposits are found by reading the chain, not by a call at the time they
+   * happen, so this is how the UI asks "has it landed yet?" right after a
+   * user sends funds instead of waiting for the next history read.
+   */
+  scanDeposits: (): Promise<{ found: number; movements: Movement[] }> =>
+    req<{ found: number; movements: Movement[] }>("/movements/scan", {
+      method: "POST",
+    }),
+
   fetchAddressBook: (): Promise<SavedAddress[]> =>
     req<SavedAddress[]>("/address-book"),
 

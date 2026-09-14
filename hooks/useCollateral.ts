@@ -97,6 +97,12 @@ export function useCollateral(
    */
   const sponsoredTransfer = useCallback(
     async (amount: number, direction: "deposit" | "withdraw") => {
+      // Sponsored vault transfers are a mainnet rail; devnet collateral comes
+      // from the faucet. The backend enforces this too — checking here turns a
+      // server round trip into an immediate, clearer message.
+      if (config.bulk.network !== "mainnet") {
+        throw new Error("Vault transfers are mainnet-only (testnet uses the faucet).");
+      }
       // Minted once per attempt so a retry inside it reuses the same key.
       const key = uuid();
       const prepared = await api.prepareTransfer(amount, direction);
@@ -209,11 +215,7 @@ export function useCollateral(
       setBusy(true);
       toast(`Withdrawing ${fmtUsd(amount)}…`, { type: "loading", id: "collateral" });
       try {
-        const { tx, connection } = await buildWithdrawIntentTx(
-          new PublicKey(masterAddress),
-          amount
-        );
-        await sendTransaction({ transaction: tx, connection });
+        await sponsoredTransfer(amount, "withdraw");
         // A withdrawal INTENT: the instruction signals the request and moves no
         // tokens itself, so the wallet balance does not change on this tick —
         // Bulk pays out from the vault after observing it. Worded as "on its
@@ -243,7 +245,7 @@ export function useCollateral(
       health.maxWithdrawable,
       toast,
       refreshWallet,
-      sendTransaction,
+      sponsoredTransfer,
     ]
   );
 

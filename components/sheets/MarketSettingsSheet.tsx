@@ -4,20 +4,16 @@ import { useMemo } from "react";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { updateSettings } from "@/store/slices/settingsSlice";
 import { Sheet } from "@/components/ui/Sheet";
-import { PositionsPanel } from "@/components/trade/PositionsPanel";
 import { MARKETS, maxLeverageFor } from "@/lib/markets";
 import { config } from "@/lib/config";
-import { useAllPositions } from "@/hooks/useAllPositions";
 import { MARGIN_HEADROOM } from "@/hooks/useTrade";
 import { haptic } from "@/lib/haptics";
 import { playSound } from "@/lib/sound";
 import type { useLeverage } from "@/hooks/useLeverage";
 import type { MarketSymbol } from "@/types";
-import type { ShareSubject } from "@/components/share/ShareCardModal";
 
 /**
- * Market settings — size, leverage and trailing for the market being traded,
- * plus the full positions list.
+ * Market settings — size, leverage and trailing for the market being traded.
  *
  * Replaces the old add/reduce dock panel. That dock was a position TOOL: it
  * existed only while a trade was open, and its buttons changed a live
@@ -52,8 +48,6 @@ interface Props {
   onClose: () => void;
   symbol: MarketSymbol;
   leverage: ReturnType<typeof useLeverage>;
-  onShare: (subject: ShareSubject) => void;
-  onCloseAll?: () => void | Promise<void>;
 }
 
 export function MarketSettingsSheet({
@@ -61,15 +55,12 @@ export function MarketSettingsSheet({
   onClose,
   symbol,
   leverage,
-  onShare,
-  onCloseAll,
 }: Props) {
   const dispatch = useAppDispatch();
   const s = useAppSelector((st) => st.settings);
   const mode = useAppSelector((st) => st.tradingMode.mode);
   const liveBalance = useAppSelector((st) => st.user.balance);
   const demoBalance = useAppSelector((st) => st.tradingMode.demo.balance);
-  const { items } = useAllPositions();
 
   // What the slider is scaled against. Demo keeps no margin breakdown, so its
   // realized balance stands in for "what you could post".
@@ -337,24 +328,6 @@ export function MarketSettingsSheet({
               more than the free margin this order can use.
             </p>
           )}
-        </section>
-
-        {/* ---- Positions ---------------------------------------------------
-            The whole positions view, exactly as the old sheet showed it.
-            PositionsPanel renders its own "No open positions" state, so a flat
-            account says so rather than the section vanishing. */}
-        <section>
-          <h3 className="mb-1.5 px-1 text-[11px] font-medium uppercase tracking-wide text-text-muted">
-            Positions{items.length > 0 ? ` (${items.length})` : ""}
-          </h3>
-          <PositionsPanel
-            onShare={(subject) => {
-              onShare(subject);
-              onClose();
-            }}
-            onNavigate={onClose}
-            onCloseAll={onCloseAll}
-          />
         </section>
       </div>
     </Sheet>

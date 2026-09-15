@@ -116,8 +116,6 @@ export function DesktopLayout({
         onClose={() => setSettingsOpen(false)}
         symbol={symbol}
         leverage={leverage}
-        onShare={onShare}
-        onCloseAll={trade.closeAll}
       />
     </main>
   );

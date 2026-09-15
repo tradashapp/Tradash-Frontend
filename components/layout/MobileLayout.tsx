@@ -8,6 +8,7 @@ import { BalancePill } from "@/components/trade/BalancePill";
 import { TradeControls } from "@/components/trade/TradeControls";
 import { PositionDock } from "@/components/trade/PositionDock";
 import { MarketSettingsSheet } from "@/components/sheets/MarketSettingsSheet";
+import { PositionsSheet } from "@/components/sheets/PositionsSheet";
 import type { ChartFrame, PositionOverlay } from "@/lib/chart/engine";
 import type { MarketSymbol } from "@/types";
 import type { useTrade } from "@/hooks/useTrade";
@@ -37,6 +38,7 @@ export function MobileLayout({
 }: Props) {
   const gridRef = useRef<DotGridHandle | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [positionsOpen, setPositionsOpen] = useState(false);
   const handleFrame = useCallback((f: ChartFrame) => {
     gridRef.current?.react(f);
   }, []);
@@ -92,15 +94,23 @@ export function MobileLayout({
           onShort={trade.openShort}
           onToggleTrail={trade.toggleTrail}
           onClose={trade.close}
-          onViewPositions={() => setSettingsOpen(true)}
+          onViewPositions={() => setPositionsOpen(true)}
         />
       </footer>
 
+      {/* Two distinct entry points, deliberately kept apart: the dock opens
+          the ORDER SETTINGS (size / leverage / trailing), while the "View
+          positions" pill opens the positions list on its own. */}
       <MarketSettingsSheet
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
         symbol={symbol}
         leverage={leverage}
+      />
+
+      <PositionsSheet
+        open={positionsOpen}
+        onClose={() => setPositionsOpen(false)}
         onShare={onShare}
         onCloseAll={trade.closeAll}
       />

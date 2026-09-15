@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useAppDispatch, useAppSelector, useAppStore } from "@/store/hooks";
 import { MARKETS } from "@/lib/markets";
-import { ratchetTrail, trailHit } from "@/lib/perp";
+import { ratchetTrail, trailHit, trailReferencePrice } from "@/lib/perp";
 import { tickProfit } from "@/lib/sound";
 import { patchPosition } from "@/store/slices/positionSlice";
 import { reduceMarket } from "@/lib/bulk/orders";
@@ -75,10 +75,15 @@ export function useLiveTrail(signer: AgentSigner | null) {
       }
 
       // Ratchet the stop toward profit (clamped to entry).
+      //
+      // The clamp floor is the entry translated into MagicBlock space — the
+      // space `price` arrives in. Clamping to Bulk's raw entryPrice compared
+      // two different feeds: when Bulk ran BELOW MagicBlock the floor sat under
+      // real break-even, so the trail could close at a loss.
       const nextStop = ratchetTrail(
         position.direction,
         position.trailStopPrice,
-        position.entryPrice,
+        trailReferencePrice("live", position),
         price,
         trailPct
       );

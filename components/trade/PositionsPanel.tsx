@@ -280,10 +280,10 @@ function PositionRow({
                 color="down"
               />
               <Detail label="Margin" value={formatUsd(pos.marginUsed)} />
-              {pos.trailActive && pos.trailStopPrice != null && (
+              {pos.trailActive && item.trailStopBulk != null && (
                 <Detail
                   label="Trail stop"
-                  value={`$${formatPrice(pos.trailStopPrice)}`}
+                  value={`$${formatPrice(item.trailStopBulk)}`}
                   color="up"
                 />
               )}

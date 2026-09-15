@@ -7,6 +7,7 @@ import {
   isLiquidated,
   ratchetTrail,
   trailHit,
+  trailReferencePrice,
 } from "@/lib/perp";
 import { patchDemoPosition, settleDemo } from "@/store/slices/tradingModeSlice";
 import { recordClose } from "@/lib/history";
@@ -88,10 +89,13 @@ export function useDemoPnl() {
           });
           continue;
         }
+        // Demo prices all come from the one feed, so this resolves to
+        // entryPrice — routed through the shared helper anyway so every trail
+        // site clamps by the same rule and none can drift out of step.
         const nextStop = ratchetTrail(
           position.direction,
           position.trailStopPrice,
-          position.entryPrice,
+          trailReferencePrice("demo", position),
           price,
           trailPct
         );

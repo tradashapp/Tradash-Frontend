@@ -6,6 +6,7 @@ import { MARKETS, leverageFor } from "@/lib/markets";
 import {
   openPosition,
   trailStopFor,
+  trailReferencePrice,
   canTrail,
   displayPnlFor,
   liquidationPrice,
@@ -682,12 +683,16 @@ export function useTrade(
 
   // Can a trail be armed right now? Only when in enough profit that the clamped
   // stop lands strictly in the profit zone (never at/below entry).
+  //
+  // `price` is a MagicBlock tick, so the reference it is measured against has
+  // to be in MagicBlock space too — Bulk's raw entryPrice is not, and using it
+  // mis-stated the profit by the spread between the feeds.
   const trailEligible =
     position != null &&
     price != null &&
     canTrail(
       position.direction,
-      position.entryPrice,
+      trailReferencePrice(mode, position),
       price,
       settings.defaultTrailPct
     );
@@ -708,9 +713,11 @@ export function useTrade(
       toast(`Trailing stop off · ${sym}`, { type: "info" });
       return;
     }
-    // Guard: only arm when eligible.
+    // Guard: only arm when eligible. Same reference as `trailEligible` above,
+    // so the button's enabled state and this check can never disagree.
+    const reference = trailReferencePrice(mode, position);
     if (
-      !canTrail(position.direction, position.entryPrice, price, settings.defaultTrailPct)
+      !canTrail(position.direction, reference, price, settings.defaultTrailPct)
     ) {
       return;
     }
@@ -719,7 +726,7 @@ export function useTrade(
       trailStopPrice: trailStopFor(
         position.direction,
         price,
-        position.entryPrice,
+        reference,
         settings.defaultTrailPct
       ),
     };

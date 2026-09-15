@@ -2,7 +2,12 @@
 
 import { useMemo } from "react";
 import { useAppSelector } from "@/store/hooks";
-import { displayPnlFor, netBreakEvenPriceBulk, roi } from "@/lib/perp";
+import {
+  displayPnlFor,
+  netBreakEvenPriceBulk,
+  roi,
+  trailStopInBulkSpace,
+} from "@/lib/perp";
 import { MARKET_ORDER } from "@/lib/markets";
 import type { MarketSymbol, Position } from "@/types";
 
@@ -24,6 +29,12 @@ export interface LivePosition {
    * yet).
    */
   netBreakEven: number | null;
+  /**
+   * The trail stop in BULK's price space, to match the Entry / Liquidation /
+   * Break-even figures shown beside it. The stop itself is stored in
+   * MagicBlock space (that is what drives it). Null when no trail is armed.
+   */
+  trailStopBulk: number | null;
 }
 
 export interface AllPositions {
@@ -66,6 +77,7 @@ export function useAllPositions(): AllPositions {
         roiPct,
         markPrice,
         netBreakEven: netBreakEvenPriceBulk(mode, raw),
+        trailStopBulk: trailStopInBulkSpace(mode, raw),
       });
       totalPnl += pnl;
       totalMargin += raw.marginUsed;

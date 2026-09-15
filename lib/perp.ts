@@ -285,9 +285,56 @@ export function isLiquidated(pos: Position, currentPrice: number): boolean {
 // or below entry (see canTrail).
 
 /**
+ * The trail's reference level for a position, in the CHART's (MagicBlock)
+ * price space — the space the live price ticks arrive in.
+ *
+ * WHY THIS EXISTS. The trail is driven by MagicBlock prices, but it used to
+ * clamp against `position.entryPrice`, which Bulk quotes in its own feed's
+ * space. Comparing the two mixed price spaces, so the clamp floor sat off by
+ * the spread between the feeds:
+ *
+ *   - Bulk above MagicBlock → the floor sat too high; the trail refused to arm
+ *     while genuinely in profit, and locked more than asked.
+ *   - Bulk BELOW MagicBlock → the floor sat UNDER real break-even, so a trail
+ *     could close at an actual loss. That directly violates this module's
+ *     "clamped to entry so it can never lock a loss" guarantee.
+ *
+ * Using the same translation as the chart's entry line keeps the trail, the
+ * line the user sees, and the price feed driving it all in one space.
+ */
+export function trailReferencePrice(
+  mode: "demo" | "live",
+  pos: Position
+): number {
+  return breakEvenPrice(mode, pos);
+}
+
+/**
+ * A trail stop (which lives in MagicBlock space) expressed in BULK's space.
+ *
+ * Only for surfaces that quote Bulk's numbers directly — the positions panel
+ * lists Entry / Break-even / Liquidation straight from Bulk, so showing the
+ * trail stop beside them untranslated would put one row in a different space
+ * from its neighbours. The CHART needs no conversion: the stop is already
+ * native to the space the chart draws in.
+ */
+export function trailStopInBulkSpace(
+  mode: "demo" | "live",
+  pos: Position
+): number | null {
+  if (pos.trailStopPrice == null) return null;
+  if (mode === "demo") return pos.trailStopPrice;
+  return pos.trailStopPrice - bulkToChartShift(mode, pos);
+}
+
+/**
  * Raw trail stop `trailPct` behind a reference price, then clamped to entry so
  * it never crosses into loss. Long: stop below price but ≥ entry. Short: stop
  * above price but ≤ entry.
+ *
+ * `entryPrice` here MUST be in the same price space as `refPrice` — for live
+ * positions that means `trailReferencePrice(mode, pos)`, not the raw Bulk
+ * `position.entryPrice`.
  */
 export function trailStopFor(
   direction: Direction,
@@ -334,6 +381,10 @@ export function trailHit(
  * than the trail distance, so the clamped stop lands strictly above entry (long)
  * / below entry (short) — i.e. it actually locks profit rather than sitting at
  * breakeven. Needs a small buffer beyond trailPct so there's room to work.
+ *
+ * `entryPrice` and `currentPrice` MUST share a price space — pass
+ * `trailReferencePrice(mode, pos)` for live positions, since `currentPrice` is
+ * a MagicBlock tick while Bulk's `entryPrice` is not.
  */
 export function canTrail(
   direction: Direction,

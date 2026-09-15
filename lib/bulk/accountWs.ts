@@ -43,6 +43,8 @@ interface RawPosition {
   leverage?: number;
   liquidationPrice?: number;
   unrealizedPnl?: number;
+  /** Fees/funding already charged against THIS position, signed (negative = paid). */
+  realizedPnl?: number;
 }
 
 function toPosition(r: RawPosition): Position | null {
@@ -60,6 +62,11 @@ function toPosition(r: RawPosition): Position | null {
     liquidationPrice: r.liquidationPrice ?? 0,
     marginUsed,
     unrealizedPnl: r.unrealizedPnl ?? 0,
+    // Bulk's OWN mark for this market. Kept because it is the exact anchor for
+    // translating Bulk-quoted prices (entry, liquidation) into the chart's
+    // MagicBlock space — see lib/perp.ts `bulkToChartShift`.
+    markPriceBulk: r.fairPrice,
+    realizedPnl: r.realizedPnl,
     openedAt: Date.now(),
   };
 }

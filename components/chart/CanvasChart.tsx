@@ -135,6 +135,7 @@ function samePosition(
     a.entryPrice === b.entryPrice &&
     a.liquidationPrice === b.liquidationPrice &&
     a.trailStopPrice === b.trailStopPrice &&
+    a.breakEvenPrice === b.breakEvenPrice &&
     a.pnl === b.pnl
   );
 }

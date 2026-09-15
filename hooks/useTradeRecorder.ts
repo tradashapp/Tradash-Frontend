@@ -11,7 +11,7 @@ import {
   startEpisode,
 } from "@/lib/replay/recorder";
 import { fetchGapPrices, isBackfillable } from "@/lib/replay/backfill";
-import { breakEvenPrice } from "@/lib/perp";
+import { breakEvenPrice, chartLiquidationPrice } from "@/lib/perp";
 import { MARKET_ORDER } from "@/lib/markets";
 import { subscribeToPrice } from "@/lib/oracle/magicblock";
 import type { MarketSymbol, Position } from "@/types";
@@ -71,7 +71,10 @@ export function useTradeRecorder() {
           // The chart draws entry at the BREAK-EVEN price, not Bulk's
           // entryPrice — replay has to match what the user actually saw.
           entryLine: breakEvenPrice(mode, position),
-          liqLine: position.liquidationPrice,
+          // Shifted into the same space as entryLine above. Recording Bulk's
+          // raw liquidation price next to a MagicBlock entry line reproduced
+          // the live chart's misplacement in every replay.
+          liqLine: chartLiquidationPrice(mode, position),
           price,
         });
       } else if (isRecording(symbol)) {

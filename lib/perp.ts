@@ -93,25 +93,142 @@ export function displayPnlFor(
 }
 
 /**
- * The MagicBlock price at which the displayed PnL reads exactly 0 — i.e. the
- * break-even level where the mark line's profit↔loss color flips. Drawing the
- * chart's "entry" line here keeps it consistent with the moving line + gradient
- * in the SAME (MagicBlock) price space, and survives reloads (which lose the
- * tap-time chartEntryPrice but re-anchor pnlAnchor/priceAnchorMb from Bulk).
+ * THE TWO PRICE SPACES.
  *
- * DEMO: PnL = (mb − entry)·size·dir, so break-even is just entryPrice.
- * LIVE: solve pnlAnchor + (p − priceAnchorMb)·size·dir = 0
- *          → p = priceAnchorMb − pnlAnchor / (size·dir)
+ * The chart's Y axis is the MagicBlock oracle. Bulk quotes `entryPrice`,
+ * `liquidationPrice` and `fairPrice` against ITS OWN feed — a different source
+ * that sits a little either side of MagicBlock's. Drawing a Bulk-quoted price
+ * straight onto the chart therefore lands it off by the spread between the two
+ * feeds, and moves it as that spread changes.
+ *
+ * Every Bulk-derived line is drawn through ONE measured shift, so the whole set
+ * (entry, liquidation, break-even) keeps Bulk's real geometry and simply slides
+ * into the chart's space together. Because the shift is common to all of them,
+ * the DISTANCES between the lines are exactly the ones Bulk reported.
+ *
+ * shift = (where the chart says we are) − (where Bulk says we are)
+ *       = mbNow − fairPrice
+ *
+ * Preferred source is Bulk's own `fairPrice` at the same instant as the
+ * MagicBlock anchor — a direct measurement of the offset. When Bulk did not
+ * send a mark (older payloads / partial deltas) we fall back to inferring the
+ * same quantity from PnL, which is what this file did before `fairPrice` was
+ * captured: solving `pnlAnchor + (p − priceAnchorMb)·size·dir = 0` yields the
+ * MagicBlock price of zero PnL, and subtracting Bulk's entry gives the shift.
+ */
+export function bulkToChartShift(
+  mode: "demo" | "live",
+  pos: Position
+): number {
+  // Demo's prices all come from the one feed — there is nothing to translate.
+  if (mode === "demo") return 0;
+
+  // Direct: both feeds sampled at the same moment.
+  if (
+    pos.markPriceBulk != null &&
+    pos.priceAnchorMb != null &&
+    Number.isFinite(pos.markPriceBulk) &&
+    Number.isFinite(pos.priceAnchorMb)
+  ) {
+    return pos.priceAnchorMb - pos.markPriceBulk;
+  }
+
+  // Fallback: infer the same offset from Bulk's PnL.
+  const dir = pos.direction === "long" ? 1 : -1;
+  const anchor = pos.pnlAnchor ?? pos.unrealizedPnl;
+  if (pos.priceAnchorMb == null || pos.size === 0) return 0;
+  const zeroPnlMb = pos.priceAnchorMb - anchor / (pos.size * dir);
+  const shift = zeroPnlMb - pos.entryPrice;
+  return Number.isFinite(shift) ? shift : 0;
+}
+
+/**
+ * The MagicBlock price at which the displayed PnL reads exactly 0 — i.e. the
+ * level where the mark line's profit↔loss color flips. This is where the chart
+ * draws its "entry" line, so the line, the moving mark and the gradient all sit
+ * in the SAME price space and survive a reload (which loses the tap-time
+ * chartEntryPrice but re-anchors from Bulk).
+ *
+ * This is Bulk's average entry translated into chart space — it deliberately
+ * ignores fees and funding, because it marks the point where the POSITION's
+ * gross PnL flips sign. For the level where closing actually nets zero after
+ * costs, see `netBreakEvenPrice`.
  */
 export function breakEvenPrice(
   mode: "demo" | "live",
   pos: Position
 ): number {
   if (mode === "demo") return pos.entryPrice;
+  return pos.entryPrice + bulkToChartShift(mode, pos);
+}
+
+/**
+ * Bulk's liquidation price, in chart space.
+ *
+ * Shares the single shift with the entry line, so the gap between them stays
+ * exactly the distance Bulk reported — previously this was passed through raw,
+ * which put the line off by the feed spread and made the entry→liq gap misread
+ * the real risk.
+ */
+export function chartLiquidationPrice(
+  mode: "demo" | "live",
+  pos: Position
+): number {
+  if (mode === "demo") return pos.liquidationPrice;
+  return pos.liquidationPrice + bulkToChartShift(mode, pos);
+}
+
+/**
+ * NET break-even: the chart price at which closing right now nets ZERO after
+ * the costs already charged to this position.
+ *
+ * The entry line answers "where does my PnL flip sign"; this answers "where do
+ * I actually get out even". They differ by everything the position has already
+ * paid — exchange fees on the fill, our builder fee, and accrued funding —
+ * which Bulk reports as `realizedPnl` (negative once costs are charged).
+ *
+ * Solve for the price where gross PnL cancels those costs:
+ *   realized + (p − entry)·size·dir = 0
+ *     → p = entry − realized / (size·dir)
+ * then translate into chart space with the shared shift. A long therefore sits
+ * ABOVE its entry line (it must gain enough to cover what it paid) and a short
+ * below — which is exactly the intuition the line is there to give.
+ *
+ * Returns null when there is nothing meaningful to draw: demo (no real fees),
+ * no cost data yet, or a zero-size position. Callers omit the line entirely
+ * rather than drawing it on top of the entry line, where it would read as a
+ * rendering glitch.
+ */
+/**
+ * Net break-even in BULK's own price space (un-shifted).
+ *
+ * For surfaces that quote Bulk's numbers directly — the positions panel shows
+ * Entry and Liquidation straight from Bulk — so a break-even shown beside them
+ * must be in the same space or the three would not line up. The chart uses
+ * `netBreakEvenPrice`, which is this shifted into MagicBlock space.
+ */
+export function netBreakEvenPriceBulk(
+  mode: "demo" | "live",
+  pos: Position
+): number | null {
+  if (mode === "demo") return null;
+  const realized = pos.realizedPnl;
+  if (realized == null || !Number.isFinite(realized) || realized === 0) {
+    return null;
+  }
+  if (!pos.size) return null;
   const dir = pos.direction === "long" ? 1 : -1;
-  const anchor = pos.pnlAnchor ?? pos.unrealizedPnl;
-  if (pos.priceAnchorMb == null || pos.size === 0) return pos.entryPrice;
-  return pos.priceAnchorMb - anchor / (pos.size * dir);
+  const price = pos.entryPrice - realized / (pos.size * dir);
+  return Number.isFinite(price) ? price : null;
+}
+
+export function netBreakEvenPrice(
+  mode: "demo" | "live",
+  pos: Position
+): number | null {
+  const priceBulk = netBreakEvenPriceBulk(mode, pos);
+  if (priceBulk == null) return null;
+  return priceBulk + bulkToChartShift(mode, pos);
 }
 
 /**

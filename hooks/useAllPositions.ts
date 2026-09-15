@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { useAppSelector } from "@/store/hooks";
-import { displayPnlFor, roi } from "@/lib/perp";
+import { displayPnlFor, netBreakEvenPriceBulk, roi } from "@/lib/perp";
 import { MARKET_ORDER } from "@/lib/markets";
 import type { MarketSymbol, Position } from "@/types";
 
@@ -17,6 +17,13 @@ export interface LivePosition {
   roiPct: number;
   /** Current mark price for this market (undefined until the feed ticks). */
   markPrice: number | undefined;
+  /**
+   * Price at which closing nets zero AFTER the fees and funding already
+   * charged — in BULK's price space, to match the Entry / Liquidation figures
+   * shown beside it. Null when there is no cost data (demo, or nothing charged
+   * yet).
+   */
+  netBreakEven: number | null;
 }
 
 export interface AllPositions {
@@ -58,6 +65,7 @@ export function useAllPositions(): AllPositions {
         pnl,
         roiPct,
         markPrice,
+        netBreakEven: netBreakEvenPriceBulk(mode, raw),
       });
       totalPnl += pnl;
       totalMargin += raw.marginUsed;

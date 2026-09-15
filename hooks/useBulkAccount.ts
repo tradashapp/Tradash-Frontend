@@ -297,6 +297,10 @@ function snapshotToPosition(open: BulkPosition): Position | null {
     liquidationPrice: open.liquidationPrice,
     marginUsed,
     unrealizedPnl: open.unrealizedPnl,
+    // Bulk's own mark + charged costs: the first translates Bulk-quoted lines
+    // into the chart's MagicBlock space, the second draws the net break-even.
+    markPriceBulk: open.fairPrice,
+    realizedPnl: open.realizedPnl,
     openedAt: Date.now(),
   };
 }

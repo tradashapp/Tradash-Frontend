@@ -15,6 +15,7 @@ export interface ChartTheme {
   axisLine: string;
   entryLine: string; // neutral entry marker
   liqLine: string; // liquidation warning
+  breakEvenLine: string; // net break-even (after fees + funding)
 }
 
 const DEFAULT_THEME: ChartTheme = {
@@ -26,6 +27,9 @@ const DEFAULT_THEME: ChartTheme = {
   axisLine: "rgba(255, 255, 255, 0.06)",
   entryLine: "rgba(232, 234, 237, 0.55)",
   liqLine: "rgba(230, 67, 45, 0.7)",
+  // Amber: not a risk level like Liq, not the position's own entry — a cost
+  // marker. Distinct hue so three dashed lines never read as the same thing.
+  breakEvenLine: "rgba(245, 185, 10, 0.75)",
 };
 
 // Position overlay data the chart draws: entry line, mark-line color by PnL,
@@ -37,6 +41,12 @@ export interface PositionOverlay {
   pnl: number;
   /** Active trailing-stop price, drawn as a line that ratchets with price. */
   trailStopPrice?: number;
+  /**
+   * Net break-even: where closing nets zero AFTER fees and funding already
+   * charged. Omitted when there is no cost data (demo, or a fresh position),
+   * so it is never drawn sitting on top of the entry line.
+   */
+  breakEvenPrice?: number;
 }
 
 // Per-frame chart state other layers (e.g. the dot grid) can read.
@@ -344,6 +354,15 @@ export class ChartEngine {
         entryY, top, bottom, plotW, "Entry",
         pos.entryPrice, this.theme.entryLine, "#08090c", [4, 4], 1, false
       );
+      // Net break-even — where closing actually gets out even once fees and
+      // funding are covered. Drawn BEFORE Liq so that if the two ever coincide
+      // the liquidation warning stays on top; it is the more urgent one.
+      if (pos.breakEvenPrice != null) {
+        this.drawLineOrEdge(
+          yOf(pos.breakEvenPrice), top, bottom, plotW, "B/E",
+          pos.breakEvenPrice, this.theme.breakEvenLine, "#08090c", [1, 3], 1, false
+        );
+      }
       this.drawLineOrEdge(
         yOf(pos.liquidationPrice), top, bottom, plotW, "Liq",
         pos.liquidationPrice, this.theme.liqLine, "#08090c", [2, 3], 1, false

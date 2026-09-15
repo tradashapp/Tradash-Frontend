@@ -69,6 +69,22 @@ export interface Position {
    * anchored). Falls back to entryPrice if absent.
    */
   chartEntryPrice?: number;
+  /**
+   * Bulk's OWN mark price (`fairPrice`) for this market, as of the last update.
+   *
+   * Bulk quotes entryPrice / liquidationPrice against THIS feed, while the
+   * chart's Y axis is the MagicBlock oracle. The difference between this and
+   * the MagicBlock price at the same instant IS the offset between the two
+   * price spaces, so every Bulk-quoted line can be translated with one
+   * measured shift rather than each being inferred separately. Live only.
+   */
+  markPriceBulk?: number;
+  /**
+   * Fees and funding already charged against this position, signed the way
+   * Bulk reports it (negative = the user has paid). Used to draw the true
+   * break-even line — the price at which closing nets zero AFTER costs.
+   */
+  realizedPnl?: number;
 }
 
 export interface Balance {

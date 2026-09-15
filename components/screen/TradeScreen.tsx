@@ -13,7 +13,11 @@ import { MobileLayout } from "@/components/layout/MobileLayout";
 import { DesktopLayout } from "@/components/layout/DesktopLayout";
 import { ShareCardModal, type ShareSubject } from "@/components/share/ShareCardModal";
 import { TradeReplayModal } from "@/components/replay/TradeReplayModal";
-import { breakEvenPrice } from "@/lib/perp";
+import {
+  breakEvenPrice,
+  chartLiquidationPrice,
+  netBreakEvenPrice,
+} from "@/lib/perp";
 import { marketPath, marketMeta } from "@/lib/markets";
 import { useAgentWallet } from "@/hooks/useAgentWallet";
 import { useBulkAccount } from "@/hooks/useBulkAccount";
@@ -97,7 +101,15 @@ export function TradeScreen({ initialMarket }: Props) {
   const chartPosition: PositionOverlay | null = trade.position
     ? {
         entryPrice: breakEvenPrice(trade.mode, trade.position),
-        liquidationPrice: trade.position.liquidationPrice,
+        // Shifted into the SAME (MagicBlock) space as the entry line above.
+        // Bulk quotes liquidation against its own feed, so drawing it raw put
+        // it off by the spread between the two feeds — and moved it as that
+        // spread changed. See chartLiquidationPrice.
+        liquidationPrice: chartLiquidationPrice(trade.mode, trade.position),
+        // Where closing nets zero AFTER fees + funding. Null (and so not drawn)
+        // in demo or before any cost has been charged.
+        breakEvenPrice:
+          netBreakEvenPrice(trade.mode, trade.position) ?? undefined,
         pnl: trade.position.unrealizedPnl,
         trailStopPrice: trade.position.trailActive
           ? trade.position.trailStopPrice

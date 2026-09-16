@@ -1,5 +1,6 @@
 import { config } from "@/lib/config";
 import { MARKETS, MARKET_ORDER } from "@/lib/markets";
+import { isDustSize } from "./orders";
 import type { MarketSymbol, Balance, Position, Direction } from "@/types";
 import { readMargin, type BulkMargin } from "./types";
 
@@ -50,6 +51,11 @@ interface RawPosition {
 function toPosition(r: RawPosition): Position | null {
   const sym = r.symbol ? bulkToSymbol[r.symbol] : undefined;
   if (!sym || !r.size || r.size === 0 || r.price == null) return null;
+  // Dust: a residue below one lot, left behind when a close fills a hair short.
+  // It can never be closed (Bulk rejects a sub-lot size outright), holds no
+  // meaningful margin or PnL, and would otherwise sit in the UI as an open
+  // position the user cannot get rid of. Treat it as flat.
+  if (isDustSize(r.size, MARKETS[sym].lotSize)) return null;
   const direction: Direction = r.size > 0 ? "long" : "short";
   const marginUsed =
     r.notional && r.leverage ? Math.abs(r.notional) / r.leverage : 0;

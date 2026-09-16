@@ -1,4 +1,5 @@
 import { config } from "@/lib/config";
+import { lotSizeForBulkSymbol } from "@/lib/markets";
 import { submitSigned } from "./client";
 import type { AgentSigner } from "./signing";
 import type { BuilderCode, OrderResponse } from "./types";
@@ -27,6 +28,50 @@ function builderCode(): BuilderCode | undefined {
 export function isBuilderNotApprovedError(e: unknown): boolean {
   const msg = e instanceof Error ? e.message : String(e);
   return /builder-code fee .*not approved/i.test(msg);
+}
+
+/**
+ * Floor a base-asset size to a whole multiple of the market's lot size.
+ *
+ * Bulk keeps sizes as FIXED-POINT: a size finer than `lotSize` is not
+ * representable, and the API rejects the whole order with
+ *   422 `actions[0].m.sz: f64 must be finite, positive, and within
+ *        fixed-point range`
+ * Floors (never rounds up) so a reduce-only close can't ask for more than the
+ * position holds and flip into an open on the other side.
+ *
+ * Returns 0 when the size is below one lot — the caller must treat that as
+ * "not submittable" rather than sending a zero-size order, which Bulk rejects
+ * with the same 422 (`positive`).
+ *
+ * The division is done in lot units and re-rounded because binary floats make
+ * e.g. 0.29 / 0.0001 land on 2899.9999999999995, which would silently shave a
+ * lot off every order.
+ */
+export function floorToLot(size: number, lotSize: number): number {
+  if (!Number.isFinite(size) || size <= 0) return 0;
+  if (!Number.isFinite(lotSize) || lotSize <= 0) return 0;
+  const lots = Math.floor(round(size / lotSize, 6));
+  if (lots <= 0) return 0;
+  return round(lots * lotSize, 12);
+}
+
+function round(n: number, dp: number): number {
+  const f = 10 ** dp;
+  return Math.round(n * f) / f;
+}
+
+/**
+ * Is this position size too small to ever be closed?
+ *
+ * A fill can settle a hair short of the requested size and strand a residue
+ * below one lot (seen in production 2026-09-16: a SOL-USD position left at
+ * 3e-9, five orders of magnitude under its 0.0001 lot). Such a residue cannot
+ * be sent to /order at all, so it is dust: economically zero — 3e-9 SOL needs a
+ * ~$3.3M price move to shift its PnL by one cent — and permanently unclosable.
+ */
+export function isDustSize(size: number, lotSize: number): boolean {
+  return floorToLot(Math.abs(size), lotSize) === 0;
 }
 
 /** Convert a USD margin + leverage into base-asset size at the given price. */
@@ -89,6 +134,23 @@ export async function reduceMarket(
   { bulkSymbol, positionIsLong, size, refPrice, isolated = true }: ReduceParams
 ): Promise<OrderResponse> {
   const isBuy = !positionIsLong; // opposite side closes
+  // A sub-lot size is unsubmittable: Bulk encodes sizes as fixed-point and
+  // rejects the whole order with a 422 (`m.sz: f64 must be finite, positive,
+  // and within fixed-point range`). Reject it here with a legible message
+  // instead of a raw API error.
+  //
+  // NOTE: the size is deliberately NOT floored to the lot size. Bulk holds
+  // positions at finer precision than it advertises for orders (seen live
+  // 2026-09-16: a BTC-USD position of 0.00777051 = 7770.51 lots against a
+  // 1e-6 lot), so flooring a FULL close would strand the remainder as exactly
+  // the dust this guard exists to prevent. Pass the size through and let Bulk
+  // settle it.
+  if (isDustSize(size, lotSizeForBulkSymbol(bulkSymbol))) {
+    throw new Error(
+      `Position size ${size} is below the minimum tradable increment for ` +
+        `${bulkSymbol} — it cannot be closed on Bulk.`
+    );
+  }
   const order = {
     type: "order",
     symbol: bulkSymbol,

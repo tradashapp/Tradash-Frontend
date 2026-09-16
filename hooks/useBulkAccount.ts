@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { subscribeAccount } from "@/lib/bulk/accountWs";
 import { fetchAccount } from "@/lib/bulk/client";
 import { readMargin } from "@/lib/bulk/types";
+import { isDustSize } from "@/lib/bulk/orders";
 import type { BulkPosition } from "@/lib/bulk/types";
 import { MARKETS } from "@/lib/markets";
 import { api } from "@/lib/api";
@@ -285,6 +286,11 @@ function toastOpen(toast: ToastFn, pos: Position) {
 function snapshotToPosition(open: BulkPosition): Position | null {
   const sym = bulkToSym[open.symbol];
   if (!sym) return null;
+  // Sub-lot residue from a close that filled a hair short — unclosable on Bulk
+  // and economically zero. Mirrors the same filter on the WS path (toPosition
+  // in lib/bulk/accountWs.ts); both must agree or the REST snapshot would
+  // resurrect a position the stream drops.
+  if (isDustSize(open.size, MARKETS[sym].lotSize)) return null;
   const direction: Direction = open.size > 0 ? "long" : "short";
   const marginUsed =
     open.leverage > 0 ? Math.abs(open.notional) / open.leverage : 0;

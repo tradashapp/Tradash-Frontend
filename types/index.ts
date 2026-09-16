@@ -32,6 +32,14 @@ export interface MarketInfo {
   exponent: number;
   /** Max leverage Bulk allows on this market (from exchangeInfo). */
   maxLeverage: number;
+  /**
+   * Smallest tradable size increment, from exchangeInfo's `lotSize`
+   * (verified live 2026-09-16). Bulk stores sizes as fixed-point and REJECTS
+   * any order whose size is not representable, with
+   *   422 `m.sz: f64 must be finite, positive, and within fixed-point range`
+   * so every outgoing size must be floored to a multiple of this.
+   */
+  lotSize: number;
   /** Public path to the asset logo. */
   logo: string;
   /** Static categories this market belongs to (excludes "favourites"). */

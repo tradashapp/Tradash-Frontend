@@ -18,6 +18,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
     pythLazerId: 1,
     exponent: -8,
     maxLeverage: 40,
+    lotSize: 0.000001,
     logo: "/images/crypto/btc.png",
     categories: ["crypto"],
   },
@@ -28,6 +29,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
     pythLazerId: 2,
     exponent: -8,
     maxLeverage: 25,
+    lotSize: 0.0001,
     logo: "/images/crypto/eth.png",
     categories: ["crypto"],
   },
@@ -38,6 +40,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
     pythLazerId: 6,
     exponent: -8,
     maxLeverage: 20,
+    lotSize: 0.0001,
     logo: "/images/crypto/sol.png",
     categories: ["crypto"],
   },
@@ -48,6 +51,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
   //   pythLazerId: 14,
   //   exponent: -8,
   //   maxLeverage: 20,
+  //   lotSize: 0.000001,
   //   logo: "/images/crypto/xrp.png",
   //   categories: ["crypto"],
   // },
@@ -58,6 +62,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
   //   pythLazerId: 15,
   //   exponent: -8,
   //   maxLeverage: 10,
+  //   lotSize: 0.000001,
   //   logo: "/images/crypto/bnb.png",
   //   categories: ["crypto"],
   // },
@@ -68,6 +73,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
   //   pythLazerId: 13,
   //   exponent: -8,
   //   maxLeverage: 10,
+  //   lotSize: 0.000001,
   //   logo: "/images/crypto/doge.png",
   //   categories: ["crypto"],
   // },
@@ -78,6 +84,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
   //   pythLazerId: 11,
   //   exponent: -8,
   //   maxLeverage: 10,
+  //   lotSize: 0.00000001,
   //   logo: "/images/crypto/sui.png",
   //   categories: ["crypto"],
   // },
@@ -88,6 +95,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
   //   pythLazerId: 27,
   //   exponent: -8,
   //   maxLeverage: 10,
+  //   lotSize: 0.00000001,
   //   logo: "/images/crypto/near.png",
   //   categories: ["crypto"],
   // },
@@ -98,6 +106,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
   //   pythLazerId: 29,
   //   exponent: -8,
   //   maxLeverage: 10,
+  //   lotSize: 0.00000001,
   //   logo: "/images/crypto/aave.png",
   //   categories: ["crypto"],
   // },
@@ -108,6 +117,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
   //   pythLazerId: 36,
   //   exponent: -8,
   //   maxLeverage: 10,
+  //   lotSize: 0.00000001,
   //   logo: "/images/crypto/tao.png",
   //   categories: ["crypto"],
   // },
@@ -118,6 +128,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
     pythLazerId: 66,
     exponent: -8,
     maxLeverage: 10,
+    lotSize: 0.00000001,
     logo: "/images/crypto/zec.png",
     categories: ["crypto"],
   },
@@ -128,6 +139,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
   //   pythLazerId: 85,
   //   exponent: -8,
   //   maxLeverage: 10,
+  //   lotSize: 0.00000001,
   //   logo: "/images/crypto/ena.png",
   //   categories: ["crypto"],
   // },
@@ -138,6 +150,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
   //   pythLazerId: 91,
   //   exponent: -8,
   //   maxLeverage: 10,
+  //   lotSize: 0.00000001,
   //   logo: "/images/crypto/jto.png",
   //   categories: ["crypto"],
   // },
@@ -148,6 +161,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
   //   pythLazerId: 92,
   //   exponent: -8,
   //   maxLeverage: 10,
+  //   lotSize: 0.00000001,
   //   logo: "/images/crypto/jup.png",
   //   categories: ["crypto"],
   // },
@@ -158,6 +172,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
     pythLazerId: 110,
     exponent: -8,
     maxLeverage: 10,
+    lotSize: 0.00000001,
     logo: "/images/crypto/hype.png",
     categories: ["crypto"],
   },
@@ -168,10 +183,29 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
   //   pythLazerId: 182,
   //   exponent: -8,
   //   maxLeverage: 10,
+  //   lotSize: 0.00000001,
   //   logo: "/images/crypto/fartcoin.png",
   //   categories: ["crypto"],
   // },
 };
+
+/** Bulk's market id ("BTC-USD") → our MarketSymbol ("BTC"). */
+export const BULK_TO_SYMBOL: Record<string, MarketSymbol> = Object.fromEntries(
+  Object.values(MARKETS).map((m) => [m.bulkSymbol, m.symbol])
+);
+
+/**
+ * Smallest tradable size increment for a Bulk market id, for flooring outgoing
+ * order sizes (see `floorToLot` in lib/bulk/orders.ts).
+ *
+ * Falls back to the FINEST lot in the table for an unknown market: an unknown
+ * symbol should not cause us to silently round a real size down to nothing, and
+ * Bulk rejects a too-fine size loudly anyway.
+ */
+export function lotSizeForBulkSymbol(bulkSymbol: string): number {
+  const sym = BULK_TO_SYMBOL[bulkSymbol];
+  return sym ? MARKETS[sym].lotSize : 1e-8;
+}
 
 export const MARKET_ORDER: MarketSymbol[] = [
   "BTC",

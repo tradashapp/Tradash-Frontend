@@ -96,13 +96,20 @@ interface OpenParams {
   isLong: boolean;
   size: number; // base-asset size
   refPrice: number; // current price, for the slippage bound
+  /**
+   * Isolated-margin routing. Defaults FALSE: Tradash is cross-margin only.
+   * Bulk exposes a single account-level margin pool (`marginUsed` /
+   * `availableMargin`) with no per-position bucket, and books every position
+   * cross regardless — live accounts come back with `"iso": false` on every
+   * row. Kept as an override only so an isolated flow could opt in later.
+   */
   isolated?: boolean;
 }
 
 /** Open (or add to) a market position. */
 export async function openMarket(
   signer: AgentSigner,
-  { bulkSymbol, isLong, size, refPrice, isolated = true }: OpenParams
+  { bulkSymbol, isLong, size, refPrice, isolated = false }: OpenParams
 ): Promise<OrderResponse> {
   const bc = builderCode();
   const order = {
@@ -125,13 +132,14 @@ interface ReduceParams {
   positionIsLong: boolean;
   size: number; // base-asset size to reduce
   refPrice: number;
+  /** See OpenParams.isolated — cross margin (false) is the default. */
   isolated?: boolean;
 }
 
 /** Reduce or fully close a position (reduce-only, opposite side). */
 export async function reduceMarket(
   signer: AgentSigner,
-  { bulkSymbol, positionIsLong, size, refPrice, isolated = true }: ReduceParams
+  { bulkSymbol, positionIsLong, size, refPrice, isolated = false }: ReduceParams
 ): Promise<OrderResponse> {
   const isBuy = !positionIsLong; // opposite side closes
   // A sub-lot size is unsubmittable: Bulk encodes sizes as fixed-point and

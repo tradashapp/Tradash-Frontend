@@ -21,7 +21,7 @@ import { findStopLoss, findTakeProfit } from "@/lib/bulk/protection";
 import { formatPrice, formatUsd } from "@/lib/format";
 import { Odometer } from "@/components/ui/Odometer";
 import { useAllPositions, type LivePosition } from "@/hooks/useAllPositions";
-import { useAppDispatch } from "@/store/hooks";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { startSwitch, finishSwitch } from "@/store/slices/marketSlice";
 import type { ShareSubject } from "@/components/share/ShareCardModal";
 import { playSound } from "@/lib/sound";
@@ -60,6 +60,9 @@ export function PositionsPanel({
 }: Props) {
   const { items, totalPnl, totalRoiPct } = useAllPositions();
   const dispatch = useAppDispatch();
+  // TP/SL are real resting orders on Bulk, so the row is live-only: a demo
+  // position has no account to rest them against.
+  const isDemo = useAppSelector((s) => s.tradingMode.mode) === "demo";
   const [closingAll, setClosingAll] = useState(false);
   const profit = totalPnl >= 0;
 
@@ -156,7 +159,7 @@ export function PositionsPanel({
                 onGoToMarket={() => goToMarket(item.position.symbol)}
                 onAdjust={onAdjust}
                 onClosePosition={onClosePosition}
-                onEditTpSl={onEditTpSl}
+                onEditTpSl={isDemo ? undefined : onEditTpSl}
               />
             ))}
           </div>

@@ -109,6 +109,25 @@ export function useBulkAccount(
             unrealizedPnl: m.unrealizedPnl ?? 0,
           })
         );
+        // NOTE: dust rows (a sub-lot residue left by a close that filled a hair
+        // short) are dropped by `snapshotToPosition`, so they never seed
+        // `lastOpen` and never render. That is deliberate — they are unclosable
+        // — but it also means a position that shrank to dust while we were NOT
+        // connected produces no open→absent transition here, and so no history
+        // row. Nothing can be reconstructed from this endpoint alone (the exit
+        // price and pre-close size are gone), so such a close is logged for
+        // backfill rather than silently dropped.
+        for (const raw of acct.positions) {
+          const sym = bulkToSym[raw.symbol];
+          if (!sym || raw.size === 0) continue;
+          if (isDustSize(raw.size, MARKETS[sym].lotSize)) {
+            console.warn(
+              `[tradash] ${raw.symbol} is stranded dust (size ${raw.size}); ` +
+                `its close was never recorded to history and cannot be ` +
+                `reconstructed from /account — backfill from Bulk fills.`
+            );
+          }
+        }
         const open = acct.positions
           .filter((p) => p.size !== 0)
           .map((p) => snapshotToPosition(p))

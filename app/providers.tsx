@@ -16,8 +16,25 @@ export function Providers({ children }: { children: ReactNode }) {
   const storeRef = useRef<AppStore | null>(null);
   if (!storeRef.current) {
     storeRef.current = makeStore();
-    wireSettingsPersistence(storeRef.current);
   }
+
+  // Persisted state is read in an EFFECT, not during render.
+  //
+  // Reading localStorage while building the store put the user's stored values
+  // (position size, leverage, mode) into the very first client render, while
+  // the server had rendered the defaults — so every component showing one
+  // hydration-mismatched ("$916.87" vs "$100.00" in the market dock). Loading
+  // after mount means the first client paint matches the server HTML exactly
+  // and the stored values arrive one commit later, as a normal state update.
+  //
+  // The ref guard keeps this to one run: in StrictMode dev the effect fires
+  // twice, and re-running would re-dispatch the whole hydration.
+  const hydratedRef = useRef(false);
+  useEffect(() => {
+    if (hydratedRef.current || !storeRef.current) return;
+    hydratedRef.current = true;
+    wireSettingsPersistence(storeRef.current);
+  }, []);
 
   // Drain any writes queued while the API was unreachable — including ones from
   // a PREVIOUS session, since the queue is persisted. Runs once per mount, and

@@ -22,7 +22,6 @@ import {
   Upload04Icon,
   ClockArrowUpIcon,
   ShieldKeyIcon,
-  CodeIcon,
   ChampionIcon,
 } from "@hugeicons/core-free-icons";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
@@ -302,6 +301,7 @@ function Menu({
   onLogout,
   onSettings,
   onHistory,
+  onAdvanced,
   onTransfer,
   onWithdraw,
   onMoneyHistory,
@@ -332,6 +332,7 @@ function Menu({
   onLogout: () => void;
   onSettings: () => void;
   onHistory: () => void;
+  onAdvanced: () => void;
   onTransfer: (dir: "in" | "out") => void;
   /** Open the external-withdrawal panel (wallet → outside address). */
   onWithdraw: () => void;
@@ -562,36 +563,23 @@ function Menu({
           onClick={onLeaderboard}
         />
         <NavRow icon={Settings02Icon} label="Settings" onClick={onSettings} />
-      </MenuSection>
-
-      {/* Advanced — the Bulk permission plumbing. Read-only status in demo (no
-          wallet is connected, so neither step applies); actionable when live. */}
-      {mode === "live" && authenticated && (
-        <MenuSection title="Advanced" className="mb-4">
+        {/* Advanced opens the Bulk permission panel (agent key + builder code).
+            It was its own top-level section; both steps are one-time setup, so
+            once done it was two permanently green rows sitting mid-menu. It
+            stays hidden unless both apply — demo has no wallet to authorize.
+            The detail text surfaces an OUTSTANDING step, so setup still
+            announces itself from the menu without a section of its own. */}
+        {mode === "live" && authenticated && (
           <NavRow
             icon={ShieldKeyIcon}
-            label="Agent authorization"
-            detail={agentAuthorized ? "Authorized" : "Not set up"}
-            status={agentAuthorized ? "done" : "pending"}
-            onClick={
-              agentAuthorized || agent.onboarding ? undefined : agent.onboard
+            label="Advanced"
+            detail={
+              agentAuthorized && builderApproved ? undefined : "Setup needed"
             }
-            disabled={agentAuthorized || agent.onboarding}
+            onClick={onAdvanced}
           />
-          <NavRow
-            icon={CodeIcon}
-            label="Builder code"
-            detail={builderApproved ? "Approved" : "Not approved"}
-            status={builderApproved ? "done" : "pending"}
-            onClick={
-              builderApproved || agent.onboarding
-                ? undefined
-                : agent.approveBuilder
-            }
-            disabled={builderApproved || agent.onboarding}
-          />
-        </MenuSection>
-      )}
+        )}
+      </MenuSection>
 
       {/* App — everything that isn't trading. */}
       <MenuSection title="App" className="mb-4">

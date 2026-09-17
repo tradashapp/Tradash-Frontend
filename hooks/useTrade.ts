@@ -40,7 +40,7 @@ import {
 } from "@/lib/bulk/orders";
 import { setMarketLeverage as pushLeverageToBulk } from "@/lib/bulk/leverage";
 import type { AgentSigner } from "@/lib/bulk/signing";
-import { findTakeProfit } from "@/lib/bulk/protection";
+import { findStopLoss, findTakeProfit } from "@/lib/bulk/protection";
 import { useProtection } from "@/hooks/useProtection";
 import type { Direction, MarketSymbol, Position } from "@/types";
 
@@ -842,9 +842,46 @@ export function useTrade(
     openLong: () => open("long"),
     openShort: () => open("short"),
     toggleTrail,
-    trailActive: position?.trailActive ?? false,
+    // Live reads the RESTING trl order on Bulk; demo reads its local flag.
+    // Using `trailActive` for both would leave the live button permanently off,
+    // since nothing sets that flag once the trail lives server-side.
+    trailActive:
+      mode === "demo"
+        ? (position?.trailActive ?? false)
+        : findStopLoss(position?.protection)?.kind === "trailing",
     trailEligible,
     trailPct: settings.defaultTrailPct,
+    /**
+     * Apply a take-profit / stop-loss pair to one position (live only).
+     *
+     * Preserves a resting trailing stop when the user is only editing the
+     * take-profit: the trail and a fixed stop share one downside slot, so
+     * blindly passing `stopLoss` would disarm a trail the user never touched.
+     */
+    setTpSl: async ({
+      symbol,
+      takeProfit,
+      stopLoss,
+    }: {
+      symbol: MarketSymbol;
+      takeProfit: number | null;
+      stopLoss: number | null;
+    }) => {
+      const target = allLivePositions[symbol];
+      if (!target) return false;
+      const trailing =
+        findStopLoss(target.protection)?.kind === "trailing"
+          ? Math.round(settings.defaultTrailPct * 10_000)
+          : null;
+      return setProtection({
+        symbol,
+        direction: target.direction,
+        size: target.size,
+        takeProfit,
+        stopLoss: trailing ? null : stopLoss,
+        trailBps: trailing,
+      });
+    },
     // Close the ACTIVE market's position. Wrapped rather than exposing `close`
     // directly: it is bound straight to onClick in the layouts, which would
     // otherwise hand the click event in as the symbol argument.

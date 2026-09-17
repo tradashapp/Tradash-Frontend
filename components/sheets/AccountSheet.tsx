@@ -670,7 +670,7 @@ function FeedbackBanner() {
           className="shrink-0 text-text-muted"
         />
       </a>
-      <button
+      {/* <button
         type="button"
         onClick={() => {
           playSound("tap");
@@ -681,7 +681,7 @@ function FeedbackBanner() {
         className="shrink-0 rounded-full p-1.5 text-text-muted transition-colors hover:bg-white/10 hover:text-text"
       >
         <HugeiconsIcon icon={Cancel01Icon} size={15} />
-      </button>
+      </button> */}
     </div>
   );
 }

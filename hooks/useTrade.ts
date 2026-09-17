@@ -40,7 +40,11 @@ import {
 } from "@/lib/bulk/orders";
 import { setMarketLeverage as pushLeverageToBulk } from "@/lib/bulk/leverage";
 import type { AgentSigner } from "@/lib/bulk/signing";
-import { findStopLoss, findTakeProfit } from "@/lib/bulk/protection";
+import {
+  cancelAllProtection,
+  findStopLoss,
+  findTakeProfit,
+} from "@/lib/bulk/protection";
 import { useProtection } from "@/hooks/useProtection";
 import type { Direction, MarketSymbol, Position } from "@/types";
 
@@ -412,7 +416,11 @@ export function useTrade(
       // Deliberately after the close and non-fatal: the close is what the user
       // asked for, and failing it because a cleanup call failed would be worse
       // than a stray trigger. A failure is surfaced rather than swallowed.
-      void cancelAllProtection(liveSigner, position).catch(() => {
+      void cancelAllProtection(
+        liveSigner,
+        market.bulkSymbol,
+        position.protection
+      ).catch(() => {
         toast("Old TP/SL may still be active", {
           type: "error",
           description: `Check ${position.symbol} in your open orders.`,
@@ -494,6 +502,19 @@ export function useTrade(
           size: pos.size,
           refPrice: allPrices[pos.symbol] ?? pos.entryPrice,
         })
+      )
+    );
+
+    // Bulk leaves protective triggers resting after their position is gone, so
+    // every closed position's TP/SL must be cleared too — otherwise they would
+    // fire against whatever the user opens next. Same rationale as `close`.
+    void Promise.allSettled(
+      open.map((pos) =>
+        cancelAllProtection(
+          liveSigner,
+          MARKETS[pos.symbol].bulkSymbol,
+          pos.protection
+        )
       )
     );
 
@@ -867,7 +888,11 @@ export function useTrade(
     trailEligible,
     trailPct: settings.defaultTrailPct,
     /**
-     * Apply a take-profit / stop-loss pair to one position (live only).
+     * Apply a take-profit / stop-loss pair to one position.
+     *
+     * LIVE ONLY: these are real resting orders on Bulk, and a demo position has
+     * no Bulk account to rest them against. Demo says so rather than failing
+     * silently — returning false with no explanation would read as a bug.
      *
      * Preserves a resting trailing stop when the user is only editing the
      * take-profit: the trail and a fixed stop share one downside slot, so
@@ -882,6 +907,13 @@ export function useTrade(
       takeProfit: number | null;
       stopLoss: number | null;
     }) => {
+      if (mode === "demo") {
+        toast("TP/SL is live-trading only", {
+          type: "info",
+          description: "Switch to live to set automatic exits.",
+        });
+        return false;
+      }
       const target = allLivePositions[symbol];
       if (!target) return false;
       const trailing =

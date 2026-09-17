@@ -155,6 +155,31 @@ export async function cancelProtection(
   await submitSigned(signer.signOrderFor(cancelOrder(bulkSymbol, orderId)));
 }
 
+/**
+ * Cancel every protective trigger a position is carrying.
+ *
+ * Bulk keeps these resting after the position they guard is closed (verified
+ * live 2026-09-17: a flat account still listed its old TP and SL at the
+ * original sizes). A leftover trigger is not harmless — it is sized to a
+ * position that no longer exists, so it would fire against the user's NEXT
+ * position in that market, or open one on its own. Every exit path therefore
+ * clears them.
+ *
+ * Cancels are independent: one failing must not strand the rest, so they settle
+ * individually and the caller is told only whether all of them made it.
+ */
+export async function cancelAllProtection(
+  signer: AgentSigner,
+  bulkSymbol: string,
+  orders: ProtectionOrder[] | undefined
+): Promise<boolean> {
+  if (!orders || orders.length === 0) return true;
+  const results = await Promise.allSettled(
+    orders.map((o) => cancelProtection(signer, bulkSymbol, o.orderId))
+  );
+  return results.every((r) => r.status === "fulfilled");
+}
+
 // --- Read-back ---------------------------------------------------------------
 
 /** One raw `protection.orders[]` row as Bulk sends it. */

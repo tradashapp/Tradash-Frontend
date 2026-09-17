@@ -139,27 +139,10 @@ export function AdjustPositionSheet({
   // The position can vanish underneath an open sheet — a close from elsewhere,
   // a trail firing, a liquidation. Say so rather than rendering a slider that
   // would submit an order against nothing.
-  if (!pos) {
-    return (
-      <Sheet open={open} onClose={onClose} title="Adjust position">
-        <div className="flex flex-col items-center gap-4 py-10 text-center">
-          <p className="text-sm text-text-muted">
-            This position is no longer open.
-          </p>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-full bg-white/[0.07] px-5 py-2.5 text-sm font-semibold text-text transition-transform active:scale-95 hover:bg-white/10"
-          >
-            Done
-          </button>
-        </div>
-      </Sheet>
-    );
-  }
-
-  const markPrice = item?.markPrice ?? pos.entryPrice;
-  const notional = amount * pos.leverage;
+  // Mark price for the preview. Falls back to entry so the memo below can run
+  // even with no position — the hooks in this component must be unconditional.
+  const markPrice = item?.markPrice ?? pos?.entryPrice ?? 0;
+  const notional = amount * (pos?.leverage ?? 0);
 
   /**
    * What the position looks like AFTER the order fills.
@@ -171,8 +154,13 @@ export function AdjustPositionSheet({
    *
    * Reducing leaves entry and liquidation untouched (the remaining size keeps
    * its basis) and instead realizes a slice of the open PnL.
+   *
+   * Computed BEFORE the "no longer open" early return: a hook may not sit
+   * behind a conditional, or the hook order changes on the render where the
+   * position disappears and React tears the component down.
    */
   const preview = useMemo(() => {
+    if (!pos) return null;
     if (isAdd) {
       const addSize = markPrice > 0 ? (amount * pos.leverage) / markPrice : 0;
       const newSize = pos.size + addSize;
@@ -194,6 +182,25 @@ export function AdjustPositionSheet({
       realized: pos.unrealizedPnl * fraction,
     };
   }, [isAdd, amount, markPrice, pos]);
+
+  if (!pos) {
+    return (
+      <Sheet open={open} onClose={onClose} title="Adjust position">
+        <div className="flex flex-col items-center gap-4 py-10 text-center">
+          <p className="text-sm text-text-muted">
+            This position is no longer open.
+          </p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full bg-white/[0.07] px-5 py-2.5 text-sm font-semibold text-text transition-transform active:scale-95 hover:bg-white/10"
+          >
+            Done
+          </button>
+        </div>
+      </Sheet>
+    );
+  }
 
   // Adding is blocked outright when there is nothing free to post — better to
   // say so than to let the slider imply room that isn't there.

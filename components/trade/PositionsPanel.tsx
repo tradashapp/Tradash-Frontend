@@ -30,13 +30,26 @@ interface Props {
   onNavigate?: () => void;
   /** Close every open position at once. Omit to hide the "Close all" action. */
   onCloseAll?: () => void | Promise<void>;
+  /**
+   * Open the add/reduce sheet for one position. Omit to hide those actions
+   * (the expanded row then keeps only Close).
+   */
+  onAdjust?: (item: LivePosition, mode: "add" | "reduce") => void;
+  /** Close ONE position — the expanded row's own exit. */
+  onClosePosition?: (item: LivePosition) => void | Promise<void>;
 }
 
 // The right-panel positions view: an AGGREGATED Unrealized PnL across all markets,
 // then one expandable row per open position. Direction shows as an up/down arrow
 // (green/red), not "long/short". Each row can expand to full details and shares a
 // PnL card.
-export function PositionsPanel({ onShare, onNavigate, onCloseAll }: Props) {
+export function PositionsPanel({
+  onShare,
+  onNavigate,
+  onCloseAll,
+  onAdjust,
+  onClosePosition,
+}: Props) {
   const { items, totalPnl, totalRoiPct } = useAllPositions();
   const dispatch = useAppDispatch();
   const [closingAll, setClosingAll] = useState(false);
@@ -133,6 +146,8 @@ export function PositionsPanel({ onShare, onNavigate, onCloseAll }: Props) {
                   onShare({ kind: "position", position: item.position })
                 }
                 onGoToMarket={() => goToMarket(item.position.symbol)}
+                onAdjust={onAdjust}
+                onClosePosition={onClosePosition}
               />
             ))}
           </div>
@@ -146,12 +161,17 @@ function PositionRow({
   item,
   onShare,
   onGoToMarket,
+  onAdjust,
+  onClosePosition,
 }: {
   item: LivePosition;
   onShare: () => void;
   onGoToMarket: () => void;
+  onAdjust?: (item: LivePosition, mode: "add" | "reduce") => void;
+  onClosePosition?: (item: LivePosition) => void | Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
+  const [closing, setClosing] = useState(false);
   const { position: pos, pnl, roiPct, markPrice } = item;
   const market = MARKETS[pos.symbol];
   const up = pos.direction === "long";
@@ -286,6 +306,71 @@ function PositionRow({
                   value={`$${formatPrice(item.trailStopBulk)}`}
                   color="up"
                 />
+              )}
+
+              {/* Actions sit UNDER the numbers they change: Entry, Margin and
+                  Liquidation are all directly above, so the effect of an add
+                  or a reduce is read in the same glance as the action. */}
+              {(onAdjust || onClosePosition) && (
+                <div className="mt-2 grid grid-cols-3 gap-2">
+                  {onAdjust && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        playSound("tap");
+                        haptic("tap");
+                        onAdjust(item, "add");
+                      }}
+                      className="flex items-center justify-center gap-1 rounded-full bg-up-soft py-2.5 text-xs font-semibold text-up transition-transform active:scale-95"
+                    >
+                      <HugeiconsIcon icon={PlusSignIcon} size={15} />
+                      Add
+                    </button>
+                  )}
+                  {onAdjust && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        playSound("tap");
+                        haptic("tap");
+                        onAdjust(item, "reduce");
+                      }}
+                      className="flex items-center justify-center gap-1 rounded-full bg-white/[0.07] py-2.5 text-xs font-semibold text-text transition-transform active:scale-95 hover:bg-white/10"
+                    >
+                      <HugeiconsIcon icon={MinusSignIcon} size={15} />
+                      Reduce
+                    </button>
+                  )}
+                  {onClosePosition && (
+                    <button
+                      type="button"
+                      disabled={closing}
+                      onClick={async () => {
+                        if (closing) return;
+                        playSound("tap");
+                        haptic("tap");
+                        setClosing(true);
+                        try {
+                          await onClosePosition(item);
+                        } finally {
+                          setClosing(false);
+                        }
+                      }}
+                      className="flex items-center justify-center gap-1 rounded-full bg-down-soft py-2.5 text-xs font-semibold text-down transition-transform active:scale-95 disabled:opacity-50"
+                    >
+                      {closing ? (
+                        <HugeiconsIcon
+                          icon={Loading03Icon}
+                          size={15}
+                          className="animate-spin"
+                        />
+                      ) : (
+                        <HugeiconsIcon icon={Cancel01Icon} size={15} />
+                      )}
+                      {closing ? "Closing" : "Close"}
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           </motion.div>

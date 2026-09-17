@@ -488,12 +488,44 @@ export function useTrade(
     toast,
   ]);
 
-  // Add SIZE to the open position (same direction) — a market order for the
+  /**
+   * Resolve the position an adjustment targets, plus ITS market's price.
+   *
+   * Add/reduce are reached from the positions list, which shows EVERY market —
+   * so the target is not necessarily the market on screen. Defaulting to the
+   * active symbol keeps the no-argument call behaving as before, but passing a
+   * symbol is what stops a tap on the ETH row from adjusting the BTC position
+   * the user happens to be looking at. The price has to come from the same
+   * market too: sizing an ETH order off the BTC tick would be wrong by orders
+   * of magnitude.
+   */
+  const resolveTarget = useCallback(
+    (symbol?: MarketSymbol) => {
+      const sym = symbol ?? activeSymbol;
+      const source = mode === "demo" ? allDemoPositions : allLivePositions;
+      const raw = source[sym] ?? null;
+      if (!raw) return null;
+      const mark = allPrices[sym];
+      if (mark == null) return null;
+      // Match the display PnL model used everywhere else, so a demo reduce
+      // realizes the same number the row was showing.
+      return {
+        target: { ...raw, unrealizedPnl: displayPnlFor(mode, raw, mark) },
+        mark,
+      };
+    },
+    [mode, activeSymbol, allDemoPositions, allLivePositions, allPrices]
+  );
+
+  // Add SIZE to an open position (same direction) — a market order for the
   // extra notional. `deltaUsd` is the margin to add; at the position's current
   // leverage that's `deltaUsd × leverage` of notional. Entry blends on fill.
+  // `symbol` defaults to the active market; the positions list passes its row's.
   const increase = useCallback(
-    async (deltaUsd: number) => {
-      if (!position || price == null || deltaUsd <= 0) return;
+    async (deltaUsd: number, symbol?: MarketSymbol) => {
+      const resolved = resolveTarget(symbol);
+      if (!resolved || deltaUsd <= 0) return;
+      const { target: position, mark: price } = resolved;
       const market = MARKETS[position.symbol];
       // Same risk-limit clamp as `open`: added notional is margined against the
       // account's FREE collateral, so adding more than that is rejected with
@@ -589,8 +621,7 @@ export function useTrade(
     },
     [
       mode,
-      position,
-      price,
+      resolveTarget,
       signer,
       liveBalance,
       requireLiveSetup,
@@ -599,12 +630,15 @@ export function useTrade(
     ]
   );
 
-  // Reduce SIZE of the open position — a reduce-only market order for part of the
+  // Reduce SIZE of an open position — a reduce-only market order for part of the
   // position. `deltaUsd` of margin at the current leverage, clamped to the
   // remaining size (so it never over-reduces; use Close for a full exit).
+  // `symbol` defaults to the active market; the positions list passes its row's.
   const decrease = useCallback(
-    async (deltaUsd: number) => {
-      if (!position || price == null || deltaUsd <= 0) return;
+    async (deltaUsd: number, symbol?: MarketSymbol) => {
+      const resolved = resolveTarget(symbol);
+      if (!resolved || deltaUsd <= 0) return;
+      const { target: position, mark: price } = resolved;
       const market = MARKETS[position.symbol];
       const rawSize = baseSizeFromUsd(deltaUsd, position.leverage, price);
       const cutSize = Math.min(rawSize, position.size);
@@ -619,8 +653,7 @@ export function useTrade(
             : 0;
         if (newSize <= position.size * 0.001) {
           // Effectively a full close.
-          if (price != null)
-            recordClose(dispatch, "demo", position, price, position.unrealizedPnl);
+          recordClose(dispatch, "demo", position, price, position.unrealizedPnl);
           dispatch(
             settleDemo({ symbol: position.symbol, pnl: position.unrealizedPnl })
           );
@@ -678,7 +711,7 @@ export function useTrade(
         }
       }
     },
-    [mode, position, price, signer, requireLiveSetup, dispatch, toast]
+    [mode, resolveTarget, signer, requireLiveSetup, dispatch, toast]
   );
 
   // Can a trail be armed right now? Only when in enough profit that the clamped

@@ -40,6 +40,8 @@ interface Props {
   onAdjust?: (item: LivePosition, mode: "add" | "reduce") => void;
   /** Close ONE position — the expanded row's own exit. */
   onClosePosition?: (item: LivePosition) => void | Promise<void>;
+  /** Open the TP/SL sheet for one position. Omit to hide the TP/SL row. */
+  onEditTpSl?: (item: LivePosition) => void;
 }
 
 // The right-panel positions view: an AGGREGATED Unrealized PnL across all markets,
@@ -52,6 +54,7 @@ export function PositionsPanel({
   onCloseAll,
   onAdjust,
   onClosePosition,
+  onEditTpSl,
 }: Props) {
   const { items, totalPnl, totalRoiPct } = useAllPositions();
   const dispatch = useAppDispatch();
@@ -151,6 +154,7 @@ export function PositionsPanel({
                 onGoToMarket={() => goToMarket(item.position.symbol)}
                 onAdjust={onAdjust}
                 onClosePosition={onClosePosition}
+                onEditTpSl={onEditTpSl}
               />
             ))}
           </div>
@@ -166,12 +170,14 @@ function PositionRow({
   onGoToMarket,
   onAdjust,
   onClosePosition,
+  onEditTpSl,
 }: {
   item: LivePosition;
   onShare: () => void;
   onGoToMarket: () => void;
   onAdjust?: (item: LivePosition, mode: "add" | "reduce") => void;
   onClosePosition?: (item: LivePosition) => void | Promise<void>;
+  onEditTpSl?: (item: LivePosition) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [closing, setClosing] = useState(false);

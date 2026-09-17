@@ -107,8 +107,21 @@ export function AdjustPositionSheet({
     if (isAdd) {
       return available != null ? Math.max(available * MARGIN_HEADROOM, 0) : pos.marginUsed;
     }
-    return pos.marginUsed * MAX_REDUCE_FRACTION;
-  }, [pos, isAdd, available]);
+    // The reduce cap has to be expressed in the SAME terms `decrease` uses.
+    //
+    // It converts the amount to a base size at the CURRENT mark
+    // (`deltaUsd × leverage / mark`), while the position's margin was set at
+    // its ENTRY price. Capping at 95% of margin therefore only means 95% of
+    // size while the two prices agree: on a position down 20%, 95% of margin
+    // converts to more than the whole position and the clamp in `decrease`
+    // turns "Reduce" into a full close — the one thing this cap exists to
+    // prevent. So cap on the size fraction and convert back.
+    const maxSize = pos.size * MAX_REDUCE_FRACTION;
+    const markNow = item?.markPrice ?? pos.entryPrice;
+    const maxUsd =
+      pos.leverage > 0 ? (maxSize * markNow) / pos.leverage : pos.marginUsed;
+    return Math.max(Math.min(maxUsd, pos.marginUsed * MAX_REDUCE_FRACTION), 0);
+  }, [pos, isAdd, available, item?.markPrice]);
 
   // Reset to a sane starting amount whenever the sheet opens or flips mode.
   // Half the allowed range is a more useful default than zero (which makes the
@@ -123,11 +136,23 @@ export function AdjustPositionSheet({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, mode, symbol]);
 
+  // The position can vanish underneath an open sheet — a close from elsewhere,
+  // a trail firing, a liquidation. Say so rather than rendering a slider that
+  // would submit an order against nothing.
   if (!pos) {
     return (
       <Sheet open={open} onClose={onClose} title="Adjust position">
-        <div className="py-8 text-center text-sm text-text-muted">
-          Position closed.
+        <div className="flex flex-col items-center gap-4 py-10 text-center">
+          <p className="text-sm text-text-muted">
+            This position is no longer open.
+          </p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full bg-white/[0.07] px-5 py-2.5 text-sm font-semibold text-text transition-transform active:scale-95 hover:bg-white/10"
+          >
+            Done
+          </button>
         </div>
       </Sheet>
     );

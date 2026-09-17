@@ -5,6 +5,7 @@ import { subscribeAccount } from "@/lib/bulk/accountWs";
 import { fetchAccount } from "@/lib/bulk/client";
 import { readMargin } from "@/lib/bulk/types";
 import { isDustSize } from "@/lib/bulk/orders";
+import { readProtection } from "@/lib/bulk/protection";
 import type { BulkPosition } from "@/lib/bulk/types";
 import { MARKETS } from "@/lib/markets";
 import { api } from "@/lib/api";
@@ -326,6 +327,9 @@ function snapshotToPosition(open: BulkPosition): Position | null {
     // into the chart's MagicBlock space, the second draws the net break-even.
     markPriceBulk: open.fairPrice,
     realizedPnl: open.realizedPnl,
+    // Resting TP/SL/trailing. Must match the WS path (toPosition) or a refetch
+    // would blank out protection the stream had already shown.
+    protection: readProtection(open.protection?.orders),
     openedAt: Date.now(),
   };
 }

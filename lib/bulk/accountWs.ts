@@ -1,6 +1,7 @@
 import { config } from "@/lib/config";
 import { MARKETS, MARKET_ORDER } from "@/lib/markets";
 import { isDustSize } from "./orders";
+import { readProtection } from "./protection";
 import type { MarketSymbol, Balance, Position, Direction } from "@/types";
 import { readMargin, type BulkMargin } from "./types";
 
@@ -46,6 +47,8 @@ interface RawPosition {
   unrealizedPnl?: number;
   /** Fees/funding already charged against THIS position, signed (negative = paid). */
   realizedPnl?: number;
+  /** Resting protective triggers (TP/SL/trailing) — `{ orders: [...] }`. */
+  protection?: { orders?: unknown };
 }
 
 function toPosition(r: RawPosition): Position | null {
@@ -73,6 +76,10 @@ function toPosition(r: RawPosition): Position | null {
     // MagicBlock space — see lib/perp.ts `bulkToChartShift`.
     markPriceBulk: r.fairPrice,
     realizedPnl: r.realizedPnl,
+    // TP / SL / trailing orders resting on Bulk for this position. Authoritative:
+    // an empty list means the position genuinely has no protection, so the UI
+    // must render from this rather than from what the user last submitted.
+    protection: readProtection(r.protection?.orders),
     openedAt: Date.now(),
   };
 }

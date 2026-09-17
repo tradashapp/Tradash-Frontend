@@ -161,6 +161,8 @@ export interface BulkPosition {
   liquidationPrice: number;
   maintenanceMargin: number;
   iso: boolean;
+  /** Resting protective triggers (TP/SL/trailing) — normalize via readProtection. */
+  protection?: { orders?: unknown };
 }
 
 export interface BulkFullAccount {

@@ -40,6 +40,8 @@ import {
 } from "@/lib/bulk/orders";
 import { setMarketLeverage as pushLeverageToBulk } from "@/lib/bulk/leverage";
 import type { AgentSigner } from "@/lib/bulk/signing";
+import { findTakeProfit } from "@/lib/bulk/protection";
+import { useProtection } from "@/hooks/useProtection";
 import type { Direction, MarketSymbol, Position } from "@/types";
 
 // A "significant" profit move ~= 5% of the margin at risk.
@@ -101,6 +103,9 @@ export function useTrade(
   const { authenticated = false, onNeedsSetup } = opts ?? {};
   const dispatch = useAppDispatch();
   const { toast } = useToast();
+  // Native Bulk trigger orders (TP / SL / trailing). Live trailing routes
+  // through here so it rests server-side rather than in a client watcher.
+  const { setProtection } = useProtection(signer);
   const mode = useAppSelector((s) => s.tradingMode.mode);
   // Optimistic (Bulk exposes no readable builder-approval state), so a stale
   // `true` is still possible on a new device — `onBuilderNotApproved` remains
@@ -736,22 +741,46 @@ export function useTrade(
       settings.defaultTrailPct
     );
 
-  // Toggle the trailing stop. Activating seeds the stop clamped to entry (so it
-  // sits in the profit band between entry and mark); the ratchet + auto-close
-  // runs in useDemoPnl (demo) / the WS-driven path (live). Deactivating clears it.
-  const toggleTrail = useCallback(() => {
+  // Toggle the trailing stop.
+  //
+  // LIVE places a NATIVE Bulk trailing order (`trl`), which ratchets and fires
+  // server-side — so it keeps working with the app closed. It used to run in
+  // `useLiveTrail`, a client watcher that only trailed while a tab was open;
+  // that made "trailing stop" a promise the app could not keep overnight.
+  //
+  // DEMO keeps the local simulation (useDemoPnl ratchets it) — there is no Bulk
+  // account behind a demo position to rest an order against.
+  const toggleTrail = useCallback(async () => {
     if (!position || price == null) return;
     const sym = position.symbol;
+    const trailBps = Math.round(settings.defaultTrailPct * 10_000);
+
     if (position.trailActive) {
-      const patch = { trailActive: false, trailStopPrice: undefined };
-      dispatch(
-        mode === "demo"
-          ? patchDemoPosition({ symbol: sym, patch })
-          : patchPosition({ symbol: sym, patch })
-      );
+      if (mode === "demo") {
+        dispatch(
+          patchDemoPosition({
+            symbol: sym,
+            patch: { trailActive: false, trailStopPrice: undefined },
+          })
+        );
+      } else {
+        // Cancel the resting trl but keep any take-profit: they are independent
+        // sides, and turning the trail off must not silently disarm the TP.
+        const tp = findTakeProfit(position.protection);
+        const ok = await setProtection({
+          symbol: sym,
+          direction: position.direction,
+          size: position.size,
+          takeProfit: tp?.triggerPrice ?? null,
+          stopLoss: null,
+          trailBps: null,
+        });
+        if (!ok) return;
+      }
       toast(`Trailing stop off · ${sym}`, { type: "info" });
       return;
     }
+
     // Guard: only arm when eligible. Same reference as `trailEligible` above,
     // so the button's enabled state and this check can never disagree.
     const reference = trailReferencePrice(mode, position);
@@ -760,27 +789,52 @@ export function useTrade(
     ) {
       return;
     }
-    const patch = {
-      trailActive: true,
-      trailStopPrice: trailStopFor(
-        position.direction,
-        price,
-        reference,
-        settings.defaultTrailPct
-      ),
-    };
-    dispatch(
-      mode === "demo"
-        ? patchDemoPosition({ symbol: sym, patch })
-        : patchPosition({ symbol: sym, patch })
-    );
+
+    if (mode === "demo") {
+      dispatch(
+        patchDemoPosition({
+          symbol: sym,
+          patch: {
+            trailActive: true,
+            trailStopPrice: trailStopFor(
+              position.direction,
+              price,
+              reference,
+              settings.defaultTrailPct
+            ),
+          },
+        })
+      );
+    } else {
+      // A trail replaces the plain stop (one downside slot), but preserves the
+      // take-profit.
+      const tp = findTakeProfit(position.protection);
+      const ok = await setProtection({
+        symbol: sym,
+        direction: position.direction,
+        size: position.size,
+        takeProfit: tp?.triggerPrice ?? null,
+        stopLoss: null,
+        trailBps,
+      });
+      if (!ok) return; // setProtection already explained why.
+    }
+
     toast(`Trailing stop armed · ${sym}`, {
       type: "success",
       description: `Locks profit if price reverses ${(
         settings.defaultTrailPct * 100
       ).toFixed(1)}%`,
     });
-  }, [position, price, mode, settings.defaultTrailPct, dispatch, toast]);
+  }, [
+    position,
+    price,
+    mode,
+    settings.defaultTrailPct,
+    dispatch,
+    toast,
+    setProtection,
+  ]);
 
   return {
     mode,

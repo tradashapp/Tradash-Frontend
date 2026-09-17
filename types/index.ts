@@ -46,6 +46,27 @@ export interface MarketInfo {
   categories: MarketCategory[];
 }
 
+/** Which protective trigger a resting order is. Mirrors Bulk's `orderType`. */
+export type ProtectionKind = "takeProfit" | "stop" | "trailing";
+
+/**
+ * One protective trigger order resting on Bulk against a position.
+ *
+ * `triggerPrice` is the level that fires it, in BULK's price space.
+ * `isAbove` is the DIRECTION price must cross to fire — which, for the same
+ * position, differs between TP and SL (see lib/bulk/protection.ts).
+ */
+export interface ProtectionOrder {
+  orderId: string;
+  kind: ProtectionKind;
+  triggerPrice: number;
+  isAbove: boolean;
+  /** Trailing only: distance behind the high-water mark, in basis points. */
+  trailBps?: number;
+  /** Trailing only: the best price reached so far, which the stop trails. */
+  highWaterPrice?: number;
+}
+
 export interface Position {
   symbol: MarketSymbol;
   direction: Direction;
@@ -61,6 +82,16 @@ export interface Position {
   /** Trailing stop: active flag + the current stop price (ratchets toward profit). */
   trailActive?: boolean;
   trailStopPrice?: number;
+  /**
+   * Protective trigger orders resting on BULK for this position (TP / SL /
+   * trailing), read back from `positions[].protection.orders`.
+   *
+   * These rest SERVER-SIDE and fire whether or not the app is open, so this is
+   * the authoritative view — never a local intent. A level the user just set
+   * does not belong here until Bulk has echoed it back (see `readProtection`).
+   * Prices are in BULK's price space, like entryPrice / liquidationPrice.
+   */
+  protection?: ProtectionOrder[];
   /**
    * Live PnL anchoring (Bulk only pushes PnL on trade events, not per tick). We
    * record Bulk's real PnL and the MagicBlock price at the moment of each Bulk

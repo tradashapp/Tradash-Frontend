@@ -15,6 +15,8 @@ interface Props {
   onAdjust?: (item: LivePosition, mode: "add" | "reduce") => void;
   /** Close one position. */
   onClosePosition?: (item: LivePosition) => void | Promise<void>;
+  /** Open the TP/SL sheet for one position. */
+  onEditTpSl?: (item: LivePosition) => void;
 }
 
 // Mobile: a slide-up sheet that surfaces the SAME positions view used in the
@@ -32,6 +34,7 @@ export function PositionsSheet({
   onCloseAll,
   onAdjust,
   onClosePosition,
+  onEditTpSl,
 }: Props) {
   return (
     <Sheet open={open} onClose={onClose} title="Open positions" scrollBody={false}>
@@ -45,6 +48,7 @@ export function PositionsSheet({
         onCloseAll={onCloseAll}
         onAdjust={onAdjust}
         onClosePosition={onClosePosition}
+        onEditTpSl={onEditTpSl}
       />
     </Sheet>
   );

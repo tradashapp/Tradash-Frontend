@@ -13,6 +13,7 @@ import {
   AdjustPositionSheet,
   type AdjustMode,
 } from "@/components/sheets/AdjustPositionSheet";
+import { TpSlSheet } from "@/components/sheets/TpSlSheet";
 import type { LivePosition } from "@/hooks/useAllPositions";
 import type { ChartFrame, PositionOverlay } from "@/lib/chart/engine";
 import type { MarketSymbol } from "@/types";
@@ -51,6 +52,8 @@ export function MobileLayout({
     symbol: MarketSymbol;
     mode: AdjustMode;
   } | null>(null);
+  // Which position's TP/SL is being edited.
+  const [tpsl, setTpsl] = useState<MarketSymbol | null>(null);
   const handleFrame = useCallback((f: ChartFrame) => {
     gridRef.current?.react(f);
   }, []);
@@ -132,6 +135,7 @@ export function MobileLayout({
         onCloseAll={trade.closeAll}
         onAdjust={openAdjust}
         onClosePosition={(item) => trade.closePosition(item.position.symbol)}
+        onEditTpSl={(item) => setTpsl(item.position.symbol)}
       />
 
       {/* Add / reduce for ONE position. Only the symbol is kept in state — the
@@ -147,6 +151,15 @@ export function MobileLayout({
             ? trade.increase(usd, sym)
             : trade.decrease(usd, sym)
         }
+      />
+
+      {/* Take-profit / stop-loss for ONE position. Like the adjust sheet, only
+          the symbol is held here so the levels re-derive against a live mark. */}
+      <TpSlSheet
+        open={tpsl != null}
+        onClose={() => setTpsl(null)}
+        symbol={tpsl}
+        onSubmit={trade.setTpSl}
       />
     </main>
   );

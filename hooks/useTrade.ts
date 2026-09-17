@@ -403,6 +403,21 @@ export function useTrade(
         size: position.size,
         refPrice: price,
       });
+      // Bulk does NOT cancel a position's protective triggers when the position
+      // closes — verified live 2026-09-17: a TP and SL were still resting, with
+      // their original sizes, against a flat account. Left behind they would
+      // fire on whatever position the user opens next, or (being sized to the
+      // old position) open one outright. So the exit clears them itself.
+      //
+      // Deliberately after the close and non-fatal: the close is what the user
+      // asked for, and failing it because a cleanup call failed would be worse
+      // than a stray trigger. A failure is surfaced rather than swallowed.
+      void cancelAllProtection(liveSigner, position).catch(() => {
+        toast("Old TP/SL may still be active", {
+          type: "error",
+          description: `Check ${position.symbol} in your open orders.`,
+        });
+      });
       dispatch(setOrderStatus("filled"));
       // Last known unrealized PnL is the best estimate of the realized result
       // here: the authoritative fill arrives later over the WS, and the cue has

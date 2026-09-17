@@ -28,6 +28,12 @@ export interface SettingsState {
   /** Whether the first-run "how it works" tutorial has been shown. */
   tutorialSeen: boolean;
   /**
+   * Whether the "share your feedback" banner in the account sheet was
+   * dismissed. Persisted like `tutorialSeen` — a banner that came back on
+   * every reload would be nagging, not asking.
+   */
+  feedbackBannerDismissed: boolean;
+  /**
    * Profile avatar. Either an emoji (one of AVATAR_EMOJIS) or a data-URL for a
    * photo the user picked from their device (downscaled before it's stored, so
    * the settings blob stays small enough for localStorage).
@@ -46,6 +52,7 @@ const initialState: SettingsState = {
   soundEnabled: true,
   hapticsEnabled: true,
   tutorialSeen: false,
+  feedbackBannerDismissed: false,
   avatar: "\u{1F680}", // rocket
 };
 

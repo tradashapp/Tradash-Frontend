@@ -591,6 +591,8 @@ function Menu({
         <NavRow icon={Download04Icon} label="Install app" onClick={onInstall} />
       </MenuSection>
 
+      <FeedbackBanner />
+
       {/* Mode-specific actions */}
       {mode === "demo" ? (
         <button

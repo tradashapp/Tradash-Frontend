@@ -16,6 +16,11 @@ import { TradeControls } from "@/components/trade/TradeControls";
 import { PositionDock } from "@/components/trade/PositionDock";
 import { PositionsPanel } from "@/components/trade/PositionsPanel";
 import { MarketSettingsSheet } from "@/components/sheets/MarketSettingsSheet";
+import {
+  AdjustPositionSheet,
+  type AdjustMode,
+} from "@/components/sheets/AdjustPositionSheet";
+import type { LivePosition } from "@/hooks/useAllPositions";
 import type { ChartFrame, PositionOverlay } from "@/lib/chart/engine";
 import type { MarketSymbol } from "@/types";
 import type { useTrade } from "@/hooks/useTrade";
@@ -45,6 +50,12 @@ export function DesktopLayout({
 }: Props) {
   const gridRef = useRef<DotGridHandle | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // Which position the add/reduce sheet is editing. The right panel stays
+  // visible behind it, so this is a plain overlay rather than a swap.
+  const [adjust, setAdjust] = useState<{
+    symbol: MarketSymbol;
+    mode: AdjustMode;
+  } | null>(null);
   const handleFrame = useCallback((f: ChartFrame) => {
     gridRef.current?.react(f); 
   }, []); 
@@ -92,7 +103,16 @@ export function DesktopLayout({
           <BalancePill onOpen={onOpenAccount} />
         </div>
 
-        <PositionsPanel onShare={onShare} onCloseAll={trade.closeAll} />
+        <PositionsPanel
+          onShare={onShare}
+          onCloseAll={trade.closeAll}
+          onAdjust={(item: LivePosition, mode: AdjustMode) =>
+            setAdjust({ symbol: item.position.symbol, mode })
+          }
+          onClosePosition={(item: LivePosition) =>
+            trade.closePosition(item.position.symbol)
+          }
+        />
 
         <div className="shrink-0">
           <TradeControls
@@ -116,6 +136,19 @@ export function DesktopLayout({
         onClose={() => setSettingsOpen(false)}
         symbol={symbol}
         leverage={leverage}
+      />
+
+      {/* Add / reduce for one position, opened from a row in the right panel. */}
+      <AdjustPositionSheet
+        open={adjust != null}
+        onClose={() => setAdjust(null)}
+        symbol={adjust?.symbol ?? null}
+        mode={adjust?.mode ?? "add"}
+        onSubmit={(usd, sym) =>
+          adjust?.mode === "add"
+            ? trade.increase(usd, sym)
+            : trade.decrease(usd, sym)
+        }
       />
     </main>
   );

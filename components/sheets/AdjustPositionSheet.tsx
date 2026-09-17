@@ -10,7 +10,8 @@ import { liquidationPrice } from "@/lib/perp";
 import { formatPrice } from "@/lib/format";
 import { playSound } from "@/lib/sound";
 import { haptic } from "@/lib/haptics";
-import type { LivePosition } from "@/hooks/useAllPositions";
+import { useAllPositions } from "@/hooks/useAllPositions";
+import type { MarketSymbol } from "@/types";
 
 /**
  * Add to / reduce an OPEN position.
@@ -47,11 +48,17 @@ export type AdjustMode = "add" | "reduce";
 interface Props {
   open: boolean;
   onClose: () => void;
-  /** The position being adjusted, or null while the sheet animates shut. */
-  item: LivePosition | null;
+  /**
+   * The market being adjusted, or null while the sheet animates shut.
+   *
+   * A SYMBOL rather than the row itself: the sheet looks the position up live,
+   * so its mark price, PnL and margin keep ticking while the user drags the
+   * slider. A frozen snapshot would quietly preview against a stale price.
+   */
+  symbol: MarketSymbol | null;
   mode: AdjustMode;
   /** useTrade.increase / useTrade.decrease — both take (usd, symbol). */
-  onSubmit: (deltaUsd: number, symbol: LivePosition["position"]["symbol"]) => Promise<void> | void;
+  onSubmit: (deltaUsd: number, symbol: MarketSymbol) => Promise<void> | void;
 }
 
 const usd2 = (n: number) =>
@@ -63,7 +70,7 @@ const usd2 = (n: number) =>
 export function AdjustPositionSheet({
   open,
   onClose,
-  item,
+  symbol,
   mode,
   onSubmit,
 }: Props) {
@@ -72,6 +79,14 @@ export function AdjustPositionSheet({
   const demoBalance = useAppSelector((s) => s.tradingMode.demo.balance);
   const [amount, setAmount] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+
+  // Live lookup, so the preview tracks the current mark rather than the price
+  // that happened to be on screen when the row was tapped.
+  const { items } = useAllPositions();
+  const item = useMemo(
+    () => items.find((i) => i.position.symbol === symbol) ?? null,
+    [items, symbol]
+  );
 
   const pos = item?.position ?? null;
   const isAdd = mode === "add";
@@ -98,11 +113,15 @@ export function AdjustPositionSheet({
   // Reset to a sane starting amount whenever the sheet opens or flips mode.
   // Half the allowed range is a more useful default than zero (which makes the
   // confirm button dead on arrival) or the max (which is a trap).
+  // `max` is deliberately NOT a dependency: it moves with every price tick, and
+  // re-seeding on each one would yank the slider out from under the user's
+  // thumb. Seeding on open / mode / market only.
   useEffect(() => {
-    if (!open || !pos) return;
+    if (!open || !symbol) return;
     setAmount(Number((max / 2).toFixed(2)));
     setSubmitting(false);
-  }, [open, mode, pos?.symbol, max]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, mode, symbol]);
 
   if (!pos) {
     return (

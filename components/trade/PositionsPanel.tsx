@@ -11,6 +11,9 @@ import {
   Share05Icon,
   ChartCandlestickIcon,
   Loading03Icon,
+  PlusSignIcon,
+  MinusSignIcon,
+  Cancel01Icon,
 } from "@hugeicons/core-free-icons";
 import { MARKETS } from "@/lib/markets";
 import { formatPrice, formatUsd } from "@/lib/format";

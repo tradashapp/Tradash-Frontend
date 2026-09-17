@@ -40,7 +40,7 @@ import {
 } from "@/lib/bulk/orders";
 import { setMarketLeverage as pushLeverageToBulk } from "@/lib/bulk/leverage";
 import type { AgentSigner } from "@/lib/bulk/signing";
-import type { Direction, Position } from "@/types";
+import type { Direction, MarketSymbol, Position } from "@/types";
 
 // A "significant" profit move ~= 5% of the margin at risk.
 const profitStepFor = (marginUsd: number) => Math.max(marginUsd * 0.05, 1);
@@ -330,13 +330,47 @@ export function useTrade(
     ]
   );
 
-  const close = useCallback(async () => {
-    if (!position) return;
+  /**
+   * Resolve the position an adjustment targets, plus ITS market's price.
+   *
+   * Add/reduce are reached from the positions list, which shows EVERY market —
+   * so the target is not necessarily the market on screen. Defaulting to the
+   * active symbol keeps the no-argument call behaving as before, but passing a
+   * symbol is what stops a tap on the ETH row from adjusting the BTC position
+   * the user happens to be looking at. The price has to come from the same
+   * market too: sizing an ETH order off the BTC tick would be wrong by orders
+   * of magnitude.
+   */
+  const resolveTarget = useCallback(
+    (symbol?: MarketSymbol) => {
+      const sym = symbol ?? activeSymbol;
+      const source = mode === "demo" ? allDemoPositions : allLivePositions;
+      const raw = source[sym] ?? null;
+      if (!raw) return null;
+      const mark = allPrices[sym];
+      if (mark == null) return null;
+      // Match the display PnL model used everywhere else, so a demo reduce
+      // realizes the same number the row was showing.
+      return {
+        target: { ...raw, unrealizedPnl: displayPnlFor(mode, raw, mark) },
+        mark,
+      };
+    },
+    [mode, activeSymbol, allDemoPositions, allLivePositions, allPrices]
+  );
+
+  // Close a position in full. `symbol` defaults to the active market, so the
+  // bottom Close button is unchanged; the positions list passes its row's
+  // symbol to close a market the user is not currently looking at.
+  const close = useCallback(async (symbol?: MarketSymbol) => {
+    const resolved = resolveTarget(symbol);
+    if (!resolved) return;
+    const { target: position, mark: price } = resolved;
     const market = MARKETS[position.symbol];
 
     if (mode === "demo") {
       // Log the completed trade, then realize PnL into the demo balance.
-      if (price != null) recordClose(dispatch, "demo", position, price, position.unrealizedPnl);
+      recordClose(dispatch, "demo", position, price, position.unrealizedPnl);
       dispatch(settleDemo({ symbol: position.symbol, pnl: position.unrealizedPnl }));
       playCloseOutcome(position.unrealizedPnl);
       haptic("close");
@@ -362,7 +396,7 @@ export function useTrade(
         bulkSymbol: market.bulkSymbol,
         positionIsLong: position.direction === "long",
         size: position.size,
-        refPrice: price ?? position.entryPrice,
+        refPrice: price,
       });
       dispatch(setOrderStatus("filled"));
       // Last known unrealized PnL is the best estimate of the realized result
@@ -381,7 +415,7 @@ export function useTrade(
         description: msg.replace(/^Bulk order error:\s*/, ""),
       });
     }
-  }, [mode, position, price, signer, requireLiveSetup, dispatch, toast]);
+  }, [mode, resolveTarget, signer, requireLiveSetup, dispatch, toast]);
 
   // Close EVERY open position, across all markets. Fired from the aggregated
   // PnL card when more than one position is open.
@@ -488,34 +522,6 @@ export function useTrade(
     toast,
   ]);
 
-  /**
-   * Resolve the position an adjustment targets, plus ITS market's price.
-   *
-   * Add/reduce are reached from the positions list, which shows EVERY market —
-   * so the target is not necessarily the market on screen. Defaulting to the
-   * active symbol keeps the no-argument call behaving as before, but passing a
-   * symbol is what stops a tap on the ETH row from adjusting the BTC position
-   * the user happens to be looking at. The price has to come from the same
-   * market too: sizing an ETH order off the BTC tick would be wrong by orders
-   * of magnitude.
-   */
-  const resolveTarget = useCallback(
-    (symbol?: MarketSymbol) => {
-      const sym = symbol ?? activeSymbol;
-      const source = mode === "demo" ? allDemoPositions : allLivePositions;
-      const raw = source[sym] ?? null;
-      if (!raw) return null;
-      const mark = allPrices[sym];
-      if (mark == null) return null;
-      // Match the display PnL model used everywhere else, so a demo reduce
-      // realizes the same number the row was showing.
-      return {
-        target: { ...raw, unrealizedPnl: displayPnlFor(mode, raw, mark) },
-        mark,
-      };
-    },
-    [mode, activeSymbol, allDemoPositions, allLivePositions, allPrices]
-  );
 
   // Add SIZE to an open position (same direction) — a market order for the
   // extra notional. `deltaUsd` is the margin to add; at the position's current
@@ -785,9 +791,16 @@ export function useTrade(
     trailActive: position?.trailActive ?? false,
     trailEligible,
     trailPct: settings.defaultTrailPct,
-    close,
+    // Close the ACTIVE market's position. Wrapped rather than exposing `close`
+    // directly: it is bound straight to onClick in the layouts, which would
+    // otherwise hand the click event in as the symbol argument.
+    close: () => close(),
+    // Close one named market's position — used by the positions list, which can
+    // show markets other than the one on screen.
+    closePosition: (symbol: MarketSymbol) => close(symbol),
     closeAll,
-    // Add / reduce SIZE of the open position (deltaUsd = margin at current lev).
+    // Add / reduce SIZE of an open position (deltaUsd = margin at current lev).
+    // Both default to the active market when no symbol is given.
     increase,
     decrease,
     hasPosition: position != null,

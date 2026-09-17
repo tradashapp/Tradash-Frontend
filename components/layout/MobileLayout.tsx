@@ -9,6 +9,11 @@ import { TradeControls } from "@/components/trade/TradeControls";
 import { PositionDock } from "@/components/trade/PositionDock";
 import { MarketSettingsSheet } from "@/components/sheets/MarketSettingsSheet";
 import { PositionsSheet } from "@/components/sheets/PositionsSheet";
+import {
+  AdjustPositionSheet,
+  type AdjustMode,
+} from "@/components/sheets/AdjustPositionSheet";
+import type { LivePosition } from "@/hooks/useAllPositions";
 import type { ChartFrame, PositionOverlay } from "@/lib/chart/engine";
 import type { MarketSymbol } from "@/types";
 import type { useTrade } from "@/hooks/useTrade";
@@ -39,8 +44,20 @@ export function MobileLayout({
   const gridRef = useRef<DotGridHandle | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [positionsOpen, setPositionsOpen] = useState(false);
+  // The position being adjusted. Held here rather than in the positions sheet
+  // because the adjust sheet REPLACES it — stacking two sheets would leave the
+  // list scrolled behind a second overlay with two grabbers to dismiss.
+  const [adjust, setAdjust] = useState<{
+    symbol: MarketSymbol;
+    mode: AdjustMode;
+  } | null>(null);
   const handleFrame = useCallback((f: ChartFrame) => {
     gridRef.current?.react(f);
+  }, []);
+
+  const openAdjust = useCallback((item: LivePosition, mode: AdjustMode) => {
+    setPositionsOpen(false);
+    setAdjust({ symbol: item.position.symbol, mode });
   }, []);
 
   return (
@@ -113,6 +130,23 @@ export function MobileLayout({
         onClose={() => setPositionsOpen(false)}
         onShare={onShare}
         onCloseAll={trade.closeAll}
+        onAdjust={openAdjust}
+        onClosePosition={(item) => trade.closePosition(item.position.symbol)}
+      />
+
+      {/* Add / reduce for ONE position. Only the symbol is kept in state — the
+          sheet re-reads the live row itself, so its PnL and mark price keep
+          ticking while it is open. */}
+      <AdjustPositionSheet
+        open={adjust != null}
+        onClose={() => setAdjust(null)}
+        symbol={adjust?.symbol ?? null}
+        mode={adjust?.mode ?? "add"}
+        onSubmit={(usd, sym) =>
+          adjust?.mode === "add"
+            ? trade.increase(usd, sym)
+            : trade.decrease(usd, sym)
+        }
       />
     </main>
   );

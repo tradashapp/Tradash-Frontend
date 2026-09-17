@@ -38,6 +38,7 @@ import { HistoryPanel } from "./panels/HistoryPanel";
 import { DepositPanel } from "./panels/DepositPanel";
 import { WithdrawPanel } from "./panels/WithdrawPanel";
 import { MoneyHistoryPanel } from "./panels/MoneyHistoryPanel";
+import { AdvancedPanel } from "./panels/AdvancedPanel";
 import { useWithdrawal } from "@/hooks/useWithdrawal";
 import type { ShareSubject } from "@/components/share/ShareCardModal";
 import type { CompletedTrade, TradeEpisode } from "@/types";
@@ -62,7 +63,8 @@ type View =
   | "transfer"
   | "deposit"
   | "withdraw"
-  | "money";
+  | "money"
+  | "advanced";
 
 interface Props {
   open: boolean;
@@ -86,6 +88,7 @@ const TITLES: Record<View, string> = {
   deposit: "Deposit",
   withdraw: "Withdraw USDC",
   money: "Account history",
+  advanced: "Advanced",
 };
 
 // Central account hub. A single sheet with sub-views (menu → settings/history)
@@ -216,6 +219,7 @@ export function AccountSheet({
                 onLogout={() => setConfirmLogout(true)}
                 onSettings={() => go("settings")}
                 onHistory={() => go("history")}
+                onAdvanced={() => go("advanced")}
                 onTransfer={(dir) => {
                   setTransferDir(dir);
                   go("transfer");
@@ -229,6 +233,7 @@ export function AccountSheet({
               />
             )}
             {view === "settings" && <SettingsPanel />}
+            {view === "advanced" && <AdvancedPanel agent={agent} />}
             {view === "settingsMenu" && <SettingsMenuPanel />}
             {view === "history" && (
               <HistoryPanel

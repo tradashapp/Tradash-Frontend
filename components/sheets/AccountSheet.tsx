@@ -918,7 +918,6 @@ function NavRow({
   icon,
   label,
   detail,
-  status,
   onClick,
   disabled,
 }: {
@@ -926,8 +925,6 @@ function NavRow({
   label: string;
   /** Muted text on the right, before the chevron. */
   detail?: string;
-  /** Renders a state dot instead of a chevron: done = green, pending = amber. */
-  status?: "done" | "pending";
   onClick?: () => void;
   disabled?: boolean;
 }) {
@@ -949,19 +946,11 @@ function NavRow({
           {detail}
         </span>
       )}
-      {status ? (
-        <HugeiconsIcon
-          icon={CheckmarkCircle02Icon}
-          size={17}
-          className={`shrink-0 ${status === "done" ? "text-up" : "text-text-muted/40"}`}
-        />
-      ) : (
-        <HugeiconsIcon
-          icon={ArrowRight01Icon}
-          size={16}
-          className="shrink-0 text-text-muted"
-        />
-      )}
+      <HugeiconsIcon
+        icon={ArrowRight01Icon}
+        size={16}
+        className="shrink-0 text-text-muted"
+      />
     </button>
   );
 }

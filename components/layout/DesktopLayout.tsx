@@ -15,6 +15,7 @@ import { BalancePill } from "@/components/trade/BalancePill";
 import { TradeControls } from "@/components/trade/TradeControls";
 import { PositionDock } from "@/components/trade/PositionDock";
 import { PositionsPanel } from "@/components/trade/PositionsPanel";
+import { TpSlSheet } from "@/components/sheets/TpSlSheet";
 import { MarketSettingsSheet } from "@/components/sheets/MarketSettingsSheet";
 import {
   AdjustPositionSheet,
@@ -56,6 +57,8 @@ export function DesktopLayout({
     symbol: MarketSymbol;
     mode: AdjustMode;
   } | null>(null);
+  // Which position's TP/SL is being edited.
+  const [tpsl, setTpsl] = useState<MarketSymbol | null>(null);
   const handleFrame = useCallback((f: ChartFrame) => {
     gridRef.current?.react(f); 
   }, []); 
@@ -112,6 +115,7 @@ export function DesktopLayout({
           onClosePosition={(item: LivePosition) =>
             trade.closePosition(item.position.symbol)
           }
+          onEditTpSl={(item: LivePosition) => setTpsl(item.position.symbol)}
         />
 
         <div className="shrink-0">
@@ -149,6 +153,14 @@ export function DesktopLayout({
             ? trade.increase(usd, sym)
             : trade.decrease(usd, sym)
         }
+      />
+
+      {/* Take-profit / stop-loss for one position, from the same row. */}
+      <TpSlSheet
+        open={tpsl != null}
+        onClose={() => setTpsl(null)}
+        symbol={tpsl}
+        onSubmit={trade.setTpSl}
       />
     </main>
   );

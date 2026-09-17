@@ -23,9 +23,12 @@ import {
   ClockArrowUpIcon,
   ShieldKeyIcon,
   ChampionIcon,
+  TelegramIcon,
+  Cancel01Icon,
 } from "@hugeicons/core-free-icons";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { resetDemo } from "@/store/slices/tradingModeSlice";
+import { updateSettings } from "@/store/slices/settingsSlice";
 import { formatUsd } from "@/lib/format";
 import { MenuSection } from "@/components/ui/MenuSection";
 import { Sheet } from "@/components/ui/Sheet";
@@ -613,6 +616,72 @@ function Menu({
           Log out
         </button>
       )}
+    </div>
+  );
+}
+
+/** Where feedback goes. A DM is the lowest-friction channel for a solo dev. */
+const FEEDBACK_URL = "https://t.me/davidhorjet";
+
+/**
+ * A one-line ask for feedback, dismissible for good.
+ *
+ * Deliberately the quietest thing on the menu: glass rather than brand green,
+ * one line of text, no illustration. It is a request for a favour sitting in a
+ * screen people opened to do something else, so it should be easy to ignore
+ * and easier to dismiss — hence the close button on the row itself rather than
+ * a "maybe later" that needs reading.
+ *
+ * Dismissal persists through the settings slice (localStorage), so it does not
+ * return on the next reload. The close button is a real button OUTSIDE the
+ * anchor, not a click handler on top of it: nested inside, a tap on the X
+ * would also follow the link.
+ */
+function FeedbackBanner() {
+  const dispatch = useAppDispatch();
+  const dismissed = useAppSelector((s) => s.settings.feedbackBannerDismissed);
+  if (dismissed) return null;
+
+  return (
+    <div className="glass-inset mb-3 flex items-center gap-2 rounded-2xl py-2.5 pl-3 pr-2">
+      <a
+        href={FEEDBACK_URL}
+        target="_blank"
+        // noreferrer alongside noopener: the opened tab gets no window.opener
+        // handle back into the app.
+        rel="noopener noreferrer"
+        onClick={() => {
+          playSound("tap");
+          haptic("tap");
+        }}
+        className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
+      >
+        <HugeiconsIcon
+          icon={TelegramIcon}
+          size={17}
+          className="shrink-0 text-text-muted"
+        />
+        <span className="min-w-0 flex-1 truncate text-sm text-text-muted">
+          Share your feedback
+        </span>
+        <HugeiconsIcon
+          icon={ArrowRight01Icon}
+          size={15}
+          className="shrink-0 text-text-muted"
+        />
+      </a>
+      <button
+        type="button"
+        onClick={() => {
+          playSound("tap");
+          haptic("tap");
+          dispatch(updateSettings({ feedbackBannerDismissed: true }));
+        }}
+        aria-label="Dismiss feedback banner"
+        className="shrink-0 rounded-full p-1.5 text-text-muted transition-colors hover:bg-white/10 hover:text-text"
+      >
+        <HugeiconsIcon icon={Cancel01Icon} size={15} />
+      </button>
     </div>
   );
 }

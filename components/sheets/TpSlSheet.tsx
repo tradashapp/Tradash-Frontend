@@ -227,6 +227,82 @@ export function TpSlSheet({ open, onClose, symbol, onSubmit }: Props) {
 }
 
 /**
+ * A numeric field that does not fight the person typing in it.
+ *
+ * The problem this solves: a controlled input whose value is
+ * `number.toFixed(dp)` reformats on EVERY keystroke. Type "9" into a 3-decimal
+ * market and the field instantly becomes "9.000" with the caret after the
+ * zeros, so the next "9" lands as "9.0009" → "9.001". The number appeared to
+ * creep by 0.001 per press.
+ *
+ * So while the field has focus, the user's own text is what is shown, verbatim
+ * — including half-finished input like "9." or "-" that no number can
+ * represent. The parsed value still flows out on every change, so the estimate
+ * and the other field stay live. Formatting is applied only on blur, and an
+ * external change (mode switch, Clear, a fresh position) re-syncs the text as
+ * long as the user is not mid-edit.
+ */
+function NumericField({
+  label,
+  value,
+  decimals,
+  onChange,
+  onCommit,
+}: {
+  label: string;
+  value: number | null;
+  /** Decimals used for the RESTING display; typing is never truncated. */
+  decimals: number;
+  onChange: (v: number | null) => void;
+  /** Called on blur so the parent can normalize/clamp once editing ends. */
+  onCommit?: () => void;
+}) {
+  const [text, setText] = useState("");
+  const [editing, setEditing] = useState(false);
+
+  const formatted = value == null ? "" : value.toFixed(decimals);
+
+  // Follow the value when it changes from OUTSIDE (mode switch, Clear, seeding
+  // from Bulk). Skipped while editing so it can never rewrite live input.
+  useEffect(() => {
+    if (!editing) setText(formatted);
+  }, [formatted, editing]);
+
+  return (
+    <label className="flex-1">
+      <span className="mb-1 block text-[10px] uppercase tracking-wide text-text-muted">
+        {label}
+      </span>
+      <input
+        inputMode="decimal"
+        value={editing ? text : formatted}
+        onFocus={() => {
+          setEditing(true);
+          setText(formatted);
+        }}
+        onBlur={() => {
+          setEditing(false);
+          onCommit?.();
+        }}
+        onChange={(e) => {
+          // Accept only characters that can build a decimal number, so a stray
+          // letter cannot wipe the field to null mid-word.
+          const raw = e.target.value.replace(/[^0-9.\-]/g, "");
+          setText(raw);
+          if (raw === "" || raw === "-" || raw === "." || raw === "-.") {
+            return onChange(null);
+          }
+          const n = Number(raw);
+          if (Number.isFinite(n)) onChange(n);
+        }}
+        placeholder="—"
+        className="tabular w-full rounded-lg bg-white/[0.06] px-3 py-2.5 text-base font-semibold text-text outline-none placeholder:text-text-muted/50 focus:bg-white/[0.09]"
+      />
+    </label>
+  );
+}
+
+/**
  * One side's editor: a trigger price, the same level in the chosen unit, and
  * what it would realize.
  *
@@ -256,17 +332,15 @@ function TriggerEditor({
   // The level in the currently selected unit.
   const derived =
     value == null
-      ? ""
+      ? null
       : mode === "roi"
-        ? roiAtPrice(pos, value).toFixed(1)
+        ? roiAtPrice(pos, value)
         : mode === "change"
-          ? changeAtPrice(pos.entryPrice, value).toFixed(2)
-          : pnlAtPrice(pos.direction, pos.size, pos.entryPrice, value).toFixed(2);
+          ? changeAtPrice(pos.entryPrice, value)
+          : pnlAtPrice(pos.direction, pos.size, pos.entryPrice, value);
 
-  const applyDerived = (raw: string) => {
-    if (raw.trim() === "") return onChange(null);
-    const n = Number(raw);
-    if (!Number.isFinite(n)) return;
+  const applyDerived = (n: number | null) => {
+    if (n == null) return onChange(null);
     onChange(
       mode === "roi"
         ? triggerFromRoi(pos, n)
@@ -302,35 +376,22 @@ function TriggerEditor({
       </div>
 
       <div className="flex gap-2">
-        <label className="flex-1">
-          <span className="mb-1 block text-[10px] uppercase tracking-wide text-text-muted">
-            Trigger price
-          </span>
-          <input
-            inputMode="decimal"
-            value={value == null ? "" : value.toFixed(priceDp(pos.entryPrice))}
-            onChange={(e) => {
-              const raw = e.target.value.trim();
-              if (raw === "") return onChange(null);
-              const n = Number(raw);
-              if (Number.isFinite(n)) onChange(n);
-            }}
-            placeholder="—"
-            className="tabular w-full rounded-lg bg-white/[0.06] px-3 py-2.5 text-base font-semibold text-text outline-none placeholder:text-text-muted/50 focus:bg-white/[0.09]"
-          />
-        </label>
-        <label className="w-[38%]">
-          <span className="mb-1 block text-[10px] uppercase tracking-wide text-text-muted">
-            {mode === "roi" ? "ROI %" : mode === "change" ? "Change %" : "P&L $"}
-          </span>
-          <input
-            inputMode="decimal"
+        <NumericField
+          label="Trigger price"
+          value={value}
+          decimals={priceDp(pos.entryPrice)}
+          onChange={onChange}
+        />
+        <div className="w-[38%]">
+          <NumericField
+            label={
+              mode === "roi" ? "ROI %" : mode === "change" ? "Change %" : "P&L $"
+            }
             value={derived}
-            onChange={(e) => applyDerived(e.target.value)}
-            placeholder="—"
-            className="tabular w-full rounded-lg bg-white/[0.06] px-3 py-2.5 text-base font-semibold text-text outline-none placeholder:text-text-muted/50 focus:bg-white/[0.09]"
+            decimals={mode === "roi" ? 1 : 2}
+            onChange={applyDerived}
           />
-        </label>
+        </div>
       </div>
 
       {error ? (

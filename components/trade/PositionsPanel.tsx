@@ -14,8 +14,10 @@ import {
   PlusSignIcon,
   MinusSignIcon,
   Cancel01Icon,
+  PencilEdit02Icon,
 } from "@hugeicons/core-free-icons";
 import { MARKETS } from "@/lib/markets";
+import { findStopLoss, findTakeProfit } from "@/lib/bulk/protection";
 import { formatPrice, formatUsd } from "@/lib/format";
 import { Odometer } from "@/components/ui/Odometer";
 import { useAllPositions, type LivePosition } from "@/hooks/useAllPositions";
@@ -185,6 +187,11 @@ function PositionRow({
   const market = MARKETS[pos.symbol];
   const up = pos.direction === "long";
   const profit = pnl >= 0;
+  // Resting protection, as Bulk reports it. A trailing stop fills the same
+  // downside slot as a fixed stop, so it is pulled out separately for its own
+  // live readout below.
+  const stop = findStopLoss(pos.protection);
+  const trailOrder = stop?.kind === "trailing" ? stop : null;
 
   return (
     <div className="glass-inset overflow-hidden rounded-2xl">
@@ -309,10 +316,22 @@ function PositionRow({
                 color="down"
               />
               <Detail label="Margin" value={formatUsd(pos.marginUsed)} />
-              {pos.trailActive && item.trailStopBulk != null && (
+
+              {/* TP/SL sits directly under Margin: it is the other half of the
+                  risk picture the numbers above describe. Both levels read as
+                  one line because they are one decision — where this position
+                  gets out, in either direction. */}
+              {onEditTpSl && (
+                <TpSlRow item={item} onEdit={() => onEditTpSl(item)} />
+              )}
+
+              {/* A trailing stop's live level, once Bulk reports it. Shown
+                  separately from TP/SL because it MOVES — it is a readout, not
+                  a setting. */}
+              {trailOrder && (
                 <Detail
                   label="Trail stop"
-                  value={`$${formatPrice(item.trailStopBulk)}`}
+                  value={`$${formatPrice(trailOrder.triggerPrice)}`}
                   color="up"
                 />
               )}
@@ -386,6 +405,62 @@ function PositionRow({
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+/**
+ * The TP/SL line: both levels, or a dash where one is unset, with the whole row
+ * tappable to edit.
+ *
+ * Renders ONLY what Bulk has confirmed is resting (`position.protection`) — not
+ * what was last submitted. A trigger can be acknowledged and then silently
+ * discarded (see lib/bulk/protection.ts), so showing local intent here would
+ * tell the user they are protected when they may not be.
+ */
+function TpSlRow({
+  item,
+  onEdit,
+}: {
+  item: LivePosition;
+  onEdit: () => void;
+}) {
+  const { protection } = item.position;
+  const tp = findTakeProfit(protection);
+  const sl = findStopLoss(protection);
+
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        playSound("tap");
+        haptic("tap");
+        onEdit();
+      }}
+      className="-mx-1 flex items-center justify-between rounded-lg px-1 py-0.5 text-left transition-colors hover:bg-white/[0.04]"
+    >
+      <span className="text-text-muted">TP/SL</span>
+      <span className="flex items-center gap-1.5">
+        <span className="tabular font-semibold">
+          <span className={tp ? "text-up" : "text-text-muted"}>
+            {tp ? formatPrice(tp.triggerPrice) : "—"}
+          </span>
+          <span className="text-text-muted"> / </span>
+          <span className={sl ? "text-down" : "text-text-muted"}>
+            {sl
+              ? sl.kind === "trailing"
+                ? "Trailing"
+                : formatPrice(sl.triggerPrice)
+              : "—"}
+          </span>
+        </span>
+        <HugeiconsIcon
+          icon={PencilEdit02Icon}
+          size={14}
+          className="text-text-muted"
+        />
+      </span>
+    </button>
   );
 }
 

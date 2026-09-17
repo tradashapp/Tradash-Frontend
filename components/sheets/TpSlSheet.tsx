@@ -84,8 +84,16 @@ export function TpSlSheet({ open, onClose, symbol, onSubmit }: Props) {
     setSubmitting(false);
   }, [open, item?.position.symbol]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // The position closed (or the sheet is animating shut) — keep the shell so the
+  // exit animation still runs, but say why it is empty.
   if (!item) {
-    return <Sheet open={open} onClose={onClose} title="TP/SL" />;
+    return (
+      <Sheet open={open} onClose={onClose} title="TP/SL">
+        <p className="py-8 text-center text-sm text-text-muted">
+          This position is no longer open.
+        </p>
+      </Sheet>
+    );
   }
 
   const pos = item.position;

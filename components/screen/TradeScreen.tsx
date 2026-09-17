@@ -22,7 +22,7 @@ import { marketPath, marketMeta } from "@/lib/markets";
 import { useAgentWallet } from "@/hooks/useAgentWallet";
 import { useBulkAccount } from "@/hooks/useBulkAccount";
 import { useDemoPnl } from "@/hooks/useDemoPnl";
-import { useLiveTrail } from "@/hooks/useLiveTrail";
+import { useLiveProfitSound } from "@/hooks/useLiveProfitSound";
 import { useTradeRecorder } from "@/hooks/useTradeRecorder";
 import { useFeedback } from "@/hooks/useFeedback";
 import { useAllPrices } from "@/hooks/useAllPrices";
@@ -80,7 +80,7 @@ export function TradeScreen({ initialMarket }: Props) {
   useAllPrices(); // live price for ALL markets (switcher + multi-market PnL)
   useBulkAccount(agent.masterAddress, agent.privyId);
   useDemoPnl();
-  useLiveTrail(agent.signer);
+  useLiveProfitSound();
   useTradeRecorder(); // records real price paths for trade replay
   // A rejected-for-unapproved-builder-code order is the only reliable signal
   // that our cached approval is stale — feed it back so the Account sheet shows

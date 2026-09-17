@@ -745,7 +745,7 @@ export function useTrade(
   //
   // LIVE places a NATIVE Bulk trailing order (`trl`), which ratchets and fires
   // server-side — so it keeps working with the app closed. It used to run in
-  // `useLiveTrail`, a client watcher that only trailed while a tab was open;
+  // a client watcher (`useLiveTrail`) that only trailed while a tab was open;
   // that made "trailing stop" a promise the app could not keep overnight.
   //
   // DEMO keeps the local simulation (useDemoPnl ratchets it) — there is no Bulk

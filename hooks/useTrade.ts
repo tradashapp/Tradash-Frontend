@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
-import { MARKETS, leverageFor } from "@/lib/markets";
+import { leverageFor } from "@/lib/markets";
 import {
   openPosition,
   trailStopFor,
@@ -32,16 +32,10 @@ import {
 } from "@/lib/sound";
 import { haptic } from "@/lib/haptics";
 import { useToast } from "@/components/toast/ToastProvider";
-import {
-  openMarket,
-  reduceMarket,
-  baseSizeFromUsd,
-  isBuilderNotApprovedError,
-} from "@/lib/bulk/orders";
-import { setMarketLeverage as pushLeverageToBulk } from "@/lib/bulk/leverage";
+import { baseSizeFromUsd } from "@/lib/bulk/orders";
+import { venue } from "@/lib/venue";
 import type { AgentSigner } from "@/lib/bulk/signing";
 import {
-  cancelAllProtection,
   findStopLoss,
   findTakeProfit,
   findTrailingStop,
@@ -200,7 +194,6 @@ export function useTrade(
   const open = useCallback(
     async (direction: Direction) => {
       if (price == null) return;
-      const market = MARKETS[activeSymbol];
       // Leverage is per market (each has its own cap on Bulk), resolved through
       // `leverageFor` so an unset market falls back to the default and a stored
       // value can never exceed the cap.
@@ -287,13 +280,13 @@ export function useTrade(
         // idempotent; a failure must not block the trade, since the position
         // still opens (just at the leverage Bulk already had).
         try {
-          await pushLeverageToBulk(liveSigner, market.bulkSymbol, leverage);
+          await venue.setLeverage(liveSigner, activeSymbol, leverage);
         } catch (e) {
           console.warn("[open] leverage sync skipped:", e);
         }
         const size = baseSizeFromUsd(marginUsd, leverage, price);
-        await openMarket(liveSigner, {
-          bulkSymbol: market.bulkSymbol,
+        await venue.openMarket(liveSigner, {
+          symbol: activeSymbol,
           isLong: direction === "long",
           size,
           refPrice: price,
@@ -309,7 +302,7 @@ export function useTrade(
         // Our builder code isn't approved on this account — every order will be
         // rejected until it is. Correct the cached state and tell the user what
         // to actually DO, rather than surfacing Bulk's raw pubkey message.
-        if (isBuilderNotApprovedError(e)) {
+        if (venue.isBuilderNotApprovedError(e)) {
           onBuilderNotApproved?.();
           toast("Finish setup to trade", {
             type: "error",
@@ -376,7 +369,6 @@ export function useTrade(
     const resolved = resolveTarget(symbol);
     if (!resolved) return;
     const { target: position, mark: price } = resolved;
-    const market = MARKETS[position.symbol];
 
     if (mode === "demo") {
       // Log the completed trade, then realize PnL into the demo balance.
@@ -402,8 +394,8 @@ export function useTrade(
       id: `close-${position.symbol}`,
     });
     try {
-      await reduceMarket(liveSigner, {
-        bulkSymbol: market.bulkSymbol,
+      await venue.reduceMarket(liveSigner, {
+        symbol: position.symbol,
         positionIsLong: position.direction === "long",
         size: position.size,
         refPrice: price,
@@ -417,16 +409,14 @@ export function useTrade(
       // Deliberately after the close and non-fatal: the close is what the user
       // asked for, and failing it because a cleanup call failed would be worse
       // than a stray trigger. A failure is surfaced rather than swallowed.
-      void cancelAllProtection(
-        liveSigner,
-        market.bulkSymbol,
-        position.protection
-      ).catch(() => {
-        toast("Old TP/SL may still be active", {
-          type: "error",
-          description: `Check ${position.symbol} in your open orders.`,
+      void venue
+        .cancelAllProtection(liveSigner, position.symbol, position.protection)
+        .catch(() => {
+          toast("Old TP/SL may still be active", {
+            type: "error",
+            description: `Check ${position.symbol} in your open orders.`,
+          });
         });
-      });
       dispatch(setOrderStatus("filled"));
       // Last known unrealized PnL is the best estimate of the realized result
       // here: the authoritative fill arrives later over the WS, and the cue has
@@ -497,8 +487,8 @@ export function useTrade(
 
     const results = await Promise.allSettled(
       open.map((pos) =>
-        reduceMarket(liveSigner, {
-          bulkSymbol: MARKETS[pos.symbol].bulkSymbol,
+        venue.reduceMarket(liveSigner, {
+          symbol: pos.symbol,
           positionIsLong: pos.direction === "long",
           size: pos.size,
           refPrice: allPrices[pos.symbol] ?? pos.entryPrice,
@@ -511,11 +501,7 @@ export function useTrade(
     // fire against whatever the user opens next. Same rationale as `close`.
     void Promise.allSettled(
       open.map((pos) =>
-        cancelAllProtection(
-          liveSigner,
-          MARKETS[pos.symbol].bulkSymbol,
-          pos.protection
-        )
+        venue.cancelAllProtection(liveSigner, pos.symbol, pos.protection)
       )
     );
 
@@ -574,7 +560,6 @@ export function useTrade(
       const resolved = resolveTarget(symbol);
       if (!resolved || deltaUsd <= 0) return;
       const { target: position, mark: price } = resolved;
-      const market = MARKETS[position.symbol];
       // Same risk-limit clamp as `open`: added notional is margined against the
       // account's FREE collateral, so adding more than that is rejected with
       // `rejectedRiskLimit` rather than partially filled. Demo has no Bulk
@@ -644,8 +629,8 @@ export function useTrade(
         duration: 90_000,
       });
       try {
-        await openMarket(liveSigner, {
-          bulkSymbol: market.bulkSymbol,
+        await venue.openMarket(liveSigner, {
+          symbol: position.symbol,
           isLong: position.direction === "long",
           size: addSize,
           refPrice: price,
@@ -687,7 +672,6 @@ export function useTrade(
       const resolved = resolveTarget(symbol);
       if (!resolved || deltaUsd <= 0) return;
       const { target: position, mark: price } = resolved;
-      const market = MARKETS[position.symbol];
       const rawSize = baseSizeFromUsd(deltaUsd, position.leverage, price);
       const cutSize = Math.min(rawSize, position.size);
       if (cutSize <= 0) return;
@@ -736,8 +720,8 @@ export function useTrade(
         id: `adjust-${position.symbol}`,
       });
       try {
-        await reduceMarket(liveSigner, {
-          bulkSymbol: market.bulkSymbol,
+        await venue.reduceMarket(liveSigner, {
+          symbol: position.symbol,
           positionIsLong: position.direction === "long",
           size: cutSize,
           refPrice: price,

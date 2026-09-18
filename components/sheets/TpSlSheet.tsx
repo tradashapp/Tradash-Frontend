@@ -8,6 +8,13 @@ import { useAllPositions } from "@/hooks/useAllPositions";
 import { findStopLoss, findTakeProfit } from "@/lib/bulk/protection";
 import { formatPrice, formatUsd } from "@/lib/format";
 import {
+  breakEvenPrice,
+  bulkToChartSpace,
+  chartLiquidationPrice,
+  chartToBulkSpace,
+} from "@/lib/perp";
+import { useAppSelector } from "@/store/hooks";
+import {
   changeAtPrice,
   pnlAtPrice,
   roiAtPrice,
@@ -61,6 +68,9 @@ interface Props {
 }
 
 export function TpSlSheet({ open, onClose, symbol, onSubmit }: Props) {
+  // The TRADING mode (demo/live) — distinct from `mode` below, which is how the
+  // user is expressing the level. Price-space translation depends on this one.
+  const tradingMode = useAppSelector((s) => s.tradingMode.mode);
   const { items } = useAllPositions();
   const item = useMemo(
     () => items.find((i) => i.position.symbol === symbol) ?? null,
@@ -75,14 +85,19 @@ export function TpSlSheet({ open, onClose, symbol, onSubmit }: Props) {
 
   // Seed from whatever is already resting on Bulk each time the sheet opens, so
   // it edits reality rather than starting blank over an armed position.
+  //
+  // Bulk stores triggers in its OWN price space, so they are translated into
+  // chart space on the way in — otherwise reopening the sheet would show a
+  // level ~0.05% away from where it was set, and re-saving would drift it again.
   useEffect(() => {
     if (!open || !item) return;
-    const existingTp = findTakeProfit(item.position.protection);
-    const existingSl = findStopLoss(item.position.protection);
-    setTp(existingTp?.triggerPrice ?? null);
-    setSl(existingSl?.triggerPrice ?? null);
+    const p = item.position;
+    const toChart = (v: number | undefined) =>
+      v == null ? null : bulkToChartSpace(tradingMode, p, v);
+    setTp(toChart(findTakeProfit(p.protection)?.triggerPrice));
+    setSl(toChart(findStopLoss(p.protection)?.triggerPrice));
     setSubmitting(false);
-  }, [open, item?.position.symbol]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open, item?.position.symbol, tradingMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // The position closed (or the sheet is animating shut) — keep the shell so the
   // exit animation still runs, but say why it is empty.
@@ -99,13 +114,23 @@ export function TpSlSheet({ open, onClose, symbol, onSubmit }: Props) {
   const pos = item.position;
   const trailing = findStopLoss(pos.protection)?.kind === "trailing";
 
+  // The user sets levels against the CHART, whose Y axis is the MagicBlock
+  // oracle — so the whole sheet works in chart space and converts once, at
+  // submit. Entry, mark and liquidation are all Bulk-quoted, so each is
+  // translated the same way the chart's own lines are.
+  const entryChart = breakEvenPrice(tradingMode, pos);
+  const markChart =
+    item.markPrice ??
+    bulkToChartSpace(tradingMode, pos, pos.markPriceBulk ?? pos.entryPrice);
+  const liqChart = chartLiquidationPrice(tradingMode, pos);
+
   const tpError = tp
     ? validateTrigger({
         side: "tp",
         direction: pos.direction,
-        entryPrice: pos.entryPrice,
-        markPrice: pos.markPriceBulk,
-        liquidationPrice: pos.liquidationPrice,
+        entryPrice: entryChart,
+        markPrice: markChart,
+        liquidationPrice: liqChart,
         triggerPrice: tp,
       })
     : null;
@@ -113,9 +138,9 @@ export function TpSlSheet({ open, onClose, symbol, onSubmit }: Props) {
     ? validateTrigger({
         side: "sl",
         direction: pos.direction,
-        entryPrice: pos.entryPrice,
-        markPrice: pos.markPriceBulk,
-        liquidationPrice: pos.liquidationPrice,
+        entryPrice: entryChart,
+        markPrice: markChart,
+        liquidationPrice: liqChart,
         triggerPrice: sl,
       })
     : null;
@@ -127,7 +152,17 @@ export function TpSlSheet({ open, onClose, symbol, onSubmit }: Props) {
     playSound("tap");
     haptic("tap");
     setSubmitting(true);
-    const ok = await onSubmit({ symbol, takeProfit: tp, stopLoss: sl });
+    // THE conversion. Everything above is a chart (MagicBlock) price, because
+    // that is the axis the user read the level off. Bulk evaluates the resting
+    // trigger against its own feed, which sits a measured distance away, so the
+    // level is translated exactly once — here, at the boundary.
+    const toBulk = (v: number | null) =>
+      v == null ? null : chartToBulkSpace(tradingMode, pos, v);
+    const ok = await onSubmit({
+      symbol,
+      takeProfit: toBulk(tp),
+      stopLoss: toBulk(sl),
+    });
     setSubmitting(false);
     if (ok) onClose();
   };
@@ -142,7 +177,7 @@ export function TpSlSheet({ open, onClose, symbol, onSubmit }: Props) {
             {pos.leverage}×
           </span>
           <span className="tabular font-semibold">
-            Entry ${formatPrice(pos.entryPrice)}
+            Entry ${formatPrice(entryChart)}
           </span>
         </div>
 
@@ -179,6 +214,7 @@ export function TpSlSheet({ open, onClose, symbol, onSubmit }: Props) {
           label="Take profit"
           mode={mode}
           item={item}
+          entryChart={entryChart}
           value={tp}
           onChange={setTp}
           error={tpError}
@@ -200,6 +236,7 @@ export function TpSlSheet({ open, onClose, symbol, onSubmit }: Props) {
             label="Stop loss"
             mode={mode}
             item={item}
+            entryChart={entryChart}
             value={sl}
             onChange={setSl}
             error={slError}
@@ -314,6 +351,7 @@ function TriggerEditor({
   label,
   mode,
   item,
+  entryChart,
   value,
   onChange,
   error,
@@ -322,39 +360,45 @@ function TriggerEditor({
   label: string;
   mode: InputMode;
   item: ReturnType<typeof useAllPositions>["items"][number];
+  /** Entry in CHART space — every level here is a chart price. */
+  entryChart: number;
   value: number | null;
   onChange: (v: number | null) => void;
   error: string | null;
 }) {
   const pos = item.position;
   const isTp = side === "tp";
+  // PnL/ROI are differences, so they are space-INDEPENDENT as long as the
+  // trigger and the entry it is measured against share one space. Both are in
+  // chart space here, which is also what the position panel's PnL uses.
+  const basis = { ...pos, entryPrice: entryChart };
 
   // The level in the currently selected unit.
   const derived =
     value == null
       ? null
       : mode === "roi"
-        ? roiAtPrice(pos, value)
+        ? roiAtPrice(basis, value)
         : mode === "change"
-          ? changeAtPrice(pos.entryPrice, value)
-          : pnlAtPrice(pos.direction, pos.size, pos.entryPrice, value);
+          ? changeAtPrice(entryChart, value)
+          : pnlAtPrice(pos.direction, pos.size, entryChart, value);
 
   const applyDerived = (n: number | null) => {
     if (n == null) return onChange(null);
     onChange(
       mode === "roi"
-        ? triggerFromRoi(pos, n)
+        ? triggerFromRoi(basis, n)
         : mode === "change"
-          ? triggerFromChange(pos.entryPrice, n)
-          : triggerFromPnl(pos, n)
+          ? triggerFromChange(entryChart, n)
+          : triggerFromPnl(basis, n)
     );
   };
 
   const estPnl =
     value == null
       ? null
-      : pnlAtPrice(pos.direction, pos.size, pos.entryPrice, value);
-  const estRoi = value == null ? null : roiAtPrice(pos, value);
+      : pnlAtPrice(pos.direction, pos.size, entryChart, value);
+  const estRoi = value == null ? null : roiAtPrice(basis, value);
 
   return (
     <div className="glass-inset rounded-2xl p-4">
@@ -379,7 +423,7 @@ function TriggerEditor({
         <NumericField
           label="Trigger price"
           value={value}
-          decimals={priceDp(pos.entryPrice)}
+          decimals={priceDp(entryChart)}
           onChange={onChange}
         />
         <div className="w-[38%]">

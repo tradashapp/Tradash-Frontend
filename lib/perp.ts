@@ -310,6 +310,42 @@ export function trailReferencePrice(
 }
 
 /**
+ * A price the USER picked off the chart (MagicBlock space), expressed in the
+ * space BULK will compare it against.
+ *
+ * This is what makes a take-profit fire where the user pointed. The chart's Y
+ * axis is the MagicBlock oracle, so a level read off it — or typed to match a
+ * number seen there — is a MagicBlock price. Bulk evaluates a resting trigger
+ * against its OWN feed (`fairPrice`), and the two run persistently apart
+ * (measured live 2026-09-18: BTC MagicBlock ~$38 BELOW Bulk, a steady 0.05%).
+ * Sending the raw number therefore places the trigger ~$38 away from the level
+ * the user meant — it fires early or late by that much, every time.
+ *
+ * Inverse of `bulkToChartSpace`.
+ */
+export function chartToBulkSpace(
+  mode: "demo" | "live",
+  pos: Position,
+  chartPrice: number
+): number {
+  return chartPrice - bulkToChartShift(mode, pos);
+}
+
+/**
+ * A Bulk-quoted price expressed in the chart's MagicBlock space.
+ *
+ * Used to show a RESTING trigger (which Bulk stores in its own space) at the
+ * level it will actually appear to fire at on the chart.
+ */
+export function bulkToChartSpace(
+  mode: "demo" | "live",
+  pos: Position,
+  bulkPrice: number
+): number {
+  return bulkPrice + bulkToChartShift(mode, pos);
+}
+
+/**
  * A trail stop (which lives in MagicBlock space) expressed in BULK's space.
  *
  * Only for surfaces that quote Bulk's numbers directly — the positions panel

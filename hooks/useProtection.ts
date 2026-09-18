@@ -7,6 +7,7 @@ import {
   cancelProtection,
   findStopLoss,
   findTakeProfit,
+  findTrailingStop,
   readProtection,
   stopLossOrder,
   submitProtection,
@@ -47,9 +48,9 @@ export interface SetProtectionParams {
   takeProfit: number | null;
   stopLoss: number | null;
   /**
-   * Trailing distance in basis points. When set it REPLACES the plain stop:
-   * both occupy the same downside slot, and Bulk would otherwise rest two
-   * competing stops on one position.
+   * Trailing distance in basis points. Independent of `stopLoss` — a position
+   * can carry both a fixed floor and a ratcheting one, and whichever price
+   * reaches first closes it.
    */
   trailBps?: number | null;
 }
@@ -135,9 +136,14 @@ export function useProtection(signer: AgentSigner | null) {
         }
 
         // 2. Place the requested sides.
+        // All three are INDEPENDENT. Bulk rests a take-profit, a fixed stop and
+        // a trailing stop on one position simultaneously (verified live
+        // 2026-09-18), and when two same-side stops both trigger it fills only
+        // one — the position closed exactly once, with no flip. So a trail no
+        // longer suppresses the fixed stop.
         const wantTp = takeProfit != null;
         const wantTrail = trailBps != null && trailBps > 0;
-        const wantSl = !wantTrail && stopLoss != null;
+        const wantSl = stopLoss != null;
 
         if (wantTp) {
           await submitProtection(
@@ -163,7 +169,8 @@ export function useProtection(signer: AgentSigner | null) {
               stepBps: Math.max(1, Math.min(10, Math.round(trailBps / 10))),
             })
           );
-        } else if (wantSl) {
+        }
+        if (wantSl) {
           await submitProtection(
             signer,
             stopLossOrder({
@@ -178,8 +185,9 @@ export function useProtection(signer: AgentSigner | null) {
         // 3. Verify. An ack is not evidence — only the read-back is.
         const ok = await verify(symbol, (orders) => {
           const tpOk = wantTp === (findTakeProfit(orders) != null);
-          const slOk = (wantTrail || wantSl) === (findStopLoss(orders) != null);
-          return tpOk && slOk;
+          const slOk = wantSl === (findStopLoss(orders) != null);
+          const trailOk = wantTrail === (findTrailingStop(orders) != null);
+          return tpOk && slOk && trailOk;
         });
 
         if (!ok) {

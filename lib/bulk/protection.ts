@@ -236,13 +236,48 @@ export function findTakeProfit(
 }
 
 /**
- * The resting stop for a position, if any — a plain stop OR a trailing stop,
- * since both occupy the same "downside protection" slot in the UI.
+ * The resting FIXED stop-loss, if any.
+ *
+ * Deliberately excludes a trailing stop. Bulk rests a fixed stop and a trailing
+ * stop side by side quite happily (verified live 2026-09-18: takeProfit +
+ * trailing + stop all resting on one position), and they are different
+ * promises — a fixed floor versus a ratcheting one. Conflating them would let
+ * the UI silently cancel a trail the user never touched.
  */
 export function findStopLoss(
   orders: ProtectionOrder[] | undefined
 ): ProtectionOrder | null {
-  return (
-    orders?.find((o) => o.kind === "stop" || o.kind === "trailing") ?? null
-  );
+  return orders?.find((o) => o.kind === "stop") ?? null;
+}
+
+/** The resting trailing stop, if any. Independent of `findStopLoss`. */
+export function findTrailingStop(
+  orders: ProtectionOrder[] | undefined
+): ProtectionOrder | null {
+  return orders?.find((o) => o.kind === "trailing") ?? null;
+}
+
+/**
+ * The level that actually protects the downside right now: the trailing stop
+ * when it sits tighter than the fixed stop, else the fixed stop.
+ *
+ * Both can rest at once and EITHER can fire first, so "the stop" for display
+ * purposes is whichever price is reached sooner — for a long the higher of the
+ * two, for a short the lower.
+ */
+export function effectiveStop(
+  orders: ProtectionOrder[] | undefined,
+  direction: Direction
+): ProtectionOrder | null {
+  const fixed = findStopLoss(orders);
+  const trail = findTrailingStop(orders);
+  if (!fixed) return trail;
+  if (!trail) return fixed;
+  return direction === "long"
+    ? trail.triggerPrice >= fixed.triggerPrice
+      ? trail
+      : fixed
+    : trail.triggerPrice <= fixed.triggerPrice
+      ? trail
+      : fixed;
 }

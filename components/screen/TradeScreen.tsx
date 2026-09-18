@@ -31,7 +31,11 @@ import { useTrade } from "@/hooks/useTrade";
 import { useLeverage } from "@/hooks/useLeverage";
 import { useIsDesktop } from "@/hooks/useIsDesktop";
 import type { PositionOverlay } from "@/lib/chart/engine";
-import { findStopLoss, findTakeProfit } from "@/lib/bulk/protection";
+import {
+  findStopLoss,
+  findTakeProfit,
+  findTrailingStop,
+} from "@/lib/bulk/protection";
 import type {
   CompletedTrade,
   MarketSymbol,
@@ -145,17 +149,22 @@ export function TradeScreen({ initialMarket }: Props) {
         stopLossPrice: chartTrigger(
           trade.mode,
           trade.position,
-          // A trailing stop IS the downside exit when one is armed, and Bulk
-          // reports its live ratcheted level here, so it draws as the SL line
-          // rather than needing a separate one.
           findStopLoss(trade.position.protection)?.triggerPrice
         ),
-        // Demo only: live trailing stops rest on Bulk and arrive via
-        // `protection` above, so they are already drawn as the SL line.
+        // The trailing stop gets its OWN line: it can rest alongside a fixed
+        // stop, and the two are different promises (a ratcheting floor vs a
+        // static one), so collapsing them would hide one of the two levels that
+        // can actually close the position.
         trailStopPrice:
-          trade.mode === "demo" && trade.position.trailActive
-            ? trade.position.trailStopPrice
-            : undefined,
+          trade.mode === "demo"
+            ? trade.position.trailActive
+              ? trade.position.trailStopPrice
+              : undefined
+            : chartTrigger(
+                trade.mode,
+                trade.position,
+                findTrailingStop(trade.position.protection)?.triggerPrice
+              ),
       }
     : null;
 

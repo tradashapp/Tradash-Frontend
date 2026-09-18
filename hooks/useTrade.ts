@@ -44,6 +44,7 @@ import {
   cancelAllProtection,
   findStopLoss,
   findTakeProfit,
+  findTrailingStop,
 } from "@/lib/bulk/protection";
 import { useProtection } from "@/hooks/useProtection";
 import type { Direction, MarketSymbol, Position } from "@/types";
@@ -800,15 +801,15 @@ export function useTrade(
           })
         );
       } else {
-        // Cancel the resting trl but keep any take-profit: they are independent
-        // sides, and turning the trail off must not silently disarm the TP.
-        const tp = findTakeProfit(position.protection);
+        // Cancel the resting trl but keep the take-profit AND any fixed stop:
+        // all three are independent, so turning the trail off must not silently
+        // disarm the other two.
         const ok = await setProtection({
           symbol: sym,
           direction: position.direction,
           size: position.size,
-          takeProfit: tp?.triggerPrice ?? null,
-          stopLoss: null,
+          takeProfit: findTakeProfit(position.protection)?.triggerPrice ?? null,
+          stopLoss: findStopLoss(position.protection)?.triggerPrice ?? null,
           trailBps: null,
         });
         if (!ok) return;
@@ -842,15 +843,14 @@ export function useTrade(
         })
       );
     } else {
-      // A trail replaces the plain stop (one downside slot), but preserves the
-      // take-profit.
-      const tp = findTakeProfit(position.protection);
+      // A trail rests ALONGSIDE the take-profit and any fixed stop — Bulk
+      // allows all three, and whichever level price reaches first fires.
       const ok = await setProtection({
         symbol: sym,
         direction: position.direction,
         size: position.size,
-        takeProfit: tp?.triggerPrice ?? null,
-        stopLoss: null,
+        takeProfit: findTakeProfit(position.protection)?.triggerPrice ?? null,
+        stopLoss: findStopLoss(position.protection)?.triggerPrice ?? null,
         trailBps,
       });
       if (!ok) return; // setProtection already explained why.
@@ -884,7 +884,7 @@ export function useTrade(
     trailActive:
       mode === "demo"
         ? (position?.trailActive ?? false)
-        : findStopLoss(position?.protection)?.kind === "trailing",
+        : findTrailingStop(position?.protection) != null,
     trailEligible,
     trailPct: settings.defaultTrailPct,
     /**
@@ -916,17 +916,20 @@ export function useTrade(
       }
       const target = allLivePositions[symbol];
       if (!target) return false;
-      const trailing =
-        findStopLoss(target.protection)?.kind === "trailing"
-          ? Math.round(settings.defaultTrailPct * 10_000)
-          : null;
+      // A resting trail is preserved, not replaced: the sheet edits TP and the
+      // FIXED stop, and all three coexist on Bulk. Its distance is re-derived
+      // from the setting because Bulk reports a trail's live level, not the bps
+      // it was armed with.
+      const trailBps = findTrailingStop(target.protection)
+        ? Math.round(settings.defaultTrailPct * 10_000)
+        : null;
       return setProtection({
         symbol,
         direction: target.direction,
         size: target.size,
         takeProfit,
-        stopLoss: trailing ? null : stopLoss,
-        trailBps: trailing,
+        stopLoss,
+        trailBps,
       });
     },
     // Close the ACTIVE market's position. Wrapped rather than exposing `close`

@@ -17,7 +17,11 @@ import {
   PencilEdit02Icon,
 } from "@hugeicons/core-free-icons";
 import { MARKETS } from "@/lib/markets";
-import { findStopLoss, findTakeProfit } from "@/lib/bulk/protection";
+import {
+  effectiveStop,
+  findTakeProfit,
+  findTrailingStop,
+} from "@/lib/bulk/protection";
 import { formatPrice, formatUsd } from "@/lib/format";
 import { Odometer } from "@/components/ui/Odometer";
 import { useAllPositions, type LivePosition } from "@/hooks/useAllPositions";
@@ -193,8 +197,7 @@ function PositionRow({
   // Resting protection, as Bulk reports it. A trailing stop fills the same
   // downside slot as a fixed stop, so it is pulled out separately for its own
   // live readout below.
-  const stop = findStopLoss(pos.protection);
-  const trailOrder = stop?.kind === "trailing" ? stop : null;
+  const trailOrder = findTrailingStop(pos.protection);
 
   return (
     <div className="glass-inset overflow-hidden rounded-2xl">
@@ -429,7 +432,10 @@ function TpSlRow({
 }) {
   const { protection } = item.position;
   const tp = findTakeProfit(protection);
-  const sl = findStopLoss(protection);
+  // The level that actually protects the downside: a trail and a fixed stop can
+  // both rest, and whichever price reaches first wins — so the row shows that
+  // one rather than arbitrarily preferring either.
+  const sl = effectiveStop(protection, item.position.direction);
 
   return (
     <button
@@ -450,12 +456,11 @@ function TpSlRow({
           </span>
           <span className="text-text-muted"> / </span>
           <span className={sl ? "text-down" : "text-text-muted"}>
-            {sl
-              ? sl.kind === "trailing"
-                ? "Trailing"
-                : formatPrice(sl.triggerPrice)
-              : "—"}
+            {sl ? formatPrice(sl.triggerPrice) : "—"}
           </span>
+          {sl?.kind === "trailing" && (
+            <span className="ml-1 text-[10px] text-text-muted">trail</span>
+          )}
         </span>
         <HugeiconsIcon
           icon={PencilEdit02Icon}

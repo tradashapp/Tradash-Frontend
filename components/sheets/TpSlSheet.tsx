@@ -5,7 +5,11 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { Loading03Icon } from "@hugeicons/core-free-icons";
 import { Sheet } from "@/components/ui/Sheet";
 import { useAllPositions } from "@/hooks/useAllPositions";
-import { findStopLoss, findTakeProfit } from "@/lib/bulk/protection";
+import {
+  findStopLoss,
+  findTakeProfit,
+  findTrailingStop,
+} from "@/lib/bulk/protection";
 import { formatPrice, formatUsd } from "@/lib/format";
 import {
   breakEvenPrice,
@@ -112,7 +116,8 @@ export function TpSlSheet({ open, onClose, symbol, onSubmit }: Props) {
   }
 
   const pos = item.position;
-  const trailing = findStopLoss(pos.protection)?.kind === "trailing";
+  const trailingStop = findTrailingStop(pos.protection);
+  const trailing = trailingStop != null;
 
   // The user sets levels against the CHART, whose Y axis is the MagicBlock
   // oracle — so the whole sheet works in chart space and converts once, at
@@ -220,27 +225,28 @@ export function TpSlSheet({ open, onClose, symbol, onSubmit }: Props) {
           error={tpError}
         />
 
-        {/* A trailing stop occupies the same downside slot as a fixed stop, so
-            editing one here would silently replace the other. Say so instead. */}
-        {trailing ? (
-          <div className="glass-inset rounded-2xl p-4 text-sm">
-            <div className="mb-1 font-semibold text-text">Stop loss</div>
-            <p className="text-[12px] leading-snug text-text-muted">
-              A trailing stop is active on this position and already covers the
-              downside. Turn it off to set a fixed stop loss instead.
-            </p>
-          </div>
-        ) : (
-          <TriggerEditor
-            side="sl"
-            label="Stop loss"
-            mode={mode}
-            item={item}
-            entryChart={entryChart}
-            value={sl}
-            onChange={setSl}
-            error={slError}
-          />
+        <TriggerEditor
+          side="sl"
+          label="Stop loss"
+          mode={mode}
+          item={item}
+          entryChart={entryChart}
+          value={sl}
+          onChange={setSl}
+          error={slError}
+        />
+
+        {/* A trailing stop rests ALONGSIDE a fixed one — Bulk allows both, and
+            whichever level price reaches first fires. Worth saying, because two
+            downside exits at once is easy to set by accident. */}
+        {trailing && (
+          <p className="-mt-1 px-1 text-[11px] leading-snug text-text-muted">
+            A trailing stop is also active
+            {trailingStop != null
+              ? `, currently $${formatPrice(bulkToChartSpace(tradingMode, pos, trailingStop.triggerPrice))}`
+              : ""}
+            . Whichever level price reaches first will close this position.
+          </p>
         )}
 
         <button

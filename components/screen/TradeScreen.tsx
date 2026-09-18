@@ -15,6 +15,7 @@ import { ShareCardModal, type ShareSubject } from "@/components/share/ShareCardM
 import { TradeReplayModal } from "@/components/replay/TradeReplayModal";
 import {
   breakEvenPrice,
+  bulkToChartSpace,
   chartLiquidationPrice,
   netBreakEvenPrice,
 } from "@/lib/perp";
@@ -30,7 +31,13 @@ import { useTrade } from "@/hooks/useTrade";
 import { useLeverage } from "@/hooks/useLeverage";
 import { useIsDesktop } from "@/hooks/useIsDesktop";
 import type { PositionOverlay } from "@/lib/chart/engine";
-import type { CompletedTrade, MarketSymbol, TradeEpisode } from "@/types";
+import { findStopLoss, findTakeProfit } from "@/lib/bulk/protection";
+import type {
+  CompletedTrade,
+  MarketSymbol,
+  Position,
+  TradeEpisode,
+} from "@/types";
 
 interface Props {
   /**
@@ -39,6 +46,21 @@ interface Props {
    * active market and keeps the URL in sync.
    */
   initialMarket: MarketSymbol;
+}
+
+/**
+ * A Bulk-quoted trigger price in the chart's space, or undefined when unset.
+ *
+ * Every Bulk-quoted level the chart draws goes through a translation like this
+ * one; see `bulkToChartShift`.
+ */
+function chartTrigger(
+  mode: "demo" | "live",
+  pos: Position,
+  triggerPrice: number | undefined
+): number | undefined {
+  if (triggerPrice == null) return undefined;
+  return bulkToChartSpace(mode, pos, triggerPrice);
 }
 
 // The trading screen. One component backs every market route — the route only
@@ -111,9 +133,29 @@ export function TradeScreen({ initialMarket }: Props) {
         breakEvenPrice:
           netBreakEvenPrice(trade.mode, trade.position) ?? undefined,
         pnl: trade.position.unrealizedPnl,
-        trailStopPrice: trade.position.trailActive
-          ? trade.position.trailStopPrice
-          : undefined,
+        // Resting TP / SL, translated out of Bulk's price space into the
+        // chart's. Bulk stores a trigger against its own feed, so drawing the
+        // raw number would put the line ~0.05% from where it actually fires —
+        // the same trap the liquidation line above already corrects for.
+        takeProfitPrice: chartTrigger(
+          trade.mode,
+          trade.position,
+          findTakeProfit(trade.position.protection)?.triggerPrice
+        ),
+        stopLossPrice: chartTrigger(
+          trade.mode,
+          trade.position,
+          // A trailing stop IS the downside exit when one is armed, and Bulk
+          // reports its live ratcheted level here, so it draws as the SL line
+          // rather than needing a separate one.
+          findStopLoss(trade.position.protection)?.triggerPrice
+        ),
+        // Demo only: live trailing stops rest on Bulk and arrive via
+        // `protection` above, so they are already drawn as the SL line.
+        trailStopPrice:
+          trade.mode === "demo" && trade.position.trailActive
+            ? trade.position.trailStopPrice
+            : undefined,
       }
     : null;
 

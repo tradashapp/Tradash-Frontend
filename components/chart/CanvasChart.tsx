@@ -136,6 +136,8 @@ function samePosition(
     a.liquidationPrice === b.liquidationPrice &&
     a.trailStopPrice === b.trailStopPrice &&
     a.breakEvenPrice === b.breakEvenPrice &&
+    a.takeProfitPrice === b.takeProfitPrice &&
+    a.stopLossPrice === b.stopLossPrice &&
     a.pnl === b.pnl
   );
 }

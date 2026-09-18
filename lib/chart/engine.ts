@@ -16,6 +16,8 @@ export interface ChartTheme {
   entryLine: string; // neutral entry marker
   liqLine: string; // liquidation warning
   breakEvenLine: string; // net break-even (after fees + funding)
+  tpLine: string; // resting take-profit
+  slLine: string; // resting stop-loss
 }
 
 const DEFAULT_THEME: ChartTheme = {
@@ -30,6 +32,11 @@ const DEFAULT_THEME: ChartTheme = {
   // Amber: not a risk level like Liq, not the position's own entry — a cost
   // marker. Distinct hue so three dashed lines never read as the same thing.
   breakEvenLine: "rgba(245, 185, 10, 0.75)",
+  // TP/SL borrow the app's up/down semantics — the take-profit is where the
+  // trade wins, the stop is where it is cut — so they read instantly without a
+  // legend. Solid-ish alpha keeps them distinct from the dimmer cost markers.
+  tpLine: "rgba(114, 233, 18, 0.8)",
+  slLine: "rgba(230, 67, 45, 0.8)",
 };
 
 // Position overlay data the chart draws: entry line, mark-line color by PnL,
@@ -41,6 +48,15 @@ export interface PositionOverlay {
   pnl: number;
   /** Active trailing-stop price, drawn as a line that ratchets with price. */
   trailStopPrice?: number;
+  /**
+   * Resting take-profit / stop-loss levels, in CHART space.
+   *
+   * These are where the position automatically exits, so they belong on the
+   * chart next to the entry and liquidation lines the user already reads
+   * against. Undefined when that side is not armed.
+   */
+  takeProfitPrice?: number;
+  stopLossPrice?: number;
   /**
    * Net break-even: where closing nets zero AFTER fees and funding already
    * charged. Omitted when there is no cost data (demo, or a fresh position),
@@ -361,6 +377,21 @@ export class ChartEngine {
         this.drawLineOrEdge(
           yOf(pos.breakEvenPrice), top, bottom, plotW, "B/E",
           pos.breakEvenPrice, this.theme.breakEvenLine, "#08090c", [1, 3], 1, false
+        );
+      }
+      // Automatic exits. Drawn before Liq for the same reason B/E is: if a stop
+      // sits near the liquidation price, the liquidation warning must stay the
+      // one on top.
+      if (pos.takeProfitPrice != null) {
+        this.drawLineOrEdge(
+          yOf(pos.takeProfitPrice), top, bottom, plotW, "TP",
+          pos.takeProfitPrice, this.theme.tpLine, "#08090c", [5, 3], 1.5, false
+        );
+      }
+      if (pos.stopLossPrice != null) {
+        this.drawLineOrEdge(
+          yOf(pos.stopLossPrice), top, bottom, plotW, "SL",
+          pos.stopLossPrice, this.theme.slLine, "#08090c", [5, 3], 1.5, false
         );
       }
       this.drawLineOrEdge(

@@ -343,7 +343,7 @@ function PositionRow({
                   Liquidation are all directly above, so the effect of an add
                   or a reduce is read in the same glance as the action. */}
               {(onAdjust || onClosePosition) && (
-                <div className="mt-2 grid grid-cols-3 gap-2">
+                <div className="mt-2 grid grid-cols-2 gap-2">
                   {onAdjust && (
                     <button
                       type="button"
@@ -372,7 +372,7 @@ function PositionRow({
                       Reduce
                     </button>
                   )}
-                  {onClosePosition && (
+                  {/* {onClosePosition && (
                     <button
                       type="button"
                       disabled={closing}
@@ -400,7 +400,7 @@ function PositionRow({
                       )}
                       {closing ? "Closing" : "Close"}
                     </button>
-                  )}
+                  )} */}
                 </div>
               )}
             </div>

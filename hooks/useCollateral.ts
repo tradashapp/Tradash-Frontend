@@ -9,6 +9,7 @@ import { api } from "@/lib/api";
 import { solanaRpcUrl } from "@/lib/config";
 import { readUsdcBalance } from "@/lib/solana/usdc";
 import { config } from "@/lib/config";
+import { venue } from "@/lib/venue";
 import { useToast } from "@/components/toast/ToastProvider";
 import type { MasterSignBytes } from "@/lib/bulk/onboarding";
 
@@ -158,6 +159,39 @@ export function useCollateral(
     [signTransaction]
   );
 
+  /**
+   * Move collateral, through whichever venue is active.
+   *
+   * Bulk routes through the backend sponsor (`sponsoredTransfer`), which
+   * partial-signs a vault transfer so the user needs no SOL. Phoenix builds a
+   * single owner-signed instruction instead — the SDK handles the Ember
+   * conversion internally, so there is no multi-step orchestration to mirror.
+   *
+   * In BOTH cases the OWNER signs: a delegate that can trade must never be able
+   * to move funds, and Phoenix enforces that at the venue (its deposit and
+   * withdraw inputs carry no `positionAuthority` field at all).
+   */
+  const moveCollateral = useCallback(
+    async (amount: number, direction: "deposit" | "withdraw") => {
+      if (venue.id !== "phoenix") {
+        await sponsoredTransfer(amount, direction);
+        return;
+      }
+      if (!masterAddress) throw new Error("Connect wallet to move collateral");
+      const { depositCollateral, withdrawCollateral } = await import(
+        "@/lib/phoenix/collateral"
+      );
+      const move = direction === "deposit" ? depositCollateral : withdrawCollateral;
+      await move({
+        owner: masterAddress,
+        amountUsd: amount,
+        rpcUrl: solanaRpcUrl(),
+        signTransaction: signTransaction as never,
+      });
+    },
+    [masterAddress, sponsoredTransfer, signTransaction]
+  );
+
   const deposit = useCallback(
     async (amount: number) => {
       if (amount <= 0) return;
@@ -198,7 +232,7 @@ export function useCollateral(
       toast(`Depositing ${fmtUsd(amount)}…`, { type: "loading", id: "collateral" });
       try {
         const before = walletUsdc;
-        await sponsoredTransfer(amount, "deposit");
+        await moveCollateral(amount, "deposit");
         toast(`Deposited ${fmtUsd(amount)}`, {
           type: "success",
           id: "collateral",
@@ -226,7 +260,7 @@ export function useCollateral(
       toast,
       refreshWalletUntilChanged,
       walletUsdc,
-      sponsoredTransfer,
+      moveCollateral,
     ]
   );
 
@@ -251,7 +285,7 @@ export function useCollateral(
       setBusy(true);
       toast(`Withdrawing ${fmtUsd(amount)}…`, { type: "loading", id: "collateral" });
       try {
-        await sponsoredTransfer(amount, "withdraw");
+        await moveCollateral(amount, "withdraw");
         // A withdrawal INTENT: the instruction signals the request and moves no
         // tokens itself, so the wallet balance does not change on this tick —
         // Bulk pays out from the vault after observing it. Worded as "on its
@@ -281,7 +315,7 @@ export function useCollateral(
       health.maxWithdrawable,
       toast,
       refreshWallet,
-      sponsoredTransfer,
+      moveCollateral,
     ]
   );
 

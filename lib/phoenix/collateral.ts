@@ -1,4 +1,5 @@
 import { Connection, PublicKey, Transaction, TransactionInstruction } from "@solana/web3.js";
+import { api } from "@/lib/api";
 import { PHOENIX_PROGRAM_ID } from "./config";
 
 /**
@@ -46,10 +47,17 @@ export interface CollateralParams {
   rpcUrl: string;
   signTransaction: OwnerSignTransaction;
   /**
-   * Optional sponsor for the transaction fee. The owner still signs the
-   * instruction; this only covers the lamports, mirroring `feePayerService`.
+   * Explicit fee payer, for callers outside the app (the CLI).
+   *
+   * In the app leave this unset: the backend sponsor is used automatically when
+   * it is configured and healthy, so the user needs no SOL.
    */
   feePayer?: string;
+  /**
+   * Set false to skip backend sponsorship and have the owner pay their own fee.
+   * Defaults to sponsoring, which is the Bulk-equivalent behaviour.
+   */
+  sponsored?: boolean;
 }
 
 type SdkInstruction = {
@@ -111,8 +119,59 @@ async function submit(
       : [built as SdkInstruction];
 
   const connection = new Connection(p.rpcUrl, "confirmed");
+  const web3Ixs = list.map(toWeb3);
+
+  // SPONSORED PATH — the default, and what makes Phoenix match Bulk's UX.
+  //
+  // The backend co-signs the fee so a user with no SOL can still move
+  // collateral. It re-validates the instruction set against its allowlist
+  // first, so sending it client-built bytes is safe: only `deposit_funds` and
+  // `withdraw_funds` with the owner signing are accepted.
+  //
+  // A sponsor that is unconfigured, unfunded or unhealthy must NOT block the
+  // transfer — the user can always pay their own fee — so a failure here falls
+  // through to the self-paid path rather than surfacing as an error.
+  if (p.sponsored !== false && !p.feePayer) {
+    try {
+      const prepared = await api.sponsorInstructions(
+        web3Ixs.map((ix) => ({
+          programId: ix.programId.toBase58(),
+          data: Array.from(ix.data),
+          keys: ix.keys.map((k) => ({
+            pubkey: k.pubkey.toBase58(),
+            isSigner: k.isSigner,
+            isWritable: k.isWritable,
+          })),
+        }))
+      );
+      const sponsored = Transaction.from(
+        Buffer.from(prepared.transaction, "base64")
+      );
+      const signed = await p.signTransaction({
+        transaction: sponsored,
+        connection,
+      });
+      // `submitTransfer` re-verifies the fee payer and instruction set server
+      // side before broadcasting, so a transaction altered in between is
+      // rejected there too.
+      const { signature } = await api.submitTransfer(
+        signed.serialize({ requireAllSignatures: false }).toString("base64"),
+        p.amountUsd,
+        build === "buildDepositFunds" ? "deposit" : "withdraw",
+        `phoenix-${build}-${p.owner}-${p.amountUsd}-${Date.now()}`
+      );
+      return signature;
+    } catch (e) {
+      console.warn(
+        `[phoenix] sponsorship unavailable, paying own fee: ${
+          e instanceof Error ? e.message : "unknown"
+        }`
+      );
+    }
+  }
+
   const tx = new Transaction();
-  for (const ix of list) tx.add(toWeb3(ix));
+  for (const ix of web3Ixs) tx.add(ix);
   tx.feePayer = new PublicKey(p.feePayer ?? p.owner);
   tx.recentBlockhash = (await connection.getLatestBlockhash("confirmed")).blockhash;
 

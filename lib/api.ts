@@ -476,6 +476,28 @@ export const api = {
       body: JSON.stringify({ amount, direction }),
     }),
 
+  /**
+   * Step 1, client-built variant: ask the sponsor to co-sign instructions the
+   * CLIENT constructed.
+   *
+   * Used by Phoenix, whose deposit/withdraw instructions come from the Rise SDK
+   * in the browser — the backend cannot rebuild them, so it validates them
+   * against its allowlist instead. Only `deposit_funds` and `withdraw_funds`
+   * with the owner signing are accepted; anything else is rejected before the
+   * fee payer signs.
+   */
+  sponsorInstructions: (
+    instructions: {
+      programId: string;
+      data: number[];
+      keys: { pubkey: string; isSigner: boolean; isWritable: boolean }[];
+    }[]
+  ): Promise<PreparedWithdrawal> =>
+    req<PreparedWithdrawal>("/transfers/sponsor", {
+      method: "POST",
+      body: JSON.stringify({ instructions }),
+    }),
+
   /** Step 2: hand back the user-signed collateral transfer for broadcast. */
   submitTransfer: (
     signedTransaction: string,

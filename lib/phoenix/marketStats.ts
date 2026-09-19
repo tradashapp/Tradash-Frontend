@@ -40,7 +40,9 @@ const SYMBOL_BY_PHOENIX: Record<string, MarketSymbol> = Object.fromEntries(
  * Markets Phoenix carries but Tradash does not are dropped, so the result is
  * keyed by the app's own symbols.
  */
-export async function fetchAllMarketStats(): Promise<MarketStats[]> {
+export async function fetchAllMarketStats(): Promise<
+  Partial<Record<MarketSymbol, MarketStats>>
+> {
   const res = await fetch(`${PHOENIX_API}/v1/markets/stats/latest`, {
     headers: { accept: "application/json" },
   });
@@ -50,7 +52,8 @@ export async function fetchAllMarketStats(): Promise<MarketStats[]> {
   const body = (await res.json()) as { markets?: PhoenixStatsRow[] };
   const rows = body.markets ?? [];
 
-  const out: MarketStats[] = [];
+  // Same keyed shape Bulk returns, so the consumer does not branch.
+  const out: Partial<Record<MarketSymbol, MarketStats>> = {};
   for (const r of rows) {
     const symbol = SYMBOL_BY_PHOENIX[r.symbol];
     if (!symbol) continue;
@@ -59,7 +62,7 @@ export async function fetchAllMarketStats(): Promise<MarketStats[]> {
     const prev = Number(r.prev_day_mark_price);
     if (!Number.isFinite(last)) continue;
 
-    out.push({
+    out[symbol] = {
       symbol,
       // Phoenix gives two points, not a percentage. A zero or missing previous
       // price would make this divide by zero, so it reports no change instead
@@ -72,7 +75,7 @@ export async function fetchAllMarketStats(): Promise<MarketStats[]> {
       lowPrice: last,
       quoteVolume: Number(r.day_volume_usd) || 0,
       openInterest: Number(r.open_interest) || 0,
-    });
+    };
   }
   return out;
 }

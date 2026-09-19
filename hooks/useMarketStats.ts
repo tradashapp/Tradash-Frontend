@@ -31,14 +31,14 @@ export function useMarketStats(active: boolean) {
   useEffect(() => {
     if (!active) return;
     let cancelled = false;
-    const load = async (): Promise<MarketStats[]> => {
-      if (venue.id !== "phoenix") return fetchBulkStats();
-      const { fetchAllMarketStats } = await import("@/lib/phoenix/marketStats");
-      return fetchAllMarketStats();
-    };
 
     const load = async () => {
-      const next = await fetchAllMarketStats();
+      // Phoenix returns every market in one request; Bulk needs one per market.
+      // Imported lazily so Phoenix code never loads on the Bulk path.
+      const next =
+        venue.id === "phoenix"
+          ? await (await import("@/lib/phoenix/marketStats")).fetchAllMarketStats()
+          : await fetchBulkStats();
       if (cancelled) return;
       // A wholly failed sweep returns {}; keep the previous values rather than
       // blanking the list (and the Hot pill) on one bad refresh.

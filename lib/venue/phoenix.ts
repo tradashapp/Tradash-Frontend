@@ -51,6 +51,7 @@ import type {
  */
 const orderBuilders = () => import("@/lib/phoenix/crossOrders");
 const protectionBuilder = () => import("@/lib/phoenix/orders");
+const protectionCanceller = () => import("@/lib/phoenix/protection");
 
 function phoenixSymbol(symbol: MarketSymbol): string {
   const s = MARKETS[symbol]?.phoenixSymbol;
@@ -232,26 +233,65 @@ export const PhoenixVenue: ExecutionVenue = {
   },
 
   /**
-   * NOT IMPLEMENTED — deliberately left throwing.
+   * Clear every protective trigger resting on a market.
    *
-   * Cancelling needs `conditionalOrderIndex` plus an `executionDirection`
-   * ("greater_than"/"less_than"), which must be read back from live trader
-   * state rather than derived from the domain `ProtectionOrder` (whose
-   * `orderId` is a Bulk concept). Wiring that read is part of porting the
-   * account stream; guessing an index would cancel the wrong trigger.
+   * Called after a close, and it MATTERS: a venue that leaves triggers resting
+   * against a flat account will fire them on whatever the user opens next, or —
+   * sized to the position that is gone — open one outright.
    *
-   * A no-op here would be worse: `useTrade` calls this after every close to
-   * clear stale triggers, so silently doing nothing would leave a stop resting
-   * against a flat account, ready to open a position the user never asked for.
+   * Phoenix addresses a trigger by LEG (`conditionalOrderIndex` +
+   * `executionDirection`), not by order id, so there is nothing in the domain
+   * `ProtectionOrder` to cancel by. Instead this sweeps the low indices in both
+   * directions. `conditionalOrderIndex` is 1-BASED — the API rejects 0.
+   *
+   * A leg that is not resting answers 404, which is the SUCCESS case here: the
+   * goal is "nothing left armed", and already-gone satisfies it. Only a real
+   * failure propagates, and it propagates rather than being swallowed, because
+   * `useTrade` surfaces it as "old TP/SL may still be active" — a warning the
+   * user can act on.
    */
   async cancelAllProtection(
-    _signer: VenueSigner,
-    _symbol: MarketSymbol,
+    signer: VenueSigner,
+    symbol: MarketSymbol,
     _existing: ProtectionOrder[] | undefined
   ) {
-    throw new Error(
-      "PhoenixVenue.cancelAllProtection needs conditionalOrderIndex from live trader state (not yet ported)"
-    );
+    const d = asDelegate(signer);
+    const sym = phoenixSymbol(symbol);
+    const {
+      buildCancelLeg,
+      NoSuchConditionalOrder,
+      BOTH_DIRECTIONS,
+      CONDITIONAL_SWEEP_DEPTH,
+    } = await protectionCanceller();
+
+    const failures: string[] = [];
+    for (let index = 1; index <= CONDITIONAL_SWEEP_DEPTH; index++) {
+      for (const executionDirection of BOTH_DIRECTIONS) {
+        try {
+          const ixs = await buildCancelLeg({
+            authority: d.account,
+            positionAuthority: d.pubkey,
+            feePayer: d.pubkey,
+            symbol: sym,
+            conditionalOrderIndex: index,
+            executionDirection,
+          });
+          await submit(d, ixs);
+        } catch (e) {
+          // Nothing resting at this slot — expected for all but the armed one.
+          if (e instanceof NoSuchConditionalOrder) continue;
+          failures.push(
+            `${executionDirection}@${index}: ${e instanceof Error ? e.message : "unknown"}`
+          );
+        }
+      }
+    }
+
+    if (failures.length > 0) {
+      throw new Error(
+        `Phoenix could not clear all protection on ${symbol}: ${failures.join("; ")}`
+      );
+    }
   },
 
   /**

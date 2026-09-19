@@ -1,4 +1,5 @@
-import { PHOENIX_API, PHOENIX_PROGRAM_ID } from "./config";
+import { PHOENIX_PROGRAM_ID } from "./config";
+import { getPhoenixClient } from "./sdkClient";
 
 /**
  * Cross-margin order building, via the Rise SDK.
@@ -65,26 +66,16 @@ function fromSdk(ix: SdkInstruction): BuiltInstruction {
 }
 
 /**
- * The SDK client, created once and reused.
+ * The SDK client, created once and reused — see `lib/phoenix/sdkClient.ts`.
  *
- * `createPhoenixClient` opens connections and caches exchange metadata, so a
- * per-order client would re-fetch it every time and burn rate limit. The import
- * is dynamic to keep the SDK out of the initial bundle.
+ * The cache used to live here. It moved so the collateral path can share it:
+ * that path built a fresh client per transfer, and a cold start can fan out to
+ * 85 concurrent RPC calls, which is what caused the deposit 429s.
  */
-let clientPromise: Promise<unknown> | null = null;
-
 async function getClient(rpcUrl: string) {
-  if (!clientPromise) {
-    clientPromise = (async () => {
-      const rise = await import("@ellipsis-labs/rise");
-      const client = rise.createPhoenixClient({ apiUrl: PHOENIX_API, rpcUrl });
-      // Market params (tick size, lot decimals) are needed to turn a human
-      // size into an order packet; without this the first order races metadata.
-      await client.exchange.ready();
-      return client;
-    })();
-  }
-  return clientPromise as Promise<Awaited<ReturnType<typeof createClientType>>>;
+  return getPhoenixClient(rpcUrl) as Promise<
+    Awaited<ReturnType<typeof createClientType>>
+  >;
 }
 
 // Type-only helper so `getClient` can be typed without importing the SDK eagerly.

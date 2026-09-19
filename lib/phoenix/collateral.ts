@@ -1,6 +1,7 @@
 import { Connection, PublicKey, Transaction, TransactionInstruction } from "@solana/web3.js";
 import { api } from "@/lib/api";
 import { PHOENIX_PROGRAM_ID } from "./config";
+import { getPhoenixClient } from "./sdkClient";
 
 /**
  * Moving collateral in and out of a Phoenix trader account.
@@ -92,12 +93,16 @@ async function submit(
 ): Promise<string> {
   if (!(p.amountUsd > 0)) throw new Error("Amount must be greater than zero");
 
-  const rise = await import("@ellipsis-labs/rise");
-  const client = rise.createPhoenixClient({
-    apiUrl: process.env.NEXT_PUBLIC_PHOENIX_API_URL ?? "https://perp-api.phoenix.trade",
-    rpcUrl: p.rpcUrl,
-  });
-  await client.exchange.ready();
+  // SHARED, CACHED CLIENT — not a fresh one per transfer.
+  //
+  // This used to call `createPhoenixClient` + `exchange.ready()` on every
+  // deposit and withdrawal. Each cold start can fan out to 85 concurrent
+  // `getAccountInfo` calls if metadata falls back to the RPC source, which is
+  // what produced `RPC getAccountInfo failed with 429` on wallet → trading
+  // transfers, and why every retry made it worse. See `sdkClient.ts`.
+  const client = (await getPhoenixClient(p.rpcUrl)) as {
+    ixs: Record<string, unknown>;
+  };
 
   const built = await (
     client.ixs as unknown as Record<

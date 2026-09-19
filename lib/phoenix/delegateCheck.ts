@@ -66,6 +66,13 @@ export async function readOnChainDelegate(
         params: [traderPda, { encoding: "base64" }],
       }),
     });
+    // Rate limiting is called out by name. It is by far the most common
+    // failure here, and reporting it as anything vaguer sends the reader
+    // looking for a missing account instead of a throttled endpoint — which is
+    // exactly what happened on 2026-09-20.
+    if (res.status === 429) {
+      return { reason: "RPC rate limited (429) — could not read the account" };
+    }
     if (!res.ok) return { reason: `RPC ${res.status}` };
 
     const body = (await res.json()) as {
@@ -74,9 +81,18 @@ export async function readOnChainDelegate(
     };
     if (body.error) return { reason: body.error.message ?? "RPC error" };
 
-    const value = body.result?.value;
-    // No account yet: the user has never registered. Not a mismatch — there is
-    // nothing to contradict.
+    // DISTINGUISH "no result" FROM "no account". A JSON-RPC success carries a
+    // `result` envelope whose `value` is null only when the account genuinely
+    // does not exist. A throttling proxy can return 200 with no `result` at
+    // all, and calling that "does not exist" is a false negative about on-chain
+    // state — the bug this branch exists to prevent.
+    if (!body.result) {
+      return { reason: "RPC returned no result (likely throttled)" };
+    }
+
+    const value = body.result.value;
+    // Genuinely absent: the user has never registered. Not a mismatch — there
+    // is nothing to contradict.
     if (!value?.data) return { reason: "trader account does not exist" };
 
     // Decoding data from an account owned by another program would be reading

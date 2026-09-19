@@ -31,11 +31,7 @@ import { useTrade } from "@/hooks/useTrade";
 import { useLeverage } from "@/hooks/useLeverage";
 import { useIsDesktop } from "@/hooks/useIsDesktop";
 import type { PositionOverlay } from "@/lib/chart/engine";
-import {
-  findStopLoss,
-  findTakeProfit,
-  findTrailingStop,
-} from "@/lib/bulk/protection";
+import { findStopLoss, findTakeProfit, findTrailingStop } from "@/lib/protection";
 import type {
   CompletedTrade,
   MarketSymbol,

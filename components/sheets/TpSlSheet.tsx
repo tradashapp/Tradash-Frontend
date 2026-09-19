@@ -5,11 +5,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { Loading03Icon } from "@hugeicons/core-free-icons";
 import { Sheet } from "@/components/ui/Sheet";
 import { useAllPositions } from "@/hooks/useAllPositions";
-import {
-  findStopLoss,
-  findTakeProfit,
-  findTrailingStop,
-} from "@/lib/bulk/protection";
+import { findStopLoss, findTakeProfit, findTrailingStop } from "@/lib/protection";
 import { formatPrice, formatUsd } from "@/lib/format";
 import {
   breakEvenPrice,

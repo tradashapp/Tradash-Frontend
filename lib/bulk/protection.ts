@@ -228,56 +228,19 @@ export function readProtection(raw: unknown): ProtectionOrder[] {
   return out;
 }
 
-/** The resting take-profit for a position, if any. */
-export function findTakeProfit(
-  orders: ProtectionOrder[] | undefined
-): ProtectionOrder | null {
-  return orders?.find((o) => o.kind === "takeProfit") ?? null;
-}
-
 /**
- * The resting FIXED stop-loss, if any.
+ * The pure queries over `ProtectionOrder[]` — `findTakeProfit`, `findStopLoss`,
+ * `findTrailingStop`, `effectiveStop` — now live in `lib/protection.ts`.
  *
- * Deliberately excludes a trailing stop. Bulk rests a fixed stop and a trailing
- * stop side by side quite happily (verified live 2026-09-18: takeProfit +
- * trailing + stop all resting on one position), and they are different
- * promises — a fixed floor versus a ratcheting one. Conflating them would let
- * the UI silently cancel a trail the user never touched.
+ * They were never Bulk-specific: they filter the DOMAIN type and make no venue
+ * call. Keeping them here made three React components import from `lib/bulk/`,
+ * which read as UI coupled to a venue it does not care about. Parsing Bulk's
+ * wire format into that domain type (`readProtection` above) stays here, where
+ * it belongs.
  */
-export function findStopLoss(
-  orders: ProtectionOrder[] | undefined
-): ProtectionOrder | null {
-  return orders?.find((o) => o.kind === "stop") ?? null;
-}
-
-/** The resting trailing stop, if any. Independent of `findStopLoss`. */
-export function findTrailingStop(
-  orders: ProtectionOrder[] | undefined
-): ProtectionOrder | null {
-  return orders?.find((o) => o.kind === "trailing") ?? null;
-}
-
-/**
- * The level that actually protects the downside right now: the trailing stop
- * when it sits tighter than the fixed stop, else the fixed stop.
- *
- * Both can rest at once and EITHER can fire first, so "the stop" for display
- * purposes is whichever price is reached sooner — for a long the higher of the
- * two, for a short the lower.
- */
-export function effectiveStop(
-  orders: ProtectionOrder[] | undefined,
-  direction: Direction
-): ProtectionOrder | null {
-  const fixed = findStopLoss(orders);
-  const trail = findTrailingStop(orders);
-  if (!fixed) return trail;
-  if (!trail) return fixed;
-  return direction === "long"
-    ? trail.triggerPrice >= fixed.triggerPrice
-      ? trail
-      : fixed
-    : trail.triggerPrice <= fixed.triggerPrice
-      ? trail
-      : fixed;
-}
+export {
+  findTakeProfit,
+  findStopLoss,
+  findTrailingStop,
+  effectiveStop,
+} from "@/lib/protection";

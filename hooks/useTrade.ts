@@ -35,11 +35,7 @@ import { useToast } from "@/components/toast/ToastProvider";
 import { baseSizeFromUsd } from "@/lib/bulk/orders";
 import { venue } from "@/lib/venue";
 import type { AgentSigner } from "@/lib/bulk/signing";
-import {
-  findStopLoss,
-  findTakeProfit,
-  findTrailingStop,
-} from "@/lib/bulk/protection";
+import { findStopLoss, findTakeProfit, findTrailingStop } from "@/lib/protection";
 import { useProtection } from "@/hooks/useProtection";
 import type { Direction, MarketSymbol, Position } from "@/types";
 

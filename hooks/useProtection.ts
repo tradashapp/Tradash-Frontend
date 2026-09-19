@@ -3,17 +3,8 @@
 import { useCallback } from "react";
 import { MARKETS } from "@/lib/markets";
 import { fetchAccount } from "@/lib/bulk/client";
-import {
-  cancelProtection,
-  findStopLoss,
-  findTakeProfit,
-  findTrailingStop,
-  readProtection,
-  stopLossOrder,
-  submitProtection,
-  takeProfitOrder,
-  trailingStopOrder,
-} from "@/lib/bulk/protection";
+import { findStopLoss, findTakeProfit, findTrailingStop } from "@/lib/protection";
+import { cancelProtection, readProtection, stopLossOrder, submitProtection, takeProfitOrder, trailingStopOrder } from "@/lib/bulk/protection";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { patchPosition } from "@/store/slices/positionSlice";
 import { useToast } from "@/components/toast/ToastProvider";

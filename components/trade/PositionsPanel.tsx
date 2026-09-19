@@ -17,11 +17,7 @@ import {
   PencilEdit02Icon,
 } from "@hugeicons/core-free-icons";
 import { MARKETS } from "@/lib/markets";
-import {
-  effectiveStop,
-  findTakeProfit,
-  findTrailingStop,
-} from "@/lib/bulk/protection";
+import { effectiveStop, findTakeProfit, findTrailingStop } from "@/lib/protection";
 import { formatPrice, formatUsd } from "@/lib/format";
 import { Odometer } from "@/components/ui/Odometer";
 import { useAllPositions, type LivePosition } from "@/hooks/useAllPositions";

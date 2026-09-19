@@ -116,10 +116,22 @@ export function assertDelegateSigned(
     );
   }
 
-  if (feePayer && !signers.writable.includes(feePayer)) {
+  // The fee payer is only asserted when the instruction actually names a
+  // writable signer. The two build paths differ here, and both are correct:
+  //
+  //   REST (isolated): the fee payer appears IN the instruction, as a writable
+  //     signer alongside the delegate's read-only authority slot.
+  //   SDK (cross): the instruction names only the read-only authority; the fee
+  //     payer is a TRANSACTION-level field (`tx.feePayer`), so there is no
+  //     writable signer to check here.
+  //
+  // Requiring one unconditionally would reject every valid cross-margin order.
+  // What matters in both shapes is the invariant above: the owner must not
+  // sign, and the delegate must authorise.
+  if (feePayer && signers.writable.length > 0 && !signers.writable.includes(feePayer)) {
     throw new Error(
-      `Phoenix signer check failed: fee payer ${feePayer} is not in the ` +
-        `writable signer slot. Writable signers: ${signers.writable.join(", ") || "(none)"}.`
+      `Phoenix signer check failed: the instruction names writable signer(s) ` +
+        `${signers.writable.join(", ")}, but the fee payer is ${feePayer}.`
     );
   }
 }

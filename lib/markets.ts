@@ -7,6 +7,12 @@ import type { MarketCategory, MarketInfo, MarketSymbol } from "@/types";
 // with NO deployed price-feed PDA on the ER, so they'd render a dead price.
 // They're deliberately excluded; re-probe before adding them back.
 //
+// phoenixSymbol is the same asset WITHOUT the quote suffix ("BTC", not
+// "BTC-USD"). Every active market here is listed on Phoenix (verified live
+// 2026-09-19), but the field is optional in MarketInfo on purpose: this list is
+// the intersection of Bulk and the MagicBlock oracle, so a future addition may
+// have no Phoenix counterpart, and the adapter must refuse to trade it rather
+// than guess a symbol.
 // pythLazerId + exponent come from MagicBlock's oracle-template
 // (pyth_lazer_list.json): the feed PDA seed is the id as a string, and
 // USD price = rawI64 * 10^exponent. maxLeverage mirrors Bulk's exchangeInfo.
@@ -14,6 +20,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
   BTC: {
     symbol: "BTC",
     bulkSymbol: "BTC-USD",
+    phoenixSymbol: "BTC",
     label: "Bitcoin",
     pythLazerId: 1,
     exponent: -8,
@@ -25,6 +32,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
   ETH: {
     symbol: "ETH",
     bulkSymbol: "ETH-USD",
+    phoenixSymbol: "ETH",
     label: "Ethereum",
     pythLazerId: 2,
     exponent: -8,
@@ -36,6 +44,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
   SOL: {
     symbol: "SOL",
     bulkSymbol: "SOL-USD",
+    phoenixSymbol: "SOL",
     label: "Solana",
     pythLazerId: 6,
     exponent: -8,
@@ -124,6 +133,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
   ZEC: {
     symbol: "ZEC",
     bulkSymbol: "ZEC-USD",
+    phoenixSymbol: "ZEC",
     label: "Zcash",
     pythLazerId: 66,
     exponent: -8,
@@ -168,6 +178,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
   HYPE: {
     symbol: "HYPE",
     bulkSymbol: "HYPE-USD",
+    phoenixSymbol: "HYPE",
     label: "Hyperliquid",
     pythLazerId: 110,
     exponent: -8,

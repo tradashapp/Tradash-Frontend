@@ -24,6 +24,14 @@ export interface MarketInfo {
   symbol: MarketSymbol; 
   /** Bulk market identifier, e.g. "BTC-USD". */  
   bulkSymbol: string;
+  /**
+   * Phoenix market identifier, e.g. "BTC" — bare, with no quote suffix.
+   *
+   * Absent when Phoenix does not list the market. `MARKETS` is the intersection
+   * of Bulk and the MagicBlock oracle, so a few entries have no Phoenix
+   * counterpart; the venue adapter must reject those rather than guess a symbol.
+   */
+  phoenixSymbol?: string;
   /** Human label. */
   label: string;
   /** Pyth Lazer feed id — used as the oracle PDA seed (as a string). */

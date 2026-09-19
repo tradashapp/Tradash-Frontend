@@ -1,6 +1,7 @@
 import { MARKETS } from "@/lib/markets";
 import type { Balance, MarketSymbol, Position } from "@/types";
 import { fetchTraderState } from "./client";
+import { computeLiquidationPrices } from "./liquidation";
 import { amountToNumber } from "./map";
 import type { PhoenixPositionRow, PhoenixTraderState } from "./types";
 
@@ -26,6 +27,15 @@ const SYMBOL_BY_PHOENIX: Record<string, MarketSymbol> = Object.fromEntries(
     .filter((m) => m.phoenixSymbol)
     .map((m) => [m.phoenixSymbol as string, m.symbol])
 );
+
+/** Tradash symbol → Phoenix symbol. The inverse of the map above. */
+const PHOENIX_BY_SYMBOL: Partial<Record<MarketSymbol, string>> =
+  Object.fromEntries(
+    Object.entries(SYMBOL_BY_PHOENIX).map(([phoenix, symbol]) => [
+      symbol,
+      phoenix,
+    ])
+  );
 
 /**
  * Account balance in Tradash's shape.
@@ -139,6 +149,34 @@ export async function readAccount(
       return toPosition(row, sym ? markPrices?.[sym] : undefined);
     })
     .filter((p): p is Position => p !== null);
+
+  // Liquidation price is computed, not served — see `liquidation.ts`. It needs
+  // Phoenix-keyed marks, and the caller holds Tradash-keyed ones.
+  //
+  // Only markets the trader actually holds are priced. Cross margin means every
+  // position influences every other's liquidation price, but a market the user
+  // is not in cannot, so leaving the rest unpriced changes no answer while
+  // keeping this independent of how many markets the app happens to list.
+  const marksByPhoenix: Record<string, number> = {};
+  if (markPrices) {
+    for (const row of raw.positions) {
+      const sym = row.symbol ? SYMBOL_BY_PHOENIX[row.symbol] : undefined;
+      const px = sym ? markPrices[sym] : undefined;
+      if (row.symbol && px != null && Number.isFinite(px)) {
+        marksByPhoenix[row.symbol] = px;
+      }
+    }
+  }
+
+  if (positions.length > 0 && Object.keys(marksByPhoenix).length > 0) {
+    // Never throws; an empty map just leaves the 0 sentinel in place.
+    const liq = await computeLiquidationPrices(raw, marksByPhoenix);
+    for (const p of positions) {
+      const phoenixSym = PHOENIX_BY_SYMBOL[p.symbol];
+      const price = phoenixSym ? liq[phoenixSym] : undefined;
+      if (price != null && price > 0) p.liquidationPrice = price;
+    }
+  }
 
   return { balance: toBalance(raw), positions, raw };
 }

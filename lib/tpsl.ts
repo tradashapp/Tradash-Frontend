@@ -126,7 +126,8 @@ export function validateTrigger({
   direction: Direction;
   entryPrice: number;
   markPrice: number | undefined;
-  liquidationPrice: number;
+  /** Undefined when the venue does not know it — the check is then skipped. */
+  liquidationPrice: number | undefined;
   triggerPrice: number;
 }): string | null {
   if (!Number.isFinite(triggerPrice) || triggerPrice <= 0) {
@@ -160,7 +161,7 @@ export function validateTrigger({
     if (fires) return "That level has already been passed — it would close now.";
   }
 
-  if (side === "sl" && liquidationPrice > 0) {
+  if (side === "sl" && liquidationPrice != null && liquidationPrice > 0) {
     const beyond = long
       ? triggerPrice <= liquidationPrice
       : triggerPrice >= liquidationPrice;

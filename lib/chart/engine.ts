@@ -43,7 +43,16 @@ const DEFAULT_THEME: ChartTheme = {
 // gradient between entry and mark, and a liquidation line.
 export interface PositionOverlay {
   entryPrice: number;
-  liquidationPrice: number;
+  /**
+   * Liquidation level in CHART space, or undefined when it is not known.
+   *
+   * Undefined is a real state, not a missing value: Phoenix serves no
+   * liquidation price and computes it from margin inputs, which yields null for
+   * a position that cannot be liquidated at any price (tiny size against large
+   * collateral). Drawing 0 there would put a "Liq" line at the bottom of the
+   * chart and read as imminent liquidation — the precise opposite of the truth.
+   */
+  liquidationPrice?: number;
   /** Positive → profit (green), negative → loss (red). */
   pnl: number;
   /** Active trailing-stop price, drawn as a line that ratchets with price. */
@@ -394,10 +403,13 @@ export class ChartEngine {
           pos.stopLossPrice, this.theme.slLine, "#08090c", [5, 3], 1.5, false
         );
       }
-      this.drawLineOrEdge(
-        yOf(pos.liquidationPrice), top, bottom, plotW, "Liq",
-        pos.liquidationPrice, this.theme.liqLine, "#08090c", [2, 3], 1, false
-      );
+      // Only when it is known — see `PositionOverlay.liquidationPrice`.
+      if (pos.liquidationPrice != null && pos.liquidationPrice > 0) {
+        this.drawLineOrEdge(
+          yOf(pos.liquidationPrice), top, bottom, plotW, "Liq",
+          pos.liquidationPrice, this.theme.liqLine, "#08090c", [2, 3], 1, false
+        );
+      }
       if (pos.trailStopPrice != null) {
         this.drawLineOrEdge(
           yOf(pos.trailStopPrice), top, bottom, plotW, "Trail",

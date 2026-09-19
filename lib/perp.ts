@@ -163,17 +163,24 @@ export function breakEvenPrice(
 }
 
 /**
- * Bulk's liquidation price, in chart space.
+ * The position's liquidation price, in chart space.
  *
  * Shares the single shift with the entry line, so the gap between them stays
- * exactly the distance Bulk reported — previously this was passed through raw,
- * which put the line off by the feed spread and made the entry→liq gap misread
- * the real risk.
+ * exactly the distance the venue reported — previously this was passed through
+ * raw, which put the line off by the feed spread and made the entry→liq gap
+ * misread the real risk.
+ *
+ * Returns UNDEFINED when the level is unknown. `Position.liquidationPrice` uses
+ * 0 as its "unknown" sentinel, and Phoenix leaves it at 0 whenever the margin
+ * calculator says a position cannot be liquidated at any price. Shifting that 0
+ * would yield a small non-zero number and draw a "Liq" line near the bottom of
+ * the chart — which reads as imminent liquidation rather than as no risk.
  */
 export function chartLiquidationPrice(
   mode: "demo" | "live",
   pos: Position
-): number {
+): number | undefined {
+  if (pos.liquidationPrice <= 0) return undefined;
   if (mode === "demo") return pos.liquidationPrice;
   return pos.liquidationPrice + bulkToChartShift(mode, pos);
 }

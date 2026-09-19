@@ -97,5 +97,37 @@ await step("collateral assets", async () => {
   return r.assets.map((a) => `${a.symbol}(${a.decimals}dp)`).join(" ");
 });
 
+// The delegate is NOT served by REST or WS — it lives in the on-chain trader
+// account. This is the read that replaced trusting localStorage optimistically.
+console.log("\ndelegate (on-chain)");
+const RPC = process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
+if (!RPC) {
+  console.log("  - skipped: set NEXT_PUBLIC_SOLANA_RPC_URL to check");
+} else {
+  await step("trader account decodes to a delegate", async () => {
+    const r = await fetch(RPC, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0", id: 1, method: "getAccountInfo",
+        params: [TRADER_PDA, { encoding: "base64" }],
+      }),
+    });
+    const body = await r.json();
+    const v = body.result?.value;
+    if (!v?.data) throw new Error("trader account not found");
+    if (v.owner !== "EtrnLzgbS7nMMy5fbD42kXiUzGg8XQzJ972Xtk1cjWih") {
+      throw new Error(`owned by ${v.owner}, not Phoenix`);
+    }
+    const rise = await import("@ellipsis-labs/rise");
+    const t = rise.decodeTrader(Uint8Array.from(atob(v.data[0]), (c) => c.charCodeAt(0)));
+    const delegate = String(t.positionAuthority);
+    // The whole point: the delegate must be a DIFFERENT key from the owner.
+    // If they were equal, one-tap trading would be signing with the owner.
+    if (delegate === String(t.authority)) throw new Error("delegate == owner (not registered)");
+    return `positionAuthority=${delegate.slice(0, 8)}… authority=${String(t.authority).slice(0, 8)}…`;
+  });
+}
+
 console.log(failures ? `\nFAILED: ${failures} check(s)` : "\nAll read paths OK");
 process.exit(failures ? 1 : 0);

@@ -346,8 +346,12 @@ export function AdjustPositionSheet({
               {isAdd && (
                 <Row
                   label="Liquidation"
-                  from={`$${formatPrice(pos.liquidationPrice)}`}
-                  to={`$${formatPrice(preview.liq)}`}
+                  from={
+                    pos.liquidationPrice > 0
+                      ? `$${formatPrice(pos.liquidationPrice)}`
+                      : "—"
+                  }
+                  to={preview.liq > 0 ? `$${formatPrice(preview.liq)}` : "—"}
                   tone="down"
                 />
               )}

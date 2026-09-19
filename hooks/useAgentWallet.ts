@@ -196,21 +196,60 @@ export function useAgentWallet() {
       // WHO VERIFIES THE STORED KEY DIFFERS BY VENUE.
       //
       // Bulk publishes `authorizedAgentWallets` on the account, so a stored key
-      // can be checked against it and a revoked key forces re-onboarding.
-      // Phoenix exposes NO equivalent over REST or its websocket: the delegate
-      // lives in the on-chain trader account, and the trader-state views carry
-      // only `authority`. Reading it back means decoding that account, which is
-      // not wired yet.
+      // is checked against it below. Phoenix exposes NO equivalent over REST or
+      // its websocket — the delegate lives in the on-chain trader account, and
+      // the trader-state views carry only `authority` — so it is read back by
+      // decoding that account directly (`lib/phoenix/delegateCheck.ts`).
       //
-      // So on Phoenix the stored key is trusted optimistically. That is not a
-      // shortcut with no consequence: a revoked or never-registered delegate is
-      // discovered only when an order fails, rather than up front. The failure
-      // is loud (the transaction is rejected, not silently dropped), and the
-      // signer assertion in `lib/phoenix/signers.ts` guarantees the owner's
-      // wallet is never substituted in its place. Reading the delegate back
-      // on-chain is the hardening step.
+      // ONLY A POSITIVE MISMATCH DE-AUTHORISES. An RPC failure, or a trader
+      // account that does not exist yet, returns "unknown", and the stored key
+      // is kept. Treating an unreachable RPC as a revoked delegate would sign
+      // users out of a working session on a transient network error. The
+      // residual risk is small and loud: an order signed by a stale delegate is
+      // rejected by the chain, and `assertDelegateSigned` in
+      // `lib/phoenix/signers.ts` guarantees the owner's wallet is never
+      // substituted in its place.
       if (venue.id === "phoenix") {
+        const [{ checkDelegate }, { deriveTraderPda }] = await Promise.all([
+          import("@/lib/phoenix/delegateCheck"),
+          import("@/lib/phoenix/pda"),
+        ]);
+        const traderPda = await deriveTraderPda(masterAddress).catch(() => null);
+        // `solanaRpcUrl()` THROWS when unset on mainnet. That is the right
+        // behaviour for a balance read, but here it would break rehydration
+        // over a config problem, so it degrades to "unknown" instead.
+        let rpc = "";
+        try {
+          rpc = solanaRpcUrl();
+        } catch {
+          rpc = "";
+        }
+        const check =
+          traderPda && rpc
+            ? await checkDelegate(traderPda, stored.pubkey, rpc)
+            : ({
+                status: "unknown" as const,
+                reason: traderPda ? "no Solana RPC configured" : "PDA derivation failed",
+              });
         if (cancelled) return;
+
+        if (check.status === "mismatch") {
+          // The chain names a different delegate — this key cannot sign.
+          console.warn(
+            `[phoenix] stored delegate ${stored.pubkey} is not the registered ` +
+              `one (${check.onChain}); re-onboarding required`
+          );
+          setSigner(null);
+          dispatch(setAgentAuthorized(false));
+          return;
+        }
+        if (check.status === "unknown") {
+          console.warn(
+            `[phoenix] could not verify delegate on chain (${check.reason}); ` +
+              "keeping the stored key"
+          );
+        }
+
         setSigner(
           (await makeVenueSigner(
             venue,

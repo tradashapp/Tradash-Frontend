@@ -312,9 +312,17 @@ function PositionRow({
                   value={`$${formatPrice(item.netBreakEven)}`}
                 />
               )}
+              {/* 0 is the "unknown" sentinel, not a price. Phoenix computes
+                  this from margin inputs and returns nothing when a position
+                  cannot be liquidated at any price; "$0.00" would read as
+                  imminent liquidation instead of as no risk. */}
               <Detail
                 label="Liquidation"
-                value={`$${formatPrice(pos.liquidationPrice)}`}
+                value={
+                  pos.liquidationPrice > 0
+                    ? `$${formatPrice(pos.liquidationPrice)}`
+                    : "—"
+                }
                 color="down"
               />
               <Detail label="Margin" value={formatUsd(pos.marginUsed)} />

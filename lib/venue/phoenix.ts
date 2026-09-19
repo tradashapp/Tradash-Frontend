@@ -1,6 +1,4 @@
 import { MARKETS } from "@/lib/markets";
-import { buildCrossMarketOrder } from "@/lib/phoenix/crossOrders";
-import { buildProtection } from "@/lib/phoenix/orders";
 import { assertDelegateSigned, signersOfRest } from "@/lib/phoenix/signers";
 import { buildTransaction, signAndSend } from "@/lib/phoenix/submit";
 import type { DelegateSigner } from "@/lib/phoenix/delegateSigner";
@@ -41,6 +39,19 @@ import type {
  * may have no Phoenix listing. Guessing the symbol would route an order at a
  * market that does not exist, so an absent mapping is an error.
  */
+/**
+ * The order builders are imported LAZILY, not at module scope.
+ *
+ * `crossOrders` pulls in the Rise SDK (~474KB, and ~920KB of emitted chunks).
+ * A dynamic `import()` INSIDE that module is not enough on its own: if this
+ * file imports it statically, the module stays reachable from the entry graph
+ * and its chunks are emitted into every build — measured, 5.6MB → 6.5MB, even
+ * with `venue` defaulting to Bulk. Deferring the import here keeps the whole
+ * Phoenix order path out of the bundle until someone actually trades on it.
+ */
+const orderBuilders = () => import("@/lib/phoenix/crossOrders");
+const protectionBuilder = () => import("@/lib/phoenix/orders");
+
 function phoenixSymbol(symbol: MarketSymbol): string {
   const s = MARKETS[symbol]?.phoenixSymbol;
   if (!s) throw new Error(`${symbol} is not listed on Phoenix`);
@@ -65,10 +76,11 @@ function asDelegate(signer: VenueSigner): DelegateSigner {
 }
 
 /** Build → assert the signer set → sign → send. The only submit path. */
-async function submit(
-  d: DelegateSigner,
-  instructions: Awaited<ReturnType<typeof buildCrossMarketOrder>>
-): Promise<void> {
+type BuiltIx = Awaited<
+  ReturnType<Awaited<ReturnType<typeof orderBuilders>>["buildCrossMarketOrder"]>
+>;
+
+async function submit(d: DelegateSigner, instructions: BuiltIx): Promise<void> {
   assertDelegateSigned(signersOfRest(instructions), {
     delegate: d.pubkey,
     // The delegate is its own fee payer today. When the backend sponsor is
@@ -107,6 +119,7 @@ export const PhoenixVenue: ExecutionVenue = {
 
   async openMarket(signer: VenueSigner, req: OpenOrderRequest) {
     const d = asDelegate(signer);
+    const { buildCrossMarketOrder } = await orderBuilders();
     const ixs = await buildCrossMarketOrder({
       authority: d.account,
       positionAuthority: d.pubkey,
@@ -123,6 +136,7 @@ export const PhoenixVenue: ExecutionVenue = {
 
   async reduceMarket(signer: VenueSigner, req: ReduceOrderRequest) {
     const d = asDelegate(signer);
+    const { buildCrossMarketOrder } = await orderBuilders();
     const ixs = await buildCrossMarketOrder({
       authority: d.account,
       positionAuthority: d.pubkey,
@@ -181,6 +195,7 @@ export const PhoenixVenue: ExecutionVenue = {
       executionPrice: triggerPrice * (isAbove ? 0.995 : 1.005),
     });
 
+    const { buildProtection } = await protectionBuilder();
     const ixs = await buildProtection({
       authority: d.account,
       positionAuthority: d.pubkey,

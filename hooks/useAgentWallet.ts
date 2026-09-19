@@ -314,7 +314,22 @@ export function useAgentWallet() {
       }
 
       // 4. Ready signer.
-      setSigner(await makeAgentSigner(stored.secretBase58, masterAddress));
+      //
+      // NOTE: steps 1-3 above are BULK ONBOARDING (faucet, agent-wallet
+      // authorisation, builder-code approval) and none of it applies to
+      // Phoenix, which needs a single `DelegateTrader` instruction instead and
+      // attaches builder fees per request. Phoenix onboarding is therefore NOT
+      // wired into this flow yet — a Phoenix user must register their delegate
+      // out of band (see scripts/phoenix-trade-cli.mjs `register`). The signer
+      // is still built through the venue so that, once registered, trading
+      // works; what is missing is the in-app registration step.
+      setSigner(
+        (await makeVenueSigner(
+          venue,
+          stored.secretBase58,
+          masterAddress
+        )) as unknown as AgentSigner
+      );
       toast("One-tap trading enabled", {
         type: "success",
         id: TID,

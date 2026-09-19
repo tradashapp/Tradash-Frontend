@@ -3,9 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   computeHotMarkets,
-  fetchAllMarketStats,
+  fetchAllMarketStats as fetchBulkStats,
   type MarketStats,
 } from "@/lib/bulk/marketStats";
+import { venue } from "@/lib/venue";
 import type { MarketSymbol } from "@/types";
 
 // 24h stats are slow-moving, so a long refresh is plenty — and it keeps the
@@ -13,7 +14,10 @@ import type { MarketSymbol } from "@/types";
 const REFRESH_MS = 60_000;
 
 /**
- * Loads Bulk's 24h market stats and derives the Hot set.
+ * Loads the active venue's 24h market stats and derives the Hot set.
+ *
+ * Phoenix returns every market in ONE request; Bulk needs one per market. The
+ * Phoenix module is imported lazily so its code only loads on that venue.
  *
  * Only fetches while `active` (the market sheet being open), so a closed sheet
  * costs nothing. Stats persist across open/close within a session.
@@ -27,6 +31,11 @@ export function useMarketStats(active: boolean) {
   useEffect(() => {
     if (!active) return;
     let cancelled = false;
+    const load = async (): Promise<MarketStats[]> => {
+      if (venue.id !== "phoenix") return fetchBulkStats();
+      const { fetchAllMarketStats } = await import("@/lib/phoenix/marketStats");
+      return fetchAllMarketStats();
+    };
 
     const load = async () => {
       const next = await fetchAllMarketStats();

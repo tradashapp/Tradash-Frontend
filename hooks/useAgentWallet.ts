@@ -363,14 +363,11 @@ export function useAgentWallet() {
 
       // 4. Ready signer.
       //
-      // NOTE: steps 1-3 above are BULK ONBOARDING (faucet, agent-wallet
-      // authorisation, builder-code approval) and none of it applies to
-      // Phoenix, which needs a single `DelegateTrader` instruction instead and
-      // attaches builder fees per request. Phoenix onboarding is therefore NOT
-      // wired into this flow yet — a Phoenix user must register their delegate
-      // out of band (see scripts/phoenix-trade-cli.mjs `register`). The signer
-      // is still built through the venue so that, once registered, trading
-      // works; what is missing is the in-app registration step.
+      // NOTE: steps 0-3 above are BULK ONBOARDING (faucet, agent-wallet
+      // authorisation, builder-code approval). Phoenix returns long before
+      // here, from the branch at the top of this function — it needs only a
+      // single owner-signed `DelegateTrader` instruction, because there is no
+      // faucet and builder fees attach per request.
       setSigner(
         (await makeVenueSigner(
           venue,
@@ -397,7 +394,7 @@ export function useAgentWallet() {
     } finally {
       setOnboarding(false);
     }
-  }, [privyId, masterAddress, onboarding, masterSign, dispatch, toast]);
+  }, [privyId, masterAddress, onboarding, masterSign, signTransaction, dispatch, toast]);
 
   /**
    * Run ONLY the builder-code approval (master-signed).

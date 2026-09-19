@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { useSignMessage } from "@privy-io/react-auth/solana";
 import bs58 from "bs58";
-import { config } from "@/lib/config";
+import { config, solanaRpcUrl } from "@/lib/config";
 import { api } from "@/lib/api";
 import { suggestedUsername } from "@/lib/username";
 import { twitterAvatarUrl } from "@/lib/twitter";
@@ -20,6 +20,7 @@ import {
   saveApproval,
 } from "@/lib/bulk/builderStore";
 import { generateAgentKeypair, makeAgentSigner, type AgentSigner } from "@/lib/bulk/signing";
+import { useSignTransaction } from "@privy-io/react-auth/solana";
 import { venue } from "@/lib/venue";
 import { makeVenueSigner } from "@/lib/venue/signer";
 import { fetchAccount } from "@/lib/bulk/client";
@@ -75,6 +76,10 @@ export function useAgentWallet() {
 
   // Wrap Privy's signMessage into the base58-signature contract the keychain
   // onboarding expects.
+  // Phoenix registers the delegate with a signed TRANSACTION, where Bulk signs
+  // a message — hence a second Privy primitive alongside `masterSign`.
+  const { signTransaction } = useSignTransaction();
+
   const masterSign: MasterSignBytes = useCallback(
     async (message) => {
       const sig = await signMessage({ message });
@@ -251,6 +256,49 @@ export function useAgentWallet() {
     const TID = "onboard";
     toast("Setting up one-tap trading…", { type: "loading", id: TID });
     try {
+      // PHOENIX: one signature, then done.
+      //
+      // The Bulk sequence below (faucet → agent authorisation → builder-code
+      // approval) has no Phoenix counterpart: there is no faucet, builder fees
+      // attach per request rather than by account-level approval, and the only
+      // thing to register is the delegate. So Phoenix onboarding is a single
+      // owner-signed `DelegateTrader` transaction.
+      if (venue.id === "phoenix") {
+        // Same agent key as Bulk: one stored secret, reused as the Phoenix
+        // delegate. Create it here if this is a fresh device.
+        let stored = loadAgent(masterAddress);
+        if (!stored) {
+          const kp = await generateAgentKeypair();
+          stored = { pubkey: kp.pubkey, secretBase58: kp.secretBase58 } satisfies StoredAgent;
+          saveAgent(masterAddress, stored);
+        }
+        const { registerDelegate } = await import("@/lib/phoenix/onboarding");
+        await registerDelegate({
+          owner: masterAddress,
+          delegate: stored.pubkey,
+          rpcUrl: solanaRpcUrl(),
+          signTransaction: signTransaction as never,
+        });
+        setSigner(
+          (await makeVenueSigner(
+            venue,
+            stored.secretBase58,
+            masterAddress
+          )) as unknown as AgentSigner
+        );
+        dispatch(setAgentAuthorized(true));
+        // No builder approval exists on Phoenix, so the gate that `useTrade`
+        // checks must not stay false or every order is blocked by a handshake
+        // that does not apply here.
+        dispatch(setBuilderApproved(true));
+        toast("One-tap trading enabled", {
+          type: "success",
+          id: TID,
+          description: "Your delegate is registered on Phoenix.",
+        });
+        return;
+      }
+
       // 0. Fund + create the Bulk account. A fresh Privy wallet has NO Bulk
       //    account until funded — on testnet the faucet both creates and funds
       //    it in one step.

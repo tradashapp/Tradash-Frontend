@@ -20,6 +20,8 @@ import {
   saveApproval,
 } from "@/lib/bulk/builderStore";
 import { generateAgentKeypair, makeAgentSigner, type AgentSigner } from "@/lib/bulk/signing";
+import { venue } from "@/lib/venue";
+import { makeVenueSigner } from "@/lib/venue/signer";
 import { fetchAccount } from "@/lib/bulk/client";
 import {
   fundAccount,
@@ -186,6 +188,34 @@ export function useAgentWallet() {
       return;
     }
     (async () => {
+      // WHO VERIFIES THE STORED KEY DIFFERS BY VENUE.
+      //
+      // Bulk publishes `authorizedAgentWallets` on the account, so a stored key
+      // can be checked against it and a revoked key forces re-onboarding.
+      // Phoenix exposes NO equivalent over REST or its websocket: the delegate
+      // lives in the on-chain trader account, and the trader-state views carry
+      // only `authority`. Reading it back means decoding that account, which is
+      // not wired yet.
+      //
+      // So on Phoenix the stored key is trusted optimistically. That is not a
+      // shortcut with no consequence: a revoked or never-registered delegate is
+      // discovered only when an order fails, rather than up front. The failure
+      // is loud (the transaction is rejected, not silently dropped), and the
+      // signer assertion in `lib/phoenix/signers.ts` guarantees the owner's
+      // wallet is never substituted in its place. Reading the delegate back
+      // on-chain is the hardening step.
+      if (venue.id === "phoenix") {
+        if (cancelled) return;
+        setSigner(
+          (await makeVenueSigner(
+            venue,
+            stored.secretBase58,
+            masterAddress
+          )) as unknown as AgentSigner
+        );
+        dispatch(setAgentAuthorized(true));
+        return;
+      }
       const acct = await fetchAccount(masterAddress).catch(() => null);
       const authorized =
         acct?.authorizedAgentWallets?.includes(stored.pubkey) ?? false;

@@ -21,7 +21,7 @@ import {
 } from "@/lib/perp";
 import { marketPath, marketMeta } from "@/lib/markets";
 import { useAgentWallet } from "@/hooks/useAgentWallet";
-import { useBulkAccount } from "@/hooks/useBulkAccount";
+import { useVenueAccount } from "@/hooks/useVenueAccount";
 import { useDemoPnl } from "@/hooks/useDemoPnl";
 import { useLiveProfitSound } from "@/hooks/useLiveProfitSound";
 import { useTradeRecorder } from "@/hooks/useTradeRecorder";
@@ -104,7 +104,7 @@ export function TradeScreen({ initialMarket }: Props) {
   const agent = useAgentWallet();
   useFeedback();
   useAllPrices(); // live price for ALL markets (switcher + multi-market PnL)
-  useBulkAccount(agent.masterAddress, agent.privyId);
+  useVenueAccount(agent.masterAddress, agent.privyId);
   useDemoPnl();
   useLiveProfitSound();
   useTradeRecorder(); // records real price paths for trade replay

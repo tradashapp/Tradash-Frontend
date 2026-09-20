@@ -21,3 +21,23 @@ export const PHOENIX_WS =
 /** On-chain program that owns trader PDAs. Verified live 2026-09-18. */
 export const PHOENIX_PROGRAM_ID =
   "EtrnLzgbS7nMMy5fbD42kXiUzGg8XQzJ972Xtk1cjWih";
+
+/**
+ * Flight — the proxy program that collects BUILDER FEES.
+ *
+ * With `flight` configured on the SDK client (`sdkClient.ts`), order-placing
+ * instructions come back targeting THIS program instead of Phoenix directly:
+ * Flight wraps the Phoenix instruction and settles our fee to the builder's
+ * trader account in the same transaction.
+ *
+ * So any guard that asserts "this instruction must target Phoenix" has to
+ * accept Flight too, or enabling builder fees breaks every order with
+ * *"Refusing instruction for F1ightu9…, not Phoenix"*.
+ *
+ * Matches `FLIGHT_PROGRAM_ADDRESS` in the SDK
+ * (`flight/core/constants.ts`), which is not re-exported from the package
+ * root — hence the copy here rather than an import. Verified on chain
+ * 2026-09-20: exists, `executable: true`, owned by the BPF upgradeable loader.
+ */
+export const FLIGHT_PROGRAM_ID =
+  "F1ightu9cujFYo34k9CabifLrJT8qzfDVM2Q7BqhJn2W";

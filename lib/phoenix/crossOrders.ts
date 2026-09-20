@@ -1,4 +1,4 @@
-import { PHOENIX_PROGRAM_ID } from "./config";
+import { FLIGHT_PROGRAM_ID, PHOENIX_PROGRAM_ID } from "./config";
 import { getPhoenixClient } from "./sdkClient";
 
 /**
@@ -48,10 +48,24 @@ const ROLE_WRITABLE = 1;
  * Convert an SDK instruction to the REST-shaped one the rest of `lib/phoenix`
  * already understands, so `signers.ts` and `submit.ts` work unchanged.
  */
+/**
+ * Programs an order instruction may legitimately target.
+ *
+ * Flight is here because builder fees route orders through it — see
+ * `FLIGHT_PROGRAM_ID`. Without it, turning builder fees on breaks every order.
+ * Still an allowlist: anything else is refused rather than signed.
+ */
+const ALLOWED_ORDER_PROGRAMS = new Set([
+  PHOENIX_PROGRAM_ID,
+  FLIGHT_PROGRAM_ID,
+]);
+
 function fromSdk(ix: SdkInstruction): BuiltInstruction {
-  if (String(ix.programAddress) !== PHOENIX_PROGRAM_ID) {
+  const programAddress = String(ix.programAddress);
+  if (!ALLOWED_ORDER_PROGRAMS.has(programAddress)) {
     throw new Error(
-      `Refusing instruction for ${ix.programAddress}, not Phoenix (${PHOENIX_PROGRAM_ID})`
+      `Refusing instruction for ${programAddress}: not Phoenix ` +
+        `(${PHOENIX_PROGRAM_ID}) or Flight (${FLIGHT_PROGRAM_ID})`
     );
   }
   return {

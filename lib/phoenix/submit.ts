@@ -5,7 +5,7 @@ import {
   TransactionInstruction,
   type Keypair,
 } from "@solana/web3.js";
-import { PHOENIX_PROGRAM_ID } from "./config";
+import { FLIGHT_PROGRAM_ID, PHOENIX_PROGRAM_ID } from "./config";
 import {
   assertDelegateSigned,
   signersOfRest,
@@ -29,13 +29,26 @@ import {
  * a wallet is ever prompted, rather than after.
  */
 
-/** Convert a REST instruction into web3.js form, verifying it is Phoenix's. */
+/**
+ * Programs a trading instruction may legitimately target.
+ *
+ * Flight is the builder-fee proxy: with builder fees enabled, both orders and
+ * TP/SL come back targeting it rather than Phoenix directly
+ * (see `FLIGHT_PROGRAM_ID`). Anything else is refused — signing an instruction
+ * for an unrecognised program would be signing something we have not reasoned
+ * about.
+ */
+const ALLOWED_TRADING_PROGRAMS = new Set([
+  PHOENIX_PROGRAM_ID,
+  FLIGHT_PROGRAM_ID,
+]);
+
+/** Convert a REST instruction into web3.js form, verifying its program. */
 function toWeb3(ix: RestInstruction): TransactionInstruction {
-  // A programId that is not Phoenix means the response was not what we think
-  // it was; signing it would be signing an unknown program.
-  if (ix.programId !== PHOENIX_PROGRAM_ID) {
+  if (!ALLOWED_TRADING_PROGRAMS.has(ix.programId)) {
     throw new Error(
-      `Refusing to build: instruction targets ${ix.programId}, not Phoenix (${PHOENIX_PROGRAM_ID})`
+      `Refusing to build: instruction targets ${ix.programId}: not Phoenix ` +
+        `(${PHOENIX_PROGRAM_ID}) or Flight (${FLIGHT_PROGRAM_ID})`
     );
   }
   return new TransactionInstruction({

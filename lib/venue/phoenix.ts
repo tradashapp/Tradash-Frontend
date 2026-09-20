@@ -81,12 +81,61 @@ type BuiltIx = Awaited<
   ReturnType<Awaited<ReturnType<typeof orderBuilders>>["buildCrossMarketOrder"]>
 >;
 
+/**
+ * Build → assert the signer set → sign → send.
+ *
+ * ## The sponsor pays the fee, not the delegate
+ *
+ * The delegate is a browser-generated session key that has NEVER held SOL, so
+ * having it pay its own fee meant a new user's first order died with *"Attempt
+ * to debit an account but found no record of a prior credit"*. Asking users to
+ * buy SOL for a session key defeats the point of one-tap trading, so the
+ * backend sponsor pays instead — the same rail deposits already use.
+ *
+ * THE SPONSOR ONLY EVER PAYS. It is the fee payer and nothing else; the
+ * delegate still signs as the trading authority, so the sponsor's signature
+ * grants no capability it did not already have. The backend re-validates the
+ * instruction set against its allowlist before signing.
+ *
+ * FALLS BACK TO DELEGATE-PAID when the sponsor is unconfigured, unfunded or
+ * unreachable. A broken sponsor must degrade, not block trading — and a
+ * delegate that does happen to hold SOL still works.
+ */
 async function submit(d: DelegateSigner, instructions: BuiltIx): Promise<void> {
+  // Try the sponsor first.
+  try {
+    const { api } = await import("@/lib/api");
+    const prepared = await api.sponsorInstructions(
+      instructions.map((ix) => ({
+        programId: ix.programId,
+        data: ix.data,
+        keys: ix.keys,
+      }))
+    );
+    const { Transaction: Tx } = await import("@solana/web3.js");
+    const tx = Tx.from(
+      Uint8Array.from(atob(prepared.transaction), (c) => c.charCodeAt(0))
+    );
+    // The sponsor has signed as fee payer; the delegate adds the authority
+    // signature. `partialSign` keeps the sponsor's signature intact.
+    tx.partialSign(d.keypair);
+
+    const { Connection } = await import("@solana/web3.js");
+    const connection = new Connection(solanaRpcUrl(), "confirmed");
+    const sig = await connection.sendRawTransaction(tx.serialize());
+    await connection.confirmTransaction(sig, "confirmed");
+    return;
+  } catch (e) {
+    console.warn(
+      `[phoenix] order sponsorship unavailable, delegate pays its own fee: ${
+        e instanceof Error ? e.message : "unknown"
+      }`
+    );
+  }
+
+  // Fallback: the delegate pays. Only works if it holds SOL.
   assertDelegateSigned(signersOfRest(instructions), {
     delegate: d.pubkey,
-    // The delegate is its own fee payer today. When the backend sponsor is
-    // funded this becomes the sponsor and the delegate keeps only the
-    // read-only authority slot; the assertion already accepts both shapes.
     feePayer: d.pubkey,
     owner: d.account,
   });

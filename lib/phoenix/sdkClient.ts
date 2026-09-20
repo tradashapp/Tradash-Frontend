@@ -143,14 +143,25 @@ export function describeClientError(err: unknown): string | null {
   const msg = err instanceof Error ? err.message : String(err ?? "");
   if (!msg) return null;
 
+  // CSP first: a blocked connection reports as a bare "Failed to fetch" with
+  // the real reason only in the console, which is precisely how this was
+  // misdiagnosed as a network and rate-limit problem for hours. Chrome appends
+  // the CSP text to the TypeError message, so when it is there, say so.
+  if (msg.includes("Content Security Policy") || msg.includes("Refused to connect")) {
+    return (
+      "Blocked by this app's Content Security Policy — perp-api.phoenix.trade " +
+      "is not in `connect-src` (see next.config.mjs). Restart the dev server " +
+      "after changing it."
+    );
+  }
   if (msg.includes("Failed to fetch") || msg.includes("NetworkError")) {
-    // Deliberately does NOT name a single cause. The browser gives no
-    // distinguishing detail here, and guessing ("it's your ad blocker") sends
-    // people to check things that are fine. The console warning from
-    // `getPhoenixClient` carries the real cause.
+    // Does NOT name a single cause. The browser gives no distinguishing detail
+    // here, and guessing sends people to check things that are fine. The
+    // console warning from `getPhoenixClient` carries the real one.
     return (
       "Could not reach Phoenix (perp-api.phoenix.trade). The request did not " +
-      "complete — see the browser console for the cause."
+      "complete — check the browser console, including for a Content Security " +
+      "Policy violation."
     );
   }
   if (msg.includes("429")) {

@@ -52,6 +52,23 @@ const BULK = [
   "https://exchange-api.bulk.trade",
   "wss://exchange-ws1.bulk.trade",
 ];
+// Phoenix Perpetuals — the DEFAULT execution venue since 2026-09-19.
+//
+// Missing this was a real outage in dev: every Phoenix call (trader state, the
+// account websocket, the SDK's `/v1/exchange/snapshot`) was blocked by CSP, and
+// the browser reports that as a bare `TypeError: Failed to fetch`. That looks
+// exactly like a network or rate-limit failure, so it sent a long debugging
+// detour through RPC limits and ad blockers before the CSP violation in the
+// console named the real cause.
+//
+// Derived from the same env var the client reads, so pointing the app at
+// another Phoenix host cannot silently leave the policy behind. The websocket
+// origin is the same host over wss (`lib/phoenix/config.ts`).
+const phoenixApi = (
+  process.env.NEXT_PUBLIC_PHOENIX_API_URL || "https://perp-api.phoenix.trade"
+).replace(/\/+$/, "");
+const PHOENIX = [phoenixApi, phoenixApi.replace(/^https:/, "wss:")];
+
 const SOLANA_RPC = [
   // Wallet USDC reads + the vault deposit transaction.
   "https://mainnet.helius-rpc.com",
@@ -131,6 +148,7 @@ const csp = [
     ...WALLETCONNECT_CONNECT,
     ...MOONPAY_CONNECT,
     ...BULK,
+    ...PHOENIX,
     ...SOLANA_RPC,
     ...TRADASH_API,
     ...AVATARS,

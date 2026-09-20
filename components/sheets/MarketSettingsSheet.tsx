@@ -251,11 +251,22 @@ export function MarketSettingsSheet({
               ))}
           </div>
 
-          {!leverage.canSync && (
+          {/* Two different reasons the value stays local, with different
+              remedies — so they must not share one message. On Phoenix there
+              is nothing to "finish": the venue sets max leverage from position
+              size, and this value sizes the order locally. */}
+          {!leverage.venueSupportsLeverage ? (
             <p className="mt-2 text-[11px] leading-snug text-text-muted">
-              Saved on this device. Finish setup and switch to live to apply
-              this on your trading account.
+              Used to size your orders. This venue sets margin from position
+              size, so there is no account-level leverage to apply.
             </p>
+          ) : (
+            !leverage.canSync && (
+              <p className="mt-2 text-[11px] leading-snug text-text-muted">
+                Saved on this device. Finish setup and switch to live to apply
+                this on your trading account.
+              </p>
+            )
           )}
         </section>
 

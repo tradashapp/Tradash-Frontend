@@ -34,7 +34,7 @@ import { PHOENIX_PROGRAM_ID } from "./config";
  * chain rather than silently mis-executed.
  */
 
-export type DelegateStatus = "ok" | "mismatch" | "unknown";
+export type DelegateStatus = "ok" | "mismatch" | "unregistered" | "unknown";
 
 export interface DelegateCheckResult {
   status: DelegateStatus;
@@ -54,7 +54,7 @@ export interface DelegateCheckResult {
 export async function readOnChainDelegate(
   traderPda: string,
   rpcUrl: string
-): Promise<{ delegate?: string; reason?: string }> {
+): Promise<{ delegate?: string; reason?: string; unregistered?: boolean }> {
   try {
     const res = await fetch(rpcUrl, {
       method: "POST",
@@ -91,9 +91,13 @@ export async function readOnChainDelegate(
     }
 
     const value = body.result.value;
-    // Genuinely absent: the user has never registered. Not a mismatch — there
-    // is nothing to contradict.
-    if (!value?.data) return { reason: "trader account does not exist" };
+    // Genuinely absent: this wallet has never used Phoenix. Distinct from both
+    // "mismatch" and "unknown" — there is nothing to contradict, but there IS a
+    // definite answer, and the caller must re-onboard rather than trust the
+    // stored key. Conflating this with "unknown" left users permanently stuck:
+    // the app kept a delegate for an account that did not exist, reported
+    // itself onboarded, and every deposit failed with `AccountNotFound`.
+    if (!value?.data) return { unregistered: true };
 
     // Decoding data from an account owned by another program would be reading
     // arbitrary bytes through Phoenix's layout.
@@ -122,7 +126,12 @@ export async function checkDelegate(
   storedDelegate: string,
   rpcUrl: string
 ): Promise<DelegateCheckResult> {
-  const { delegate, reason } = await readOnChainDelegate(traderPda, rpcUrl);
+  const { delegate, reason, unregistered } = await readOnChainDelegate(
+    traderPda,
+    rpcUrl
+  );
+  // No trader account at all — setup has not happened, so re-onboard.
+  if (unregistered) return { status: "unregistered" };
   if (!delegate) return { status: "unknown", reason };
   if (delegate === storedDelegate) return { status: "ok", onChain: delegate };
   return { status: "mismatch", onChain: delegate };

@@ -55,10 +55,19 @@ export interface RegisterDelegateParams {
  * `Phoenix deposit would fail: "AccountNotFound"`, because there was no account
  * to deposit into. See `register.ts` for why they are separate.
  *
- * NO OWNER SIGNATURE [LIVE]. The owner is absent from both instructions' signer
- * sets; the signers are the fee payer and Phoenix's own `traderOnboarder`.
- * Phoenix co-signs and broadcasts through `send-register-ixs`, which is why
- * this does not go through our usual submit path.
+ * TWO SIGNATURES ARE REQUIRED, and only one of them is ours:
+ *
+ *   - the **fee payer**, signed here;
+ *   - Phoenix's **`traderOnboarder`** (`EzkM8YbCkB…`), added server-side by
+ *     `send-register-ixs`. Only Phoenix holds that key, which is why the
+ *     broadcast is theirs rather than ours.
+ *
+ * Sending it unsigned yields `400 {"error":"missing_required_signer_signature"}`
+ * — the transaction leaves with 0/2 signatures where Phoenix expects 1/2.
+ *
+ * The owner is not a signer of the INSTRUCTIONS, but it is the fee payer by
+ * default, and a fee payer always signs. So this costs one wallet prompt
+ * unless a sponsor pays instead.
  *
  * Idempotent: `includeRegisterTrader` is false when the account already exists,
  * and this returns without sending.
@@ -66,7 +75,8 @@ export interface RegisterDelegateParams {
 async function ensureTraderAccount(
   owner: string,
   feePayer: string,
-  connection: Connection
+  connection: Connection,
+  signTransaction: OwnerSignTransaction
 ): Promise<void> {
   const { buildRegisterTrader, sendRegisterTrader } = await import("./register");
 
@@ -97,9 +107,17 @@ async function ensureTraderAccount(
   tx.feePayer = new PublicKey(built.txFeePayer);
   tx.recentBlockhash = (await connection.getLatestBlockhash("confirmed")).blockhash;
 
-  // Phoenix's onboarder signature is still missing, so this cannot be
-  // simulated or sent locally — only `send-register-ixs` can complete it.
-  const serialized = tx.serialize({
+  // SIGN AS THE FEE PAYER before handing it over. Phoenix adds only the
+  // onboarder signature; it will not add ours, and an unsigned transaction is
+  // rejected with `missing_required_signer_signature`.
+  const signedTx = (await signTransaction({
+    transaction: tx,
+    connection,
+  })) as Transaction;
+
+  // `requireAllSignatures: false` remains correct: the onboarder slot is
+  // legitimately empty here and is filled server-side.
+  const serialized = signedTx.serialize({
     requireAllSignatures: false,
     verifySignatures: false,
   });
@@ -135,7 +153,12 @@ export async function registerDelegate({
   const connection = new Connection(rpcUrl, "confirmed");
 
   // STEP 1 of 2 — the account must exist before a delegate can be set on it.
-  await ensureTraderAccount(owner, feePayer ?? owner, connection);
+  await ensureTraderAccount(
+    owner,
+    feePayer ?? owner,
+    connection,
+    signTransaction
+  );
 
   const built = rise.buildDelegateTraderIx({
     traderWallet: owner as Parameters<typeof rise.buildDelegateTraderIx>[0]["traderWallet"],

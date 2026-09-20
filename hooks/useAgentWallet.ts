@@ -233,6 +233,19 @@ export function useAgentWallet() {
               });
         if (cancelled) return;
 
+        if (check.status === "unregistered") {
+          // No trader account on Phoenix yet. The stored delegate is useless
+          // without one, and keeping it would report the user as onboarded
+          // while every deposit fails with `AccountNotFound`. Clearing it
+          // routes them back through onboarding, which now creates the
+          // account first (`lib/phoenix/register.ts`).
+          console.warn(
+            "[phoenix] no trader account for this wallet — onboarding required"
+          );
+          setSigner(null);
+          dispatch(setAgentAuthorized(false));
+          return;
+        }
         if (check.status === "mismatch") {
           // The chain names a different delegate — this key cannot sign.
           console.warn(

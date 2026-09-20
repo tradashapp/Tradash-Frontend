@@ -1,3 +1,4 @@
+import { config } from "@/lib/config";
 import { PHOENIX_API } from "./config";
 import {
   assertDelegateSigned,
@@ -109,6 +110,18 @@ export interface BuildProtectionParams
 }
 
 /**
+ * Builder-fee fields for a REST order body, or nothing when unconfigured.
+ *
+ * `flightFeeCollectorTrader` is the builder's TRADER PDA (fees settle as
+ * collateral, not to a bare wallet). Phoenix derives it when omitted, so it is
+ * left out rather than hard-coded — one less address to drift.
+ */
+function builderFields(): Record<string, string> {
+  const authority = config.builder.recipient;
+  return authority ? { flightBuilderAuthority: authority } : {};
+}
+
+/**
  * Build an UNSIGNED TP/SL bracket against an existing position.
  *
  * Both legs travel in ONE instruction — cheaper and far simpler than Bulk,
@@ -138,6 +151,20 @@ export async function buildProtection(
     authority: p.authority,
     positionAuthority: p.positionAuthority,
     ...(p.feePayer ? { feePayer: p.feePayer } : {}),
+    // BUILDER FEE — Tradash's revenue, attached PER REQUEST on the REST path.
+    //
+    // The SDK's client-level `flight` config (see `sdkClient.ts`) does NOT
+    // reach here: this route is plain REST, so the builder must be named on
+    // the body. With it set, Phoenix returns a Flight-wrapped instruction
+    // (program `F1ightu9…`, 19 accounts) instead of a native one. [LIVE]
+    //
+    // ⚠️ ALWAYS PASS `feePayer` ALONGSIDE THIS. Without one, Phoenix makes the
+    // OWNER the fee payer and pulls the owner wallet into the signer set —
+    // which would put a wallet prompt on every TP/SL and break one-tap
+    // trading. Verified: `builder only` → `OWNER(w) DELEGATE(r)`, while
+    // `builder + feePayer` → `SPONSOR(w) DELEGATE(r)`. `assertDelegateSigned`
+    // below is the backstop that catches a regression here.
+    ...builderFields(),
     symbol: p.symbol,
     traderPdaIndex: p.traderPdaIndex ?? 0,
     ...(p.greaterTrigger ? { greaterTrigger: leg(p.greaterTrigger) } : {}),

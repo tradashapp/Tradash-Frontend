@@ -1,3 +1,4 @@
+import { config } from "@/lib/config";
 import { PHOENIX_API } from "./config";
 
 /**
@@ -61,6 +62,16 @@ import { PHOENIX_API } from "./config";
 const clients = new Map<string, Promise<unknown>>();
 
 /**
+ * The builder authority collecting fees, or "" when unconfigured.
+ *
+ * Shared with Bulk (`config.builder.recipient`) so there is one revenue address
+ * across venues. Phoenix takes no fee rate here — the rate is registered
+ * against the builder account on Phoenix's side, not sent per order, which is
+ * why `feeBps` has no counterpart in the flight config below.
+ */
+const builderAuthority = config.builder.recipient;
+
+/**
  * The shared client for `rpcUrl`, creating it on first use.
  *
  * Awaits `exchange.ready()` before returning: market params (tick size, lot
@@ -108,6 +119,35 @@ export async function getPhoenixClient(rpcUrl: string): Promise<unknown> {
         priority: "api",
         rpc: { enabled: false },
       },
+      // BUILDER FEES — Tradash's revenue on Phoenix.
+      //
+      // Configured ONCE on the client, not per request. That is the difference
+      // from Bulk, where a builder code had to be approved by the user up front
+      // (`builderStore.ts`); Phoenix has no approval handshake, so orders route
+      // through the Flight program and the fee settles to the builder's trader
+      // account automatically.
+      //
+      // Declaring it here is what makes it apply: with `flight` set,
+      // `client.ixs.buildPlaceMarketOrder` (and the TP/SL builders) return a
+      // FLIGHT-WRAPPED instruction instead of a native Phoenix one. Verified
+      // [LIVE]: the program flips to `F1ightu9…` and the account list grows
+      // 10 → 18, while the DELEGATE remains the only signer — no extra wallet
+      // prompt for the user.
+      //
+      // The builder must have a Phoenix TRADER ACCOUNT, not just a wallet: fees
+      // settle as collateral. `AUNDCura…` → trader PDA `7DNiu46j…`, confirmed
+      // live. Omitting the config entirely (no recipient) falls back to
+      // unwrapped native orders rather than failing, so a misconfigured build
+      // still trades — it just earns nothing.
+      ...(builderAuthority
+        ? {
+            flight: {
+              builderAuthority,
+              builderPdaIndex: 0,
+              builderSubaccountIndex: 0,
+            },
+          }
+        : {}),
     } as Parameters<typeof rise.createPhoenixClient>[0]);
     await client.exchange.ready();
     return client;

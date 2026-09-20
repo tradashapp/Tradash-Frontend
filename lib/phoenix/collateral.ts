@@ -1,5 +1,6 @@
 import { Connection, PublicKey, Transaction, TransactionInstruction } from "@solana/web3.js";
 import { api } from "@/lib/api";
+import { uuid } from "@/lib/uuid";
 import { PHOENIX_PROGRAM_ID } from "./config";
 import { describeClientError, getPhoenixClient } from "./sdkClient";
 
@@ -171,7 +172,9 @@ async function submit(
         signed.serialize({ requireAllSignatures: false }).toString("base64"),
         p.amountUsd,
         build === "buildDepositFunds" ? "deposit" : "withdraw",
-        `phoenix-${build}-${p.owner}-${p.amountUsd}-${Date.now()}`
+        // MUST be a UUID — the backend validates with `z.string().uuid()`.
+        // A descriptive key is rejected as `ValidationError: Invalid uuid`.
+        uuid()
       );
       return signature;
     } catch (e) {

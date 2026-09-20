@@ -1,5 +1,6 @@
 "use client";
 
+import { uuid } from "@/lib/uuid";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAppSelector } from "@/store/hooks";
 import { marginHealth } from "@/lib/perp";
@@ -33,19 +34,6 @@ const fmtUsd = (n: number) =>
  * transfers (master-signed). In demo mode there is no external wallet, so
  * deposit/withdraw are informational.
  */
-/** A UUID for the idempotency key, with a fallback for non-secure contexts. */
-function uuid(): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-  return "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (c) =>
-    (
-      Number(c) ^
-      (crypto.getRandomValues(new Uint8Array(1))[0]! & (15 >> (Number(c) / 4)))
-    ).toString(16)
-  );
-}
-
 export function useCollateral(
   masterAddress: string | null,
   masterSign: MasterSignBytes | null

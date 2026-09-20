@@ -1,10 +1,4 @@
-import {
-  Connection,
-  PublicKey,
-  Transaction,
-  TransactionInstruction,
-  type Keypair,
-} from "@solana/web3.js";
+import { ComputeBudgetProgram, Connection, PublicKey, Transaction, TransactionInstruction, type Keypair } from "@solana/web3.js";
 import { FLIGHT_PROGRAM_ID, PHOENIX_PROGRAM_ID } from "./config";
 import {
   assertDelegateSigned,
@@ -38,6 +32,23 @@ import {
  * for an unrecognised program would be signing something we have not reasoned
  * about.
  */
+/**
+ * Compute-unit budget for a Phoenix order.
+ *
+ * Solana's DEFAULT IS 200,000 CU and Phoenix orders sit right on that line —
+ * measured 150k–200k for the same order across runs, because cost scales with
+ * how much of the book the fill walks. With builder fees on, the Flight wrap
+ * adds a CPI layer and pushes it over: the transaction dies with
+ * *"exceeded CUs meter at BPF instruction"* / *"Program failed to complete"*.
+ *
+ * That variance is why it looked intermittent rather than broken.
+ *
+ * 400,000 is roughly double the observed ceiling. Raising the limit is close to
+ * free: the fee is charged on units CONSUMED, not units requested, so an
+ * unused headroom costs nothing. The cap per instruction is 1.4M.
+ */
+const ORDER_COMPUTE_UNITS = 400_000;
+
 const ALLOWED_TRADING_PROGRAMS = new Set([
   PHOENIX_PROGRAM_ID,
   FLIGHT_PROGRAM_ID,
@@ -98,6 +109,9 @@ export async function buildTransaction({
 
   const connection = new Connection(rpcUrl, "confirmed");
   const tx = new Transaction();
+  tx.add(
+    ComputeBudgetProgram.setComputeUnitLimit({ units: ORDER_COMPUTE_UNITS })
+  );
   for (const ix of instructions) tx.add(toWeb3(ix));
   tx.feePayer = new PublicKey(feePayer);
   tx.recentBlockhash = (

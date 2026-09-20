@@ -102,35 +102,43 @@ type BuiltIx = Awaited<
  * delegate that does happen to hold SOL still works.
  */
 async function submit(d: DelegateSigner, instructions: BuiltIx): Promise<void> {
-  // Try the sponsor first.
+  // ONLY the co-signing request falls back. The SEND does not.
+  //
+  // An earlier version wrapped both in one `try`, so a sponsored transaction
+  // that failed on chain silently retried delegate-paid — which then failed
+  // with "found no record of a prior credit" and reported THAT, hiding the real
+  // cause entirely. A failure to obtain a sponsor signature is recoverable; a
+  // failure to send an already-sponsored transaction is not, and must surface.
+  let sponsored: { transaction: string } | null = null;
   try {
     const { api } = await import("@/lib/api");
-    const prepared = await api.sponsorInstructions(
+    sponsored = await api.sponsorInstructions(
       instructions.map((ix) => ({
         programId: ix.programId,
         data: ix.data,
         keys: ix.keys,
       }))
     );
-    const { Transaction: Tx } = await import("@solana/web3.js");
-    const tx = Tx.from(
-      Uint8Array.from(atob(prepared.transaction), (c) => c.charCodeAt(0))
-    );
-    // The sponsor has signed as fee payer; the delegate adds the authority
-    // signature. `partialSign` keeps the sponsor's signature intact.
-    tx.partialSign(d.keypair);
-
-    const { Connection } = await import("@solana/web3.js");
-    const connection = new Connection(solanaRpcUrl(), "confirmed");
-    const sig = await connection.sendRawTransaction(tx.serialize());
-    await connection.confirmTransaction(sig, "confirmed");
-    return;
   } catch (e) {
     console.warn(
       `[phoenix] order sponsorship unavailable, delegate pays its own fee: ${
         e instanceof Error ? e.message : "unknown"
       }`
     );
+  }
+
+  if (sponsored) {
+    const { Connection, Transaction: Tx } = await import("@solana/web3.js");
+    const tx = Tx.from(
+      Uint8Array.from(atob(sponsored.transaction), (c) => c.charCodeAt(0))
+    );
+    // The sponsor signed as fee payer; the delegate adds the authority
+    // signature. `partialSign` keeps the sponsor's signature intact.
+    tx.partialSign(d.keypair);
+    const connection = new Connection(solanaRpcUrl(), "confirmed");
+    const sig = await connection.sendRawTransaction(tx.serialize());
+    await connection.confirmTransaction(sig, "confirmed");
+    return;
   }
 
   // Fallback: the delegate pays. Only works if it holds SOL.

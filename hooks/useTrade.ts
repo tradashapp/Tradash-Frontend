@@ -290,8 +290,9 @@ export function useTrade(
         setPendingChartEntry({ symbol: activeSymbol, price })
       );
       dispatch(setOrderStatus("submitting"));
-      // Loading toast, keyed per market, upgraded to success by useBulkAccount
-      // when the WS confirms the fill.
+      // Loading toast, keyed per market, upgraded to success by the active
+      // venue's account hook (useBulkAccount / usePhoenixAccount) once
+      // confirmed account state shows the fill.
       toast(`Opening ${direction === "long" ? "long" : "short"} ${activeSymbol}…`, {
         type: "loading",
         id: `open-${activeSymbol}`,
@@ -320,7 +321,7 @@ export function useTrade(
         playSound("open");
         haptic("open");
         beginProfitTracking(profitStepFor(settings.defaultPositionSize));
-        // Success toast fires from useBulkAccount when the WS confirms the position.
+        // Success toast fires from the venue account hook once the position is confirmed.
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Order failed";
         dispatch(setOrderError(msg));
@@ -449,7 +450,7 @@ export function useTrade(
       playCloseOutcome(closingPnl);
       haptic("close");
       stopProfitTracking();
-      // Success toast fires from useBulkAccount when the WS confirms flat.
+      // Success toast fires from the venue account hook once the market reads flat.
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Close failed";
       dispatch(setOrderError(msg));
@@ -530,7 +531,7 @@ export function useTrade(
       )
     );
 
-    // Per-market SUCCESS toasts are not fired here — useBulkAccount raises them
+    // Per-market SUCCESS toasts are not fired here — the venue account hook raises them
     // when the WS confirms each position actually went flat. Only failures need
     // reporting from this side.
     let failed = 0;

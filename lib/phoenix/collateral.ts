@@ -7,12 +7,25 @@ import { describeClientError, getPhoenixClient } from "./sdkClient";
 /**
  * Moving collateral in and out of a Phoenix trader account.
  *
- * SIMPLER THAN THE DOCS SUGGEST. The published flow describes a three-step
- * deposit (create token account → convert USDC to the Phoenix canonical token
- * via Ember → deposit) and a five-step withdrawal. Through the SDK both are a
- * SINGLE instruction: the Ember conversion is handled inside
- * (`EmberDeposit*`), so callers do not orchestrate it. Verified live
- * 2026-09-19.
+ * THE DOCS WERE RIGHT: 3 instructions to deposit, 5 to withdraw.
+ *
+ * An earlier version of this file used `buildDepositFunds`/`buildWithdrawFunds`
+ * and claimed the SDK handled the Ember conversion internally. It does not, and
+ * the mistake was invisible on a wallet that already held Phoenix's canonical
+ * token — it only failed on a fresh wallet, as
+ * `InstructionError: [0, InvalidAccountData]`.
+ *
+ * THE KEY FACT: Phoenix does not hold native USDC. Its collateral mint is
+ * `PhUsd11Y…`, and `deposit_funds` moves THAT, not `EPjFWdd5…`. Converting
+ * between them is the Ember step. So the real sequence is [LIVE]:
+ *
+ *   deposit  (3 ix): create the PhUsd token account → Ember USDC→PhUsd → deposit_funds
+ *   withdraw (5 ix): create accounts → withdraw_funds → Ember PhUsd→USDC
+ *
+ * `client.ixs.buildDepositIxs` / `buildWithdrawIxs` (PLURAL) return the whole
+ * sequence. The singular `buildDepositFunds`/`buildWithdrawFunds` return only
+ * the final Phoenix leg and are the wrong entry point for a user-facing
+ * transfer.
  *
  * THE OWNER SIGNS, NEVER THE DELEGATE. `buildDepositFunds` and
  * `buildWithdrawFunds` put the owner in the signer slot, and that is the whole
@@ -69,11 +82,34 @@ type SdkInstruction = {
 };
 
 /** Convert an SDK instruction (role bitfield) to web3.js form. */
+/**
+ * Programs a collateral transfer may legitimately touch.
+ *
+ * A deposit is 3 instructions across 3 programs, not one: the associated-token
+ * program creates the PhUsd account, Ember converts USDC→PhUsd, and Phoenix
+ * takes the deposit. Restricting this to the Phoenix program alone — as an
+ * earlier version did — rejects a valid transfer at the first instruction.
+ *
+ * Still an allowlist, not a free pass: anything outside these three is refused,
+ * so a compromised or mis-built instruction set cannot smuggle in a transfer to
+ * an arbitrary program.
+ */
+const ALLOWED_COLLATERAL_PROGRAMS = new Set([
+  PHOENIX_PROGRAM_ID,
+  // Ember — Phoenix's USDC ↔ PhUsd converter.
+  "EMBERpYNE6ehWmXymZZS2skiFmCa9V5dp14e1iduM5qy",
+  // Associated Token Account program — creates the PhUsd/USDC accounts.
+  "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+  // SPL Token — `sync_native`/close on the withdraw leg.
+  "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+]);
+
 function toWeb3(ix: SdkInstruction): TransactionInstruction {
   const programAddress = String(ix.programAddress);
-  if (programAddress !== PHOENIX_PROGRAM_ID) {
+  if (!ALLOWED_COLLATERAL_PROGRAMS.has(programAddress)) {
     throw new Error(
-      `Refusing collateral instruction for ${programAddress}, not Phoenix`
+      `Refusing collateral instruction for ${programAddress}: not a Phoenix ` +
+        "collateral program"
     );
   }
   return new TransactionInstruction({
@@ -89,7 +125,7 @@ function toWeb3(ix: SdkInstruction): TransactionInstruction {
 }
 
 async function submit(
-  build: "buildDepositFunds" | "buildWithdrawFunds",
+  build: "buildDepositIxs" | "buildWithdrawIxs",
   p: CollateralParams
 ): Promise<string> {
   if (!(p.amountUsd > 0)) throw new Error("Amount must be greater than zero");
@@ -171,7 +207,7 @@ async function submit(
       const { signature } = await api.submitTransfer(
         signed.serialize({ requireAllSignatures: false }).toString("base64"),
         p.amountUsd,
-        build === "buildDepositFunds" ? "deposit" : "withdraw",
+        build === "buildDepositIxs" ? "deposit" : "withdraw",
         // MUST be a UUID — the backend validates with `z.string().uuid()`.
         // A descriptive key is rejected as `ValidationError: Invalid uuid`.
         uuid()
@@ -202,14 +238,14 @@ async function submit(
     // and it is recoverable without bothering the user: registration needs no
     // owner signature (see `register.ts`). Only deposits self-heal; a
     // withdrawal from a non-existent account has nothing to withdraw.
-    if (err.includes("AccountNotFound") && build === "buildDepositFunds") {
+    if (err.includes("AccountNotFound") && build === "buildDepositIxs") {
       throw new Error(
         "Your Phoenix trading account is not set up yet. Reconnect your " +
           "wallet to finish setup, then try the transfer again."
       );
     }
     throw new Error(
-      `Phoenix ${build === "buildDepositFunds" ? "deposit" : "withdrawal"} would fail: ` +
+      `Phoenix ${build === "buildDepositIxs" ? "deposit" : "withdrawal"} would fail: ` +
         err
     );
   }
@@ -222,7 +258,7 @@ async function submit(
 
 /** Move USDC from the owner's wallet into the Phoenix trader account. */
 export function depositCollateral(p: CollateralParams): Promise<string> {
-  return submit("buildDepositFunds", p);
+  return submit("buildDepositIxs", p);
 }
 
 /**
@@ -233,5 +269,5 @@ export function depositCollateral(p: CollateralParams): Promise<string> {
  * but not yet execution-verified.
  */
 export function withdrawCollateral(p: CollateralParams): Promise<string> {
-  return submit("buildWithdrawFunds", p);
+  return submit("buildWithdrawIxs", p);
 }

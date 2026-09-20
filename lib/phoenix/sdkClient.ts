@@ -24,17 +24,32 @@ import { PHOENIX_API } from "./config";
  * trading transfers. It was never sustained load or a weak key: it was one
  * burst from one `exchange.ready()`.
  *
- * ## Two defences, because either alone is insufficient
+ * ## Why the RPC fallback is OFF rather than merely deprioritised
  *
- * 1. **Pin metadata to the API source and disable the RPC fallback.** Tradash
- *    already reads markets over REST (`client.ts`, `marketStats.ts`,
- *    `liquidation.ts`), so the on-chain fan-out buys nothing here and can only
- *    hurt. `enabled: false` means a slow API surfaces as a slow load rather
- *    than silently degrading into 85 concurrent requests.
- * 2. **Cache the client.** `lib/phoenix/collateral.ts` used to build a fresh
- *    one per transfer, so every deposit — and every retry — paid a cold start.
- *    `crossOrders.ts` already cached for exactly this reason; this module is
- *    that cache, moved somewhere both can share.
+ * The obvious middle ground — prefer the API, fall back to RPC — was tried and
+ * MEASURED, and it does not work. With the API source forced to fail:
+ *
+ *     fallback engaged → 87 RPC calls, 85 concurrent → still threw
+ *                        `RPC getAccountInfo failed with 429`
+ *
+ * The fallback cannot rescue a transfer on a rate-limited endpoint; it burns
+ * ~2.5 extra seconds and replaces a clear "the API is unreachable" with the
+ * confusing 429 that started this whole investigation. A fallback that fails
+ * whenever it is needed is not redundancy.
+ *
+ * So it stays disabled, and an API outage is reported honestly instead
+ * (`describeClientError` below). Tradash already reads markets over REST
+ * elsewhere (`client.ts`, `marketStats.ts`, `liquidation.ts`), so the on-chain
+ * scan is not load-bearing for anything else.
+ *
+ * ## The other two defences
+ *
+ * - **Cache the client.** `lib/phoenix/collateral.ts` used to build a fresh one
+ *   per transfer, so every deposit — and every retry — paid a cold start.
+ *   `crossOrders.ts` already cached for exactly this reason; this module is
+ *   that cache, moved somewhere both can share.
+ * - **Do not cache a failure.** A rejected bootstrap is evicted so the next
+ *   attempt genuinely retries rather than replaying the same rejection.
  *
  * The import stays dynamic so the SDK is not in the initial bundle.
  */
@@ -61,7 +76,7 @@ export async function getPhoenixClient(rpcUrl: string): Promise<unknown> {
     const client = rise.createPhoenixClient({
       apiUrl: PHOENIX_API,
       rpcUrl,
-      // See the note above — this is the whole fix for the 429.
+      // See the note above — measured, not assumed.
       exchangeMetadata: {
         priority: "api",
         rpc: { enabled: false },
@@ -82,4 +97,39 @@ export async function getPhoenixClient(rpcUrl: string): Promise<unknown> {
 /** Test seam: drop cached clients. */
 export function resetPhoenixClients(): void {
   clients.clear();
+}
+
+/**
+ * Turn an SDK bootstrap failure into something a user can act on.
+ *
+ * The SDK reports a browser network failure as
+ * `Failed to connect to the Phoenix HTTP API (GET .../v1/exchange/snapshot):
+ * Failed to fetch`, which reads like an app bug. "Failed to fetch" is what a
+ * browser says when the request never completed — offline, DNS, a blocked
+ * connection, an extension or ad blocker, or the venue being unreachable — and
+ * none of those are fixed by retrying the deposit.
+ *
+ * Returns null for anything unrecognised, so the original message survives
+ * rather than being flattened into a generic one.
+ */
+export function describeClientError(err: unknown): string | null {
+  const msg = err instanceof Error ? err.message : String(err ?? "");
+  if (!msg) return null;
+
+  if (msg.includes("Failed to fetch") || msg.includes("NetworkError")) {
+    return (
+      "Could not reach Phoenix. Check your connection — and if you use an ad " +
+      "blocker or privacy extension, it may be blocking perp-api.phoenix.trade."
+    );
+  }
+  if (msg.includes("429")) {
+    return (
+      "Phoenix is rate limiting this connection. Wait a few seconds and try " +
+      "again."
+    );
+  }
+  if (msg.includes("aborted") || msg.includes("timeout")) {
+    return "Phoenix took too long to respond. Try again in a moment.";
+  }
+  return null;
 }

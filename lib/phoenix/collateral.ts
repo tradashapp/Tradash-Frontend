@@ -1,7 +1,7 @@
 import { Connection, PublicKey, Transaction, TransactionInstruction } from "@solana/web3.js";
 import { api } from "@/lib/api";
 import { PHOENIX_PROGRAM_ID } from "./config";
-import { getPhoenixClient } from "./sdkClient";
+import { describeClientError, getPhoenixClient } from "./sdkClient";
 
 /**
  * Moving collateral in and out of a Phoenix trader account.
@@ -100,9 +100,17 @@ async function submit(
   // `getAccountInfo` calls if metadata falls back to the RPC source, which is
   // what produced `RPC getAccountInfo failed with 429` on wallet → trading
   // transfers, and why every retry made it worse. See `sdkClient.ts`.
-  const client = (await getPhoenixClient(p.rpcUrl)) as {
-    ixs: Record<string, unknown>;
-  };
+  let client: { ixs: Record<string, unknown> };
+  try {
+    client = (await getPhoenixClient(p.rpcUrl)) as {
+      ixs: Record<string, unknown>;
+    };
+  } catch (err) {
+    // A bootstrap failure is almost always the network or the venue, not the
+    // transfer. Say so plainly rather than surfacing the SDK's internal URL.
+    const friendly = describeClientError(err);
+    throw friendly ? new Error(friendly) : err;
+  }
 
   const built = await (
     client.ixs as unknown as Record<

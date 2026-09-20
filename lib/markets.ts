@@ -26,6 +26,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
     exponent: -8,
     maxLeverage: 40,
     lotSize: 0.000001,
+    phoenixLotSize: 0.0001,
     logo: "/images/crypto/btc.png",
     categories: ["crypto"],
   },
@@ -38,6 +39,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
     exponent: -8,
     maxLeverage: 25,
     lotSize: 0.0001,
+    phoenixLotSize: 0.001,
     logo: "/images/crypto/eth.png",
     categories: ["crypto"],
   },
@@ -50,6 +52,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
     exponent: -8,
     maxLeverage: 20,
     lotSize: 0.0001,
+    phoenixLotSize: 0.01,
     logo: "/images/crypto/sol.png",
     categories: ["crypto"],
   },
@@ -332,4 +335,41 @@ export function marketMeta(symbol: MarketSymbol): {
     title: `${m.label} (${m.symbol}) | Tradash`,
     description: `Trade ${m.label} (${m.symbol}) perpetuals on Tradash. Watch the live chart and tap UP or DOWN to open a leveraged position instantly.`,
   };
+}
+
+/**
+ * The smallest margin that can actually open a position in a market.
+ *
+ * ## Why this replaced a flat `MIN_MARGIN_USD = 5`
+ *
+ * That constant was derived from BULK's per-market `minNotional` ($50 on most
+ * markets), and applying it to Phoenix blocked orders Phoenix would happily
+ * accept — a $2 balance was told "Not enough margin" when it could open a SOL
+ * position several times over.
+ *
+ * **Phoenix publishes no minimum notional at all** — there is no such field on
+ * the market row. The only floor is ONE BASE LOT, confirmed live: exactly one
+ * lot is accepted and half a lot is rejected with `ZeroBaseLots`, on every
+ * market tested.
+ *
+ * So the true minimum is per-market and price-dependent:
+ *
+ *     margin = (lot x price) / leverage
+ *
+ * At 10x: SOL ~$0.11, ETH ~$0.26, BTC ~$0.81, ZEC ~$1.46. Nothing near $5.
+ *
+ * `price` is the mark price; pass the freshest one available. Returns `null`
+ * when the market has no Phoenix lot size (not listed there) or the price is
+ * unusable, so callers can fall back rather than compute a wrong bound.
+ */
+export function minMarginUsd(
+  symbol: MarketSymbol,
+  price: number,
+  leverage: number
+): number | null {
+  const lot = MARKETS[symbol].phoenixLotSize;
+  if (lot == null) return null;
+  if (!Number.isFinite(price) || price <= 0) return null;
+  if (!Number.isFinite(leverage) || leverage <= 0) return null;
+  return (lot * price) / leverage;
 }

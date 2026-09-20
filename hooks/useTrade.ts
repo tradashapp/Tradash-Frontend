@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
-import { leverageFor } from "@/lib/markets";
+import { leverageFor, minMarginUsd } from "@/lib/markets";
 import {
   openPosition,
   trailStopFor,
@@ -54,12 +54,35 @@ const profitStepFor = (marginUsd: number) => Math.max(marginUsd * 0.05, 1);
 export const MARGIN_HEADROOM = 0.98;
 
 /**
- * Don't submit an order below this margin. Bulk enforces a per-market
- * `minNotional` (as low as $1 on BTC, $50 on most others); at 10x leverage $5 of
- * margin clears a $50 floor, and anything under this is a dust order the user
- * did not mean to place.
+ * Don't submit an order below this margin — BULK ONLY.
+ *
+ * Bulk enforces a per-market `minNotional` (as low as $1 on BTC, $50 on most
+ * others); at 10x leverage $5 of margin clears a $50 floor, and anything under
+ * it is a dust order the user did not mean to place.
+ *
+ * PHOENIX HAS NO SUCH FLOOR. It publishes no minimum notional, and the only
+ * limit is one base lot — roughly $0.11 of margin on SOL at 10x. Applying this
+ * $5 to Phoenix told users with $2 that they had "not enough margin" for orders
+ * the venue would have accepted. See `minMarginUsd` in `lib/markets.ts`.
  */
-const MIN_MARGIN_USD = 5;
+const MIN_MARGIN_USD_BULK = 5;
+
+/**
+ * The real floor for the active venue, in USD of margin.
+ *
+ * Falls back to Bulk's flat constant when the per-market figure cannot be
+ * computed (no Phoenix lot size, or no usable price), so a missing input can
+ * never silently remove the guard.
+ */
+function minMarginFor(
+  symbol: MarketSymbol,
+  price: number | null | undefined,
+  leverage: number
+): number {
+  if (venue.id !== "phoenix") return MIN_MARGIN_USD_BULK;
+  const min = price != null ? minMarginUsd(symbol, price, leverage) : null;
+  return min ?? MIN_MARGIN_USD_BULK;
+}
 
 // Bulk's /order gateway can 504 (or the request abort) even though the order
 // STILL FILLS — so a timeout is not a real failure. When we see one, we leave
@@ -242,15 +265,21 @@ export function useTrade(
           ? Math.min(settings.defaultPositionSize, availableMargin * MARGIN_HEADROOM)
           : settings.defaultPositionSize;
 
-      if (availableMargin != null && marginUsd < MIN_MARGIN_USD) {
+      const minMargin = minMarginFor(activeSymbol, price, leverage);
+      if (availableMargin != null && marginUsd < minMargin) {
         // Nothing to trade with — say so rather than letting Bulk reject it with
         // a risk-limit message the user can do nothing about.
         dispatch(clearPendingChartEntry(activeSymbol));
         toast("Not enough margin", {
           type: "error",
-          description: `Deposit more USDC — $${availableMargin.toFixed(
-            2
-          )} available.`,
+          // Name the actual requirement. "Deposit more USDC" alone left the
+          // user guessing how much more, and the figure is per-market and
+          // leverage-dependent, so it cannot be inferred.
+          description:
+            `Need about $${minMargin.toFixed(2)} for the smallest ` +
+            `${activeSymbol} order at ${leverage}x — $${availableMargin.toFixed(
+              2
+            )} available.`,
         });
         return;
       }
@@ -564,7 +593,7 @@ export function useTrade(
         mode === "live" && liveBalance?.available != null
           ? Math.min(deltaUsd, liveBalance.available * MARGIN_HEADROOM)
           : deltaUsd;
-      if (mode === "live" && addMargin < MIN_MARGIN_USD) {
+      if (mode === "live" && addMargin < MIN_MARGIN_USD_BULK) {
         toast("Not enough margin", {
           type: "error",
           description: "Deposit more USDC to add to this position.",

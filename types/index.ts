@@ -48,6 +48,15 @@ export interface MarketInfo {
    * so every outgoing size must be floored to a multiple of this.
    */
   lotSize: number;
+  /**
+   * Phoenix's smallest tradable increment — MUCH COARSER than Bulk's.
+   *
+   * SOL is 0.01 here vs Bulk's 0.0001, a 100x difference, so reusing `lotSize`
+   * on Phoenix misreports size by two orders of magnitude. Phoenix publishes it
+   * as `baseLotsDecimals` (lot = 10^-d) and rejects anything smaller with
+   * `ZeroBaseLots`. Optional: only markets Tradash lists on Phoenix have one.
+   */
+  phoenixLotSize?: number;
   /** Public path to the asset logo. */
   logo: string;
   /** Static categories this market belongs to (excludes "favourites"). */

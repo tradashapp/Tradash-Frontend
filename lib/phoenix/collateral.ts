@@ -193,9 +193,21 @@ async function submit(
   // far more useful before the user has signed than after.
   const sim = await connection.simulateTransaction(tx);
   if (sim.value.err) {
+    const err = JSON.stringify(sim.value.err);
+    // `AccountNotFound` here means the TRADER account does not exist — this
+    // wallet has never used Phoenix. That is a setup gap, not a bad transfer,
+    // and it is recoverable without bothering the user: registration needs no
+    // owner signature (see `register.ts`). Only deposits self-heal; a
+    // withdrawal from a non-existent account has nothing to withdraw.
+    if (err.includes("AccountNotFound") && build === "buildDepositFunds") {
+      throw new Error(
+        "Your Phoenix trading account is not set up yet. Reconnect your " +
+          "wallet to finish setup, then try the transfer again."
+      );
+    }
     throw new Error(
       `Phoenix ${build === "buildDepositFunds" ? "deposit" : "withdrawal"} would fail: ` +
-        JSON.stringify(sim.value.err)
+        err
     );
   }
 

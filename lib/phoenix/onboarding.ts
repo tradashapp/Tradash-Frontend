@@ -48,7 +48,76 @@ export interface RegisterDelegateParams {
 }
 
 /**
+ * Create the trader account if this wallet has never used Phoenix.
+ *
+ * MUST RUN BEFORE `registerDelegate`. Phoenix has two setup steps and the
+ * delegate one assumes the trader PDA exists — a wallet that skipped this got
+ * `Phoenix deposit would fail: "AccountNotFound"`, because there was no account
+ * to deposit into. See `register.ts` for why they are separate.
+ *
+ * NO OWNER SIGNATURE [LIVE]. The owner is absent from both instructions' signer
+ * sets; the signers are the fee payer and Phoenix's own `traderOnboarder`.
+ * Phoenix co-signs and broadcasts through `send-register-ixs`, which is why
+ * this does not go through our usual submit path.
+ *
+ * Idempotent: `includeRegisterTrader` is false when the account already exists,
+ * and this returns without sending.
+ */
+async function ensureTraderAccount(
+  owner: string,
+  feePayer: string,
+  connection: Connection
+): Promise<void> {
+  const { buildRegisterTrader, sendRegisterTrader } = await import("./register");
+
+  const built = await buildRegisterTrader(owner, feePayer);
+  // Already registered — nothing to do. Checking the flag rather than probing
+  // for the account first avoids a race between the two calls.
+  if (!built.includeRegisterTrader) return;
+
+  const tx = new Transaction();
+  for (const ix of built.instructions) {
+    if (ix.programId !== PHOENIX_PROGRAM_ID) {
+      throw new Error(
+        `Refusing to register: instruction targets ${ix.programId}, not Phoenix`
+      );
+    }
+    tx.add(
+      new TransactionInstruction({
+        programId: new PublicKey(ix.programId),
+        keys: ix.keys.map((k) => ({
+          pubkey: new PublicKey(k.pubkey),
+          isSigner: k.isSigner,
+          isWritable: k.isWritable,
+        })),
+        data: Buffer.from(ix.data),
+      })
+    );
+  }
+  tx.feePayer = new PublicKey(built.txFeePayer);
+  tx.recentBlockhash = (await connection.getLatestBlockhash("confirmed")).blockhash;
+
+  // Phoenix's onboarder signature is still missing, so this cannot be
+  // simulated or sent locally — only `send-register-ixs` can complete it.
+  const serialized = tx.serialize({
+    requireAllSignatures: false,
+    verifySignatures: false,
+  });
+  let binary = "";
+  for (const byte of serialized) binary += String.fromCharCode(byte);
+
+  await sendRegisterTrader({
+    transactionBase64: btoa(binary),
+    authority: owner,
+    txFeePayer: built.txFeePayer,
+  });
+}
+
+/**
  * Build, sign and send the delegate registration.
+ *
+ * Registers the trader account first when the wallet is new to Phoenix, then
+ * appoints the delegate on it.
  *
  * Returns the transaction signature. Throws with the venue's own message if
  * simulation or submission fails.
@@ -63,6 +132,11 @@ export async function registerDelegate({
   const rise = await import("@ellipsis-labs/rise");
   const traderAccount = await deriveTraderPda(owner);
 
+  const connection = new Connection(rpcUrl, "confirmed");
+
+  // STEP 1 of 2 — the account must exist before a delegate can be set on it.
+  await ensureTraderAccount(owner, feePayer ?? owner, connection);
+
   const built = rise.buildDelegateTraderIx({
     traderWallet: owner as Parameters<typeof rise.buildDelegateTraderIx>[0]["traderWallet"],
     traderAccount: traderAccount as Parameters<typeof rise.buildDelegateTraderIx>[0]["traderAccount"],
@@ -70,7 +144,7 @@ export async function registerDelegate({
   });
   const list = Array.isArray(built) ? built : [built];
 
-  const connection = new Connection(rpcUrl, "confirmed");
+  // STEP 2 of 2 — appoint the delegate on the now-existing account.
   const tx = new Transaction();
   for (const ix of list) {
     const programAddress = String(ix.programAddress);

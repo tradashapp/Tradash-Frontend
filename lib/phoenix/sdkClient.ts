@@ -1,5 +1,5 @@
 import { config } from "@/lib/config";
-import { PHOENIX_API } from "./config";
+import { FLIGHT_PROGRAM_ID, PHOENIX_API, PHOENIX_PROGRAM_ID } from "./config";
 
 /**
  * The Rise SDK client — created once per session and shared by every caller.
@@ -54,6 +54,84 @@ import { PHOENIX_API } from "./config";
  *
  * The import stays dynamic so the SDK is not in the initial bundle.
  */
+
+/**
+ * Can Flight actually settle a builder fee for a DELEGATE-signed order?
+ *
+ * A position-authority (delegate) order routed through Flight needs Flight's
+ * collateral-transfer authority PDA, because the builder fee moves via
+ * `AuthorizedTransferCollateral` rather than a plain transfer. That PDA belongs
+ * to FLIGHT'S OWN DEPLOYMENT — nothing we can create — and it does not exist on
+ * mainnet today.
+ *
+ * When it is missing, every wrapped order dies at simulation with
+ * `InvalidAccountData`, taking ALL TRADING DOWN rather than just the fee.
+ * Verified by diffing the same order: without the wrap it simulated clean; with
+ * it, `index: 16, error: InvalidAccountData` on exactly this account.
+ *
+ * So builder fees are gated on it existing. Missing means orders route
+ * natively: we earn nothing, but users can trade — a revenue problem, never an
+ * outage. The check re-runs each session, so fees begin working on their own
+ * once Flight deploys the account.
+ */
+const builderChecked = new Map<string, boolean>();
+
+/**
+ * Flight's `COLLATERAL_TRANSFER_AUTHORITY_SEED`
+ * (SDK `flight/core/constants.ts`, not exported from the package root).
+ */
+const COLLATERAL_TRANSFER_AUTHORITY_SEED = "collateral_transfer_authority";
+
+async function builderIsRegistered(
+  builderAuthority: string,
+  rpcUrl: string
+): Promise<boolean> {
+  const hit = builderChecked.get(builderAuthority);
+  if (hit !== undefined) return hit;
+
+  let usable = false;
+  try {
+    const { getBase58Encoder, getProgramDerivedAddress } = await import(
+      "@solana/kit"
+    );
+    const [authority] = await getProgramDerivedAddress({
+      programAddress: FLIGHT_PROGRAM_ID as never,
+      seeds: [
+        COLLATERAL_TRANSFER_AUTHORITY_SEED,
+        getBase58Encoder().encode(PHOENIX_PROGRAM_ID),
+      ],
+    });
+
+    const res = await fetch(rpcUrl, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "getAccountInfo",
+        params: [String(authority), { encoding: "base64" }],
+      }),
+    });
+    const body = (await res.json()) as { result?: { value?: unknown | null } };
+    usable = !!body.result?.value;
+
+    if (!usable) {
+      console.warn(
+        "[phoenix] Flight's collateral-transfer authority " +
+          `(${String(authority)}) does not exist on chain, so a ` +
+          "delegate-signed order cannot settle a builder fee. Trading " +
+          "natively — no fee collected."
+      );
+    }
+  } catch (err) {
+    // Never let a failed check break trading — just forgo the fee.
+    console.warn("[phoenix] builder-fee availability check failed:", err);
+    usable = false;
+  }
+
+  builderChecked.set(builderAuthority, usable);
+  return usable;
+}
 
 /**
  * Keyed by RPC URL so a changed endpoint builds a new client rather than
@@ -139,7 +217,7 @@ export async function getPhoenixClient(rpcUrl: string): Promise<unknown> {
       // live. Omitting the config entirely (no recipient) falls back to
       // unwrapped native orders rather than failing, so a misconfigured build
       // still trades — it just earns nothing.
-      ...(builderAuthority
+      ...(builderAuthority && (await builderIsRegistered(builderAuthority, rpcUrl))
         ? {
             flight: {
               builderAuthority,

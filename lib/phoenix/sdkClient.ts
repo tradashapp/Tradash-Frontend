@@ -58,21 +58,27 @@ import { FLIGHT_PROGRAM_ID, PHOENIX_API, PHOENIX_PROGRAM_ID } from "./config";
 /**
  * Can Flight actually settle a builder fee for a DELEGATE-signed order?
  *
- * A position-authority (delegate) order routed through Flight needs Flight's
- * collateral-transfer authority PDA, because the builder fee moves via
- * `AuthorizedTransferCollateral` rather than a plain transfer. That PDA belongs
- * to FLIGHT'S OWN DEPLOYMENT — nothing we can create — and it does not exist on
- * mainnet today.
+ * BUILDER FEES THEMSELVES WORK — Phoenix's own example collects them fine.
+ * What does not work is collecting them on a DELEGATE-SIGNED order, and that
+ * distinction is the whole issue. Measured on the same order:
  *
- * When it is missing, every wrapped order dies at simulation with
- * `InvalidAccountData`, taking ALL TRADING DOWN rather than just the fee.
- * Verified by diffing the same order: without the wrap it simulated clean; with
- * it, `index: 16, error: InvalidAccountData` on exactly this account.
+ *   owner signs (no positionAuthority) → Flight wrap, 16 accounts → err=null
+ *   delegate signs (positionAuthority) → Flight wrap, 18 accounts → FAILS
  *
- * So builder fees are gated on it existing. Missing means orders route
- * natively: we earn nothing, but users can trade — a revenue problem, never an
- * outage. The check re-runs each session, so fees begin working on their own
- * once Flight deploys the account.
+ * The two extra accounts are Flight's collateral-transfer authority and its
+ * permission account, which the wrap appends only when the effective signer
+ * differs from `authority` — because the fee then has to move via
+ * `AuthorizedTransferCollateral` instead of a plain transfer. That authority
+ * PDA belongs to FLIGHT'S OWN DEPLOYMENT, nothing we can create, and it does
+ * not exist on mainnet: `InvalidAccountData` at account index 16.
+ *
+ * Tradash is one-tap, so every order is delegate-signed. Hence the gate.
+ * Missing means orders route natively: we earn nothing, but users can trade —
+ * a revenue problem, never an outage. The check re-runs each session, so fees
+ * begin working on their own once Flight deploys the account.
+ *
+ * The alternative is prompting the owner's wallet per order, which would
+ * trade the product's core promise for the fee. Not worth it.
  */
 const builderChecked = new Map<string, boolean>();
 

@@ -73,6 +73,33 @@ export async function getPhoenixClient(rpcUrl: string): Promise<unknown> {
 
   const created = (async () => {
     const rise = await import("@ellipsis-labs/rise");
+    // Probe the metadata endpoint ourselves first.
+    //
+    // The SDK reports every transport failure as the same opaque
+    // "Failed to fetch", which hides whether the request was blocked, timed
+    // out, or refused — and that ambiguity cost real debugging time. A direct
+    // fetch first means the console carries the actual cause before the SDK
+    // flattens it.
+    if (typeof window !== "undefined") {
+      try {
+        const probe = await fetch(`${PHOENIX_API}/v1/exchange/snapshot`, {
+          headers: { accept: "application/json" },
+        });
+        if (!probe.ok) {
+          console.warn(
+            `[phoenix] metadata endpoint returned HTTP ${probe.status}`
+          );
+        }
+      } catch (probeErr) {
+        console.warn(
+          "[phoenix] metadata endpoint unreachable from the browser:",
+          probeErr,
+          `\n  url: ${PHOENIX_API}/v1/exchange/snapshot` +
+            "\n  run `localStorage.setItem(\"phoenix.debug\", \"1\")` and reload " +
+            "for the SDK's own trace."
+        );
+      }
+    }
     const client = rise.createPhoenixClient({
       apiUrl: PHOENIX_API,
       rpcUrl,
@@ -117,9 +144,13 @@ export function describeClientError(err: unknown): string | null {
   if (!msg) return null;
 
   if (msg.includes("Failed to fetch") || msg.includes("NetworkError")) {
+    // Deliberately does NOT name a single cause. The browser gives no
+    // distinguishing detail here, and guessing ("it's your ad blocker") sends
+    // people to check things that are fine. The console warning from
+    // `getPhoenixClient` carries the real cause.
     return (
-      "Could not reach Phoenix. Check your connection — and if you use an ad " +
-      "blocker or privacy extension, it may be blocking perp-api.phoenix.trade."
+      "Could not reach Phoenix (perp-api.phoenix.trade). The request did not " +
+      "complete — see the browser console for the cause."
     );
   }
   if (msg.includes("429")) {

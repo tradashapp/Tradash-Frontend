@@ -37,6 +37,7 @@ import {
   reduceMarket,
   baseSizeFromUsd,
   isBuilderNotApprovedError,
+  isBadSignatureError,
 } from "@/lib/bulk/orders";
 import { setMarketLeverage as pushLeverageToBulk } from "@/lib/bulk/leverage";
 import type { AgentSigner } from "@/lib/bulk/signing";
@@ -328,6 +329,19 @@ export function useTrade(
             description:
               "Approve the builder code in Account to enable trading.",
           });
+          return;
+        }
+        // `bad signature` means the key that signed isn't one this network has
+        // authorized — most often an agent registered on the other network.
+        // Raw, it is unactionable; the fix is always to re-run setup.
+        if (isBadSignatureError(e)) {
+          toast("Setup needed on this network", {
+            type: "error",
+            id: `open-${activeSymbol}`,
+            description:
+              "Your trading key isn't authorized here. Re-run setup in Account.",
+          });
+          onNeedsSetup?.();
           return;
         }
         toast("Order failed", {

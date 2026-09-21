@@ -5,11 +5,13 @@ import { motion, useMotionValue } from "framer-motion";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Coins01Icon,
+  CoinsDollarIcon,
   ChartBreakoutCircleIcon,
   ArrowMoveDownRightIcon,
 } from "@hugeicons/core-free-icons";
 import { useAppSelector } from "@/store/hooks";
 import { maxLeverageFor } from "@/lib/markets";
+import { config } from "@/lib/config";
 import { playSound } from "@/lib/sound";
 import { haptic } from "@/lib/haptics";
 import type { MarketSymbol } from "@/types";
@@ -27,11 +29,14 @@ import type { MarketSymbol } from "@/types";
  * The values are READ-ONLY here and come from the same settings slice the
  * order path reads, so the dock cannot drift from what actually gets sent.
  *
- * SIZE IS THE ONLY EDITABLE ONE now, so it is the only one shown. Leverage and
- * trailing are fixed (market cap and 0.1%), and a readout you cannot act on is
- * just noise on a dock this small — their rows are kept below behind a `false`
- * guard, matching the disabled sections in MarketSettingsSheet, so the 3-row
- * layout can come back with the controls.
+ * The three rows are SIZE, LEVERAGE and FEE. Only size is editable (in the
+ * settings sheet); the other two are consequences of it, and that is the point
+ * — they answer "what does this size actually open, and what does it cost"
+ * without opening anything.
+ *
+ * Trailing is no longer shown: it is fixed at 0.1% and, unlike leverage, it
+ * changes nothing about the order being described here. Its row is kept behind
+ * a `false` guard, matching the disabled section in MarketSettingsSheet.
  */
 
 // Drag band insets (px from top / bottom of the viewport). The dock is docked to
@@ -56,6 +61,18 @@ export function PositionDock({ symbol, onOpen }: Props) {
     settings.leverageByMarket[symbol] ?? maxLeverageFor(symbol);
   const size = settings.defaultPositionSize;
   const trailPct = settings.defaultTrailPct * 100;
+
+  // The builder fee is charged on NOTIONAL, not on margin — so it is derived
+  // the same way MarketSettingsSheet derives it (size × leverage × bps), from
+  // the same config value that is actually sent on the order. Showing a fee off
+  // the margin would understate it by the leverage multiple: on BTC at 40×,
+  // 5bps of a $1.2625 margin reads as $0.0006 when the real charge is $0.025.
+  //
+  // This is the CONFIGURED size, not the headroom-trimmed one the sheet shows.
+  // The dock is a compact readout of the settings, and the trim only applies
+  // when the size exceeds free margin — the sheet is where that caveat is
+  // spelled out, with the room to say it.
+  const feeUsd = (size * lev * config.builder.feeBps) / 10_000;
 
   // One-time "peek" nudge so the tab is noticed, then it rests flush.
   const [peeked, setPeeked] = useState(false);
@@ -127,7 +144,7 @@ export function PositionDock({ symbol, onOpen }: Props) {
         type="button"
         onClick={activate}
         aria-label={`${symbol} order settings`}
-        // 2 columns (icon, value) × 1 row (size).
+        // 2 columns (icon, value) × 3 rows (size, leverage, fee).
         className="glass-inset grid grid-cols-[auto_auto] items-center gap-x-2 gap-y-1.5 rounded-r-2xl py-2.5 pl-2 pr-3 shadow-lg transition-transform active:scale-95"
       >
         <Cell
@@ -141,21 +158,33 @@ export function PositionDock({ symbol, onOpen }: Props) {
           })}`}
           label="Size"
         />
-        {/* Leverage + trailing rows — disabled alongside their controls in
-            MarketSettingsSheet. See the note at the top of this file. */}
+        {/* Leverage is read-only here — it is no longer editable in the sheet
+            and is always the market's cap. It stays on the dock because it is
+            what turns the size above into the position actually opened. */}
+        <Cell
+          icon={ChartBreakoutCircleIcon}
+          value={`${lev}×`}
+          label="Leverage"
+        />
+        {/* Fee on notional. 4 decimals for the same reason as the size: at the
+            minimum order on a 40× market the fee is $0.0253, and 2 decimals
+            would round it to "$0.03" or, worse, "$0.00". */}
+        <Cell
+          icon={CoinsDollarIcon}
+          value={`$${feeUsd.toLocaleString(undefined, {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 4,
+          })}`}
+          label="Fee"
+        />
+        {/* Trailing row — hidden alongside its control in MarketSettingsSheet
+            (fixed at 0.1%). Kept behind a `false` guard, as there. */}
         {false && (
-          <>
-            <Cell
-              icon={ChartBreakoutCircleIcon}
-              value={`${lev.toFixed(2)}×`}
-              label="Leverage"
-            />
-            <Cell
-              icon={ArrowMoveDownRightIcon}
-              value={`${trailPct.toFixed(2)}%`}
-              label="Trailing"
-            />
-          </>
+          <Cell
+            icon={ArrowMoveDownRightIcon}
+            value={`${trailPct.toFixed(2)}%`}
+            label="Trailing"
+          />
         )}
       </button>
     </motion.div>

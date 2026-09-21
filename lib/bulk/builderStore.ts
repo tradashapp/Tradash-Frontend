@@ -1,4 +1,7 @@
-// Local record of the builder-code (`abc`) approval, keyed by master wallet.
+import { config } from "@/lib/config";
+
+// Local record of the builder-code (`abc`) approval, keyed by master wallet
+// AND Bulk network (see `key()`).
 //
 // WHY THIS EXISTS: unlike the agent wallet — which we can verify against Bulk by
 // reading `fullAccount.authorizedAgentWallets` — Bulk exposes NO readable
@@ -28,8 +31,16 @@ export interface StoredBuilderApproval {
   feeBps: number;
 }
 
+/**
+ * Scoped to the BULK NETWORK as well as the wallet, for the same reason
+ * `agentStore` is: an `abc` approval is granted on one network and means
+ * nothing on another. Unscoped, switching networks left this cache claiming an
+ * approval the new network had never been given — and because Bulk exposes no
+ * readable approval state (see above), NOTHING could correct it except an order
+ * rejection. Scoping makes the switch re-approve instead.
+ */
 function key(walletAddress: string) {
-  return PREFIX + walletAddress;
+  return `${PREFIX}${config.bulk.network}:${walletAddress}`;
 }
 
 /** The approval recorded for this wallet, if any. */

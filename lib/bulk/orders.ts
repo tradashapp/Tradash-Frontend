@@ -31,6 +31,29 @@ export function isBuilderNotApprovedError(e: unknown): boolean {
 }
 
 /**
+ * Does this error mean "the signature didn't verify"?
+ *
+ * Bulk answers `bad signature` for several unrelated causes and names none of
+ * them, so it is one of the least actionable errors in the API. In practice it
+ * is almost never a corrupt signature — it is a MISMATCH between what signed
+ * and what the server expected:
+ *
+ *  - the agent key was authorized on a DIFFERENT NETWORK (the common one: the
+ *    signature carries a domain byte, the server rebuilds the preimage with its
+ *    own, and they disagree — see `signatureDomain()` in lib/config.ts);
+ *  - the stored agent key was revoked, or belongs to another master account;
+ *  - `NEXT_PUBLIC_BULK_NETWORK` doesn't match the network `restUrl` points at.
+ *
+ * All three are fixed the same way — re-run setup so a fresh agent is
+ * authorized on the network actually in use — which is why they share one
+ * message rather than being told apart.
+ */
+export function isBadSignatureError(e: unknown): boolean {
+  const msg = e instanceof Error ? e.message : String(e);
+  return /bad signature|unauthorized signer/i.test(msg);
+}
+
+/**
  * Floor a base-asset size to a whole multiple of the market's lot size.
  *
  * Bulk keeps sizes as FIXED-POINT: a size finer than `lotSize` is not

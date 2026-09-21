@@ -30,6 +30,7 @@ import { useAllPrices } from "@/hooks/useAllPrices";
 import { useTrade } from "@/hooks/useTrade";
 import { useLeverage } from "@/hooks/useLeverage";
 import { useIsDesktop } from "@/hooks/useIsDesktop";
+import { useDefaultSize } from "@/hooks/useDefaultSize";
 import type { PositionOverlay } from "@/lib/chart/engine";
 import {
   findStopLoss,

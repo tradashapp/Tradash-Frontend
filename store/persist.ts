@@ -178,6 +178,24 @@ export function wireSettingsPersistence(store: AppStore) {
 }
 
 /**
+ * True the FIRST time this runs on a device, false forever after.
+ *
+ * The flag is written before the caller acts on it, so a crash mid-hydrate
+ * can't leave the reset running on every load. A storage failure returns false
+ * rather than throwing: an un-reset leverage is a stale default, but a throw
+ * here would take the whole settings hydrate with it.
+ */
+function consumeLeverageReset(): boolean {
+  try {
+    if (window.localStorage.getItem(LEVERAGE_RESET_KEY)) return false;
+    window.localStorage.setItem(LEVERAGE_RESET_KEY, String(Date.now()));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Rebuild the per-market leverage map from whatever was in storage, keeping
  * only known markets with a finite leverage and clamping each to that market's
  * cap. Anything else (an older global setting, a delisted market, a hand-edited

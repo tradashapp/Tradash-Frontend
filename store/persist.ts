@@ -26,6 +26,16 @@ const REPLAY_KEY = "tradash.replays.v1";
 /** Byte budget for stored replays (~1.5MB of a typical 5MB origin quota). */
 const REPLAY_BUDGET_BYTES = 1_500_000;
 
+// Marks that the one-time leverage reset below has run on this device.
+//
+// Leverage stopped being user-editable: the settings sheet now edits size only
+// and every market trades at its own cap. But a device that had already stored
+// a lower leverage would keep using it forever — silently, since there is no
+// longer any UI showing or changing it, and with a min order size computed
+// against a leverage the user can't see. Clearing the map once puts everyone on
+// `leverageFor`'s max fallback. Bump the suffix to run it again.
+const LEVERAGE_RESET_KEY = "tradash.leverageReset.v2";
+
 // Load persisted settings + trade history on the client and subscribe to
 // persist future changes. Called once from Providers after the store is created.
 export function wireSettingsPersistence(store: AppStore) {
@@ -50,6 +60,14 @@ export function wireSettingsPersistence(store: AppStore) {
       // has no map at all, or could carry junk — rebuild it defensively and
       // clamp every entry to the market's real ceiling.
       merged.leverageByMarket = sanitizeLeverage(parsed.leverageByMarket);
+      // One-time reset of hand-picked leverage (see LEVERAGE_RESET_KEY). Runs
+      // AFTER sanitize so it clears whatever that produced.
+      if (consumeLeverageReset()) merged.leverageByMarket = {};
+      // A size written before it became a derived default carries no
+      // `positionSizeTouched` flag. Treat it as untouched so the new
+      // per-market default applies, rather than stranding the old flat $100
+      // on a $10 account where every order would be capped anyway.
+      merged.positionSizeTouched = parsed.positionSizeTouched === true;
       store.dispatch(hydrateSettings(merged));
     }
   } catch {

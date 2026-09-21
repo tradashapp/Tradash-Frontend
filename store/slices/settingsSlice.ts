@@ -6,6 +6,17 @@ import type { MarketSymbol } from "@/types";
 export interface SettingsState {
   defaultPositionSize: number; // in quote (USD)
   /**
+   * Whether `defaultPositionSize` was chosen BY HAND in the market settings
+   * sheet, as opposed to being the auto-computed default.
+   *
+   * Until this is true the size is derived (see `defaultSizeFor`): the larger
+   * of the market's minimum and 5% of the available trading balance, recomputed
+   * as the balance and the market change. The moment the user sets a size
+   * themselves it stops being recomputed — an explicit choice must not be
+   * silently overwritten by the next balance tick.
+   */
+  positionSizeTouched: boolean;
+  /**
    * Leverage PER MARKET, e.g. { BTC: 20, SOL: 5 }. Sparse — a market absent
    * here uses DEFAULT_LEVERAGE (clamped to that market's own cap).
    *
@@ -42,11 +53,17 @@ export interface SettingsState {
 }
 
 const initialState: SettingsState = {
-  defaultPositionSize: 100,
+  // Placeholder only — replaced by `defaultSizeFor` as soon as a market and a
+  // balance are known. It is deliberately the 10× market minimum rather than a
+  // round $100, so a size is never shown that the account cannot cover.
+  defaultPositionSize: 5.05,
+  positionSizeTouched: false,
   leverageByMarket: {},
   takeProfitPct: null,
   stopLossPct: null,
-  defaultTrailPct: 0.001, // 1% trailing distance by default
+  // 0.1% trailing distance. No longer editable in the settings sheet (that
+  // section is commented out, not deleted) — every order trails at this.
+  defaultTrailPct: 0.001,
   favouriteMarkets: [],
   theme: "dark",
   soundEnabled: true,

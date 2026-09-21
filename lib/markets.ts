@@ -270,6 +270,70 @@ export function leverageFor(
   return clampLeverage(symbol, byMarket[symbol] ?? maxLeverageFor(symbol));
 }
 
+// --- Order sizing ------------------------------------------------------------
+// Bulk rejects any order whose NOTIONAL is under $50. Notional is
+// margin × leverage, so the smallest margin a market can trade at is
+// 50 / leverage — which differs per market because every market has its own
+// leverage ceiling (BTC 40× → $1.25, ETH 25× → $2, SOL 20× → $2.50, 10× → $5).
+//
+// Sizing is expressed in MARGIN everywhere in the UI (the slider, the dock,
+// `defaultPositionSize`), so these helpers are the single place that converts
+// the exchange's notional floor into the margin floor the UI enforces.
+
+/** Bulk's minimum order notional, in USD. Below this an order is rejected. */
+export const MIN_NOTIONAL_USD = 50;
+
+/**
+ * Safety pad over the exact minimum, so an order can never land at $49.99.
+ *
+ * The exact floor (50 / leverage) is a knife edge: the price moves between the
+ * tap and the fill, `floorToLot` rounds the base size DOWN to the market's lot,
+ * and the notional Bulk computes is therefore a hair under the one we intended.
+ * 1% of headroom costs nothing and turns a rejected order into a filled one.
+ */
+const MIN_NOTIONAL_PAD = 1.01;
+
+/**
+ * Smallest margin that can open a position on this market, in USD.
+ *
+ * Rounded UP at 4 decimals: rounding to cents would round $1.2625 down to
+ * $1.26 on some markets and back under the floor, which is the exact failure
+ * this guards against. Four decimals is also what `setSize` preserves.
+ */
+export function minSizeFor(
+  symbol: MarketSymbol,
+  byMarket: Partial<Record<MarketSymbol, number>> = {}
+): number {
+  const lev = leverageFor(symbol, byMarket);
+  const exact = (MIN_NOTIONAL_USD * MIN_NOTIONAL_PAD) / lev;
+  return Math.ceil(exact * 10_000) / 10_000;
+}
+
+/** Fraction of the available trading balance a default order risks. */
+export const DEFAULT_SIZE_FRACTION = 0.05;
+
+/**
+ * The size an order should default to on this market: 5% of the available
+ * trading balance, or the market's minimum when 5% doesn't reach it.
+ *
+ * This is a DEFAULT, not a clamp — it is what the size becomes while the user
+ * has never set one by hand. An explicit choice in the settings sheet wins and
+ * is never recomputed. With an unknown balance there is nothing to take 5% of,
+ * so the minimum stands in.
+ */
+export function defaultSizeFor(
+  symbol: MarketSymbol,
+  available: number | null,
+  byMarket: Partial<Record<MarketSymbol, number>> = {}
+): number {
+  const min = minSizeFor(symbol, byMarket);
+  if (available == null || !Number.isFinite(available) || available <= 0) {
+    return min;
+  }
+  const pct = available * DEFAULT_SIZE_FRACTION;
+  return pct > min ? +pct.toFixed(4) : min;
+}
+
 /** Category filter pills shown above the market list, in display order. */
 export const MARKET_CATEGORIES: { id: MarketCategory; label: string }[] = [
   { id: "favourites", label: "Favourites" },

@@ -170,15 +170,16 @@ export function PositionDock({ symbol, onOpen }: Props) {
       >
         <Cell
           icon={Coins01Icon}
-          // Up to 4 decimals: the minimum is a 4-decimal number on the
-          // high-leverage markets ($1.2625 on BTC), and rounding the display to
-          // cents would show a size that is not the one being sent.
           value={usd2(size)}
           label="Size"
         />
         {/* Leverage is read-only here — it is no longer editable in the sheet
             and is always the market's cap. It stays on the dock because it is
-            what turns the size above into the position actually opened. */}
+            what turns the size above into the position actually opened.
+
+            Whole number, deliberately, while the dollar rows are 2dp:
+            `clampLeverage` rounds leverage to an integer, so "40.00×" would be
+            two digits of guaranteed zeroes on a tab this narrow. */}
         <Cell
           icon={ChartBreakoutCircleIcon}
           value={`${lev}×`}

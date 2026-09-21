@@ -46,6 +46,27 @@ import type { MarketSymbol } from "@/types";
 const TOP_INSET = 96; // clears the market header + a little gap
 const BOTTOM_INSET = 190; // clears the trade controls / positions section
 
+/**
+ * Two decimals for every dollar value on the dock.
+ *
+ * The underlying numbers can carry more: a minimum order is $1.2625 of margin
+ * on BTC and its fee is $0.0253, so both are ROUNDED here ($1.26, $0.03), not
+ * shown exactly. That is the intent — the dock is a glanceable readout, and
+ * four decimals on a tab this small reads as noise.
+ *
+ * The exact values stay reachable where they are actionable: MarketSettingsSheet
+ * shows the minimum and the reset-to-default at four decimals (`usd4` there),
+ * and its number input holds full precision. Nothing rounded here is ever fed
+ * back into an order — `defaultPositionSize` in the store is the real value, and
+ * this only formats it — so the rounding cannot cause a sub-$50-notional
+ * rejection.
+ */
+const usd2 = (n: number) =>
+  `$${n.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+
 interface Props {
   symbol: MarketSymbol;
   /** Open the market settings sheet. */
@@ -152,10 +173,7 @@ export function PositionDock({ symbol, onOpen }: Props) {
           // Up to 4 decimals: the minimum is a 4-decimal number on the
           // high-leverage markets ($1.2625 on BTC), and rounding the display to
           // cents would show a size that is not the one being sent.
-          value={`$${size.toLocaleString(undefined, {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 4,
-          })}`}
+          value={usd2(size)}
           label="Size"
         />
         {/* Leverage is read-only here — it is no longer editable in the sheet
@@ -166,15 +184,10 @@ export function PositionDock({ symbol, onOpen }: Props) {
           value={`${lev}×`}
           label="Leverage"
         />
-        {/* Fee on notional. 4 decimals for the same reason as the size: at the
-            minimum order on a 40× market the fee is $0.0253, and 2 decimals
-            would round it to "$0.03" or, worse, "$0.00". */}
+        {/* Fee on NOTIONAL, not margin — `feeUsd` above. */}
         <Cell
           icon={CoinsDollarIcon}
-          value={`$${feeUsd.toLocaleString(undefined, {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 4,
-          })}`}
+          value={usd2(feeUsd)}
           label="Fee"
         />
         {/* Trailing row — hidden alongside its control in MarketSettingsSheet

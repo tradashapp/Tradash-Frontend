@@ -1,7 +1,6 @@
 import { MARKETS } from "@/lib/markets";
 import type { Balance, MarketSymbol, Position } from "@/types";
 import { fetchTraderState } from "./client";
-import { computeLiquidationPrices } from "./liquidation";
 import { amountToNumber } from "./map";
 import type { PhoenixPositionRow, PhoenixTraderState } from "./types";
 
@@ -63,14 +62,16 @@ export function toBalance(s: PhoenixTraderState): Balance {
 /**
  * One Phoenix position row → a domain `Position`, or null if flat/unknown.
  *
- * `liquidationPrice` is left at 0 and filled in by the caller from the SDK
- * margin calculator: Phoenix serves no liquidation price over REST or WS, and
- * the only honest sources are the calculator or nothing. `0` is a sentinel the
- * chart must treat as "unknown" and not draw — never as a real level.
+ * READS `PhoenixAmount` OBJECTS, NOT STRINGS. The flat-string fields this used
+ * to parse (`basePositionUnits`, `entryPriceUsd`) no longer exist; see
+ * `PhoenixPositionRow`. Because every gate below returned null on a missing
+ * field, the whole position disappeared from the UI while `toBalance` — which
+ * reads unchanged top-level fields — kept reporting its margin and PnL.
  *
- * `leverage` is also 0: Phoenix stores no per-position leverage (margin comes
- * from size tiers), so there is nothing to read back. Effective leverage is
- * notional / collateral if a display needs it.
+ * `liquidationPrice`, `marginUsed` and `unrealizedPnl` all come straight from
+ * the API now. `leverage` remains derived: Phoenix stores no per-position
+ * leverage (margin comes from size tiers), so effective leverage is
+ * notional / margin, which is what the UI means by the number.
  */
 export function toPosition(
   row: PhoenixPositionRow,
@@ -82,41 +83,63 @@ export function toPosition(
   // A market Tradash does not list — a user may hold it from Phoenix's own UI.
   if (!symbol) return null;
 
-  // `basePositionUnits` is the human size Phoenix already computed. Prefer it:
-  // converting from lots needs Phoenix's OWN `baseLotsDecimals`, which differs
-  // from Bulk's `lotSize` (Phoenix BTC is 0.0001, Bulk 0.000001), so reusing the
-  // Bulk value here would misreport size by 100x. If units are absent the row
-  // cannot be trusted, so it is skipped rather than converted from a guess.
-  if (row.basePositionUnits == null) return null;
-  const sizeSigned = Number(row.basePositionUnits);
+  // `positionSize` is signed and already in human units (decimals applied), so
+  // there is no lot conversion to get wrong here — the old path had to use
+  // Phoenix's `baseLotsDecimals` and would misreport size by 100x if it reached
+  // for Bulk's `lotSize` instead.
+  const sizeSigned = amountToNumber(row.positionSize);
   if (!Number.isFinite(sizeSigned) || sizeSigned === 0) return null;
 
-  const entryPrice =
-    row.entryPriceUsd != null ? Number(row.entryPriceUsd) : Number.NaN;
-  if (!Number.isFinite(entryPrice)) return null;
+  const entryPrice = amountToNumber(row.entryPrice);
+  if (!Number.isFinite(entryPrice) || entryPrice === 0) return null;
 
   const size = Math.abs(sizeSigned);
   const direction = sizeSigned > 0 ? "long" : "short";
 
-  // Phoenix reports funding separately from PnL, so unrealized PnL is derived
-  // from the mark price when one is to hand. Without a mark there is no honest
-  // figure, and 0 is the safe default — the display layer interpolates anyway.
+  // Phoenix's own figure is authoritative and already accounts for funding.
+  // The mark-derived fallback only covers a row served without one, so PnL
+  // never silently reads 0 on an open position.
+  const served = row.unrealizedPnl ? amountToNumber(row.unrealizedPnl) : null;
   const unrealizedPnl =
-    markPrice != null && Number.isFinite(markPrice)
-      ? (direction === "long" ? 1 : -1) * (markPrice - entryPrice) * size
-      : 0;
+    served != null && Number.isFinite(served)
+      ? served
+      : markPrice != null && Number.isFinite(markPrice)
+        ? (direction === "long" ? 1 : -1) * (markPrice - entryPrice) * size
+        : 0;
+
+  // Margin locked by THIS position. `positionInitialMargin` is the per-position
+  // figure; the row's `initialMargin` can fold in limit-order margin, which is
+  // not money this position is using.
+  const marginUsed = amountToNumber(
+    row.positionInitialMargin ?? row.initialMargin
+  );
+
+  // Effective leverage. Guarded: a zero margin would divide to Infinity and
+  // render as a nonsense multiplier.
+  const notional = size * entryPrice;
+  const leverage = marginUsed > 0 ? notional / marginUsed : 0;
+
+  // 0 stays the "unknown" sentinel the chart must not draw — so a null or
+  // zero from the API is preserved as 0 rather than invented.
+  const liquidationPrice = row.liquidationPrice
+    ? amountToNumber(row.liquidationPrice)
+    : 0;
 
   return {
     symbol,
     direction,
     size,
     entryPrice,
-    leverage: 0,
-    liquidationPrice: 0,
-    marginUsed: 0,
+    leverage,
+    liquidationPrice,
+    marginUsed,
     unrealizedPnl,
     openedAt: 0,
-    realizedPnl: Number(row.accumulatedFundingQuoteLots ?? 0) / 1e6,
+    // Funding already charged, signed as Phoenix reports it (negative = paid).
+    // Drives the true break-even line, like Bulk's `realizedPnl`.
+    realizedPnl:
+      amountToNumber(row.accumulatedFunding) +
+      amountToNumber(row.unsettledFunding),
   };
 }
 
@@ -150,33 +173,15 @@ export async function readAccount(
     })
     .filter((p): p is Position => p !== null);
 
-  // Liquidation price is computed, not served — see `liquidation.ts`. It needs
-  // Phoenix-keyed marks, and the caller holds Tradash-keyed ones.
+  // Liquidation price is SERVED per position (`row.liquidationPrice`) and
+  // `toPosition` has already applied it, so nothing is computed here.
   //
-  // Only markets the trader actually holds are priced. Cross margin means every
-  // position influences every other's liquidation price, but a market the user
-  // is not in cannot, so leaving the rest unpriced changes no answer while
-  // keeping this independent of how many markets the app happens to list.
-  const marksByPhoenix: Record<string, number> = {};
-  if (markPrices) {
-    for (const row of raw.positions) {
-      const sym = row.symbol ? SYMBOL_BY_PHOENIX[row.symbol] : undefined;
-      const px = sym ? markPrices[sym] : undefined;
-      if (row.symbol && px != null && Number.isFinite(px)) {
-        marksByPhoenix[row.symbol] = px;
-      }
-    }
-  }
-
-  if (positions.length > 0 && Object.keys(marksByPhoenix).length > 0) {
-    // Never throws; an empty map just leaves the 0 sentinel in place.
-    const liq = await computeLiquidationPrices(raw, marksByPhoenix);
-    for (const p of positions) {
-      const phoenixSym = PHOENIX_BY_SYMBOL[p.symbol];
-      const price = phoenixSym ? liq[phoenixSym] : undefined;
-      if (price != null && price > 0) p.liquidationPrice = price;
-    }
-  }
+  // The SDK margin-calculator fallback that used to live at this point is gone:
+  // it fed the calculator raw lot integers (`basePositionLots`,
+  // `entryPriceTicks`, …) that this endpoint no longer serves, so it could only
+  // have produced NaN. Verified 2026-09-21 that the served price matches the
+  // closed-form liquidation point to 0.004 on a live SOL long (106.88 vs
+  // 106.8840, where equity meets maintenance margin).
 
   return { balance: toBalance(raw), positions, raw };
 }

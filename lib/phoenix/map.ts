@@ -1,10 +1,4 @@
-import type { Balance, MarketSymbol, Position } from "@/types";
-import type {
-  PhoenixAmount,
-  PhoenixMarket,
-  PhoenixPositionRow,
-  PhoenixTraderState,
-} from "./types";
+import type { PhoenixAmount, PhoenixMarket } from "./types";
 
 /**
  * Phoenix wire shapes → Tradash domain types.
@@ -57,63 +51,4 @@ export function maxLeverageForSize(m: PhoenixMarket, sizeBase: number): number {
 /** Headline max leverage for a market — the top rung, for display. */
 export function headlineMaxLeverage(m: PhoenixMarket): number {
   return m.leverageTiers.reduce((hi, t) => Math.max(hi, t.maxLeverage), 1);
-}
-
-/**
- * Account balance.
- *
- * `portfolioValue` already includes unrealized PnL, so it is the direct
- * analogue of Bulk's `equity`. `unrealizedPnl` is returned alongside so the
- * display layer can subtract it and re-add its own interpolated figure without
- * double-counting — the same contract `Balance` already documents for Bulk.
- */
-export function toBalance(s: PhoenixTraderState): Balance {
-  const equity = amountToNumber(s.portfolioValue);
-  const initialMargin = amountToNumber(s.initialMargin);
-  return {
-    equity,
-    available: Math.max(0, equity - initialMargin),
-    marginUsed: initialMargin,
-    unrealizedPnl: amountToNumber(s.unrealizedPnl),
-  };
-}
-
-/**
- * One position row → domain `Position`, or null when flat.
- *
- * NOT YET MAPPED, and deliberately left null rather than guessed:
- *   - `liquidationPrice` — Phoenix serves margin components (maintenance,
- *     initial) rather than a liquidation price. Whether one is available or
- *     must be derived is an open question in the feasibility report (§12), and
- *     inventing a number here would draw a confidently wrong line on the chart.
- *   - `leverage` — not a stored per-position attribute on Phoenix; it is
- *     implied by notional vs collateral.
- * Both are filled in the phase that ports the chart/liquidation maths, once the
- * real behaviour has been observed on a funded position.
- */
-export function toPosition(
-  symbol: MarketSymbol,
-  row: PhoenixPositionRow,
-  market: PhoenixMarket
-): Position | null {
-  const sizeBase =
-    row.basePositionUnits != null
-      ? Number(row.basePositionUnits)
-      : Number(row.basePositionLots) * lotSizeOf(market);
-  if (!Number.isFinite(sizeBase) || sizeBase === 0) return null;
-
-  const entryPrice =
-    row.entryPriceUsd != null ? Number(row.entryPriceUsd) : Number.NaN;
-
-  return {
-    symbol,
-    direction: sizeBase > 0 ? "long" : "short",
-    size: Math.abs(sizeBase),
-    entryPrice,
-    leverage: 0,
-    liquidationPrice: 0,
-    marginUsed: 0,
-    unrealizedPnl: 0,
-    openedAt: 0,
-  };
 }

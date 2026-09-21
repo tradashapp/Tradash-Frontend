@@ -47,18 +47,42 @@ export interface PhoenixMarket {
 }
 
 /** Per-market position row. Prices/sizes come in both lots and human units. */
+/**
+ * One open position, as `/v1/view/trader/{pda}` serves it.
+ *
+ * EVERY NUMERIC FIELD IS A `PhoenixAmount`, not a string. An earlier revision of
+ * this API returned flat strings (`basePositionUnits`, `entryPriceUsd`,
+ * `basePositionLots`, …) and those names are simply gone — reading them yields
+ * `undefined`, which silently parsed as "no position" while the top-level
+ * balance fields kept working, so an open position showed in the balance pill
+ * and nowhere else. Verified live 2026-09-21.
+ *
+ * `liquidationPrice`, `initialMargin` and per-position `unrealizedPnl` are now
+ * SERVED. They used to be computed client-side (or stubbed at 0); prefer these.
+ */
 export interface PhoenixPositionRow {
   symbol?: string;
-  positionSequenceNumber: string;
-  /** Signed: negative = short. */
-  basePositionLots: string;
-  /** Human units, when the API includes it. Preferred over converting lots. */
-  basePositionUnits?: string;
-  entryPriceTicks: string;
-  entryPriceUsd?: string;
-  virtualQuotePositionLots: string;
-  unsettledFundingQuoteLots: string;
-  accumulatedFundingQuoteLots: string;
+  /** Signed: negative = short. Human units — already lot-scaled. */
+  positionSize: PhoenixAmount;
+  /** Signed quote exposure; negative on a long. */
+  virtualQuotePosition: PhoenixAmount;
+  entryPrice: PhoenixAmount;
+  unrealizedPnl: PhoenixAmount;
+  discountedUnrealizedPnl: PhoenixAmount;
+  /** Margin locked by THIS position — Phoenix's answer to `marginUsed`. */
+  positionInitialMargin: PhoenixAmount;
+  initialMargin: PhoenixAmount;
+  maintenanceMargin: PhoenixAmount;
+  backstopMargin: PhoenixAmount;
+  limitOrderMargin: PhoenixAmount;
+  /** Notional at the mark. */
+  positionValue: PhoenixAmount;
+  unsettledFunding: PhoenixAmount;
+  accumulatedFunding: PhoenixAmount;
+  /** Served directly — no longer derived from the margin calculator. */
+  liquidationPrice: PhoenixAmount | null;
+  takeProfitPrice: PhoenixAmount | null;
+  stopLossPrice: PhoenixAmount | null;
 }
 
 /**

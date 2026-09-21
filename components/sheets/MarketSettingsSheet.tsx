@@ -279,12 +279,12 @@ export function MarketSettingsSheet({
 
           {/* Why the floor is where it is. Without this the minimum reads as an
               arbitrary number that moves between markets. */}
-          <p className="mt-2 text-[11px] leading-snug text-text-muted">
+          {/* <p className="mt-2 text-[11px] leading-snug text-text-muted">
             Minimum{" "}
             <span className="tabular text-text">{usd4(minSize)}</span> on{" "}
             {MARKETS[symbol].symbol} — orders must be worth at least $
             {MIN_NOTIONAL_USD} at {lev}×.
-          </p>
+          </p> */}
 
           {/* Only offered once the size has actually been pinned by hand, and
               only when it differs from what the default would be — otherwise

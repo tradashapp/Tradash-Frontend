@@ -169,10 +169,16 @@ export function usePhoenixAccount(
  * would jump to a fresh price every few seconds.
  *
  * On first open it consumes the tap-time MagicBlock price so the entry line
- * lands where the user actually clicked. Mirrors `enrich` in `useBulkAccount`,
- * minus the PnL anchoring: Phoenix PnL is already derived from the MagicBlock
- * mark in `toPosition`, so there is no second price space to interpolate
- * between.
+ * lands where the user actually clicked.
+ *
+ * IT ALSO STAMPS `priceAnchorMb` — the MagicBlock price at the instant this
+ * read landed. Paired with the venue mark `toPosition` recovered, that is the
+ * measurement `bulkToChartShift` needs to translate Phoenix-quoted levels
+ * (entry, liquidation, break-even) into the chart's MagicBlock space. Without
+ * it the shift silently degrades to 0 and every one of those lines is drawn off
+ * by the spread between the two feeds. Only this hook can sample it: the anchor
+ * is only meaningful if both prices are read at the same moment, and
+ * `toPosition` has no access to the oracle store.
  */
 function enrich(
   store: AppStore,
@@ -193,6 +199,10 @@ function enrich(
     // this session appears to start at page load.
     openedAt: prev?.openedAt ?? (p.openedAt || Date.now()),
     chartEntryPrice: tapEntry ?? mbNow ?? p.entryPrice,
+    // Sampled HERE, alongside `p.markPriceBulk` from the same read, so the two
+    // describe the same instant. A stale pairing would shift every line by
+    // however far the feeds drifted apart in between.
+    priceAnchorMb: mbNow,
   };
 }
 

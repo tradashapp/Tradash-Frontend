@@ -114,16 +114,45 @@ export function toPosition(
     row.positionInitialMargin ?? row.initialMargin
   );
 
-  // Effective leverage. Guarded: a zero margin would divide to Infinity and
-  // render as a nonsense multiplier.
+  // Effective leverage, ROUNDED TO A WHOLE NUMBER.
+  //
+  // Phoenix stores no per-position leverage, so this is derived as
+  // notional / margin — which lands on 24.977…x for what is really a 25x
+  // position, because the margin tier is a clean 4% and the arithmetic is not.
+  // Every display site renders `{pos.leverage}×` raw (PositionsPanel, TpSlSheet,
+  // AdjustPositionSheet, HistoryPanel, …), so an unrounded value leaks a long
+  // decimal into all of them. Rounding at the source keeps the whole app
+  // consistent rather than fixing it per call site.
+  //
+  // Bulk supplied an integer here, so this matches the shape the UI already
+  // expected of the field.
   const notional = size * entryPrice;
-  const leverage = marginUsed > 0 ? notional / marginUsed : 0;
+  const leverage = marginUsed > 0 ? Math.round(notional / marginUsed) : 0;
 
   // 0 stays the "unknown" sentinel the chart must not draw — so a null or
   // zero from the API is preserved as 0 rather than invented.
   const liquidationPrice = row.liquidationPrice
     ? amountToNumber(row.liquidationPrice)
     : 0;
+
+  // PHOENIX'S OWN MARK, for the chart's price-space shift.
+  //
+  // The chart's Y axis is the MagicBlock oracle, while `entryPrice`,
+  // `liquidationPrice` and the break-even level are all quoted against
+  // PHOENIX's feed. Drawing them raw lands each one off by the spread between
+  // the two feeds (see `bulkToChartShift` in lib/perp.ts, which every chart
+  // line goes through).
+  //
+  // Phoenix serves no mark price directly, but the row carries enough to
+  // recover it exactly: unrealized PnL is `(mark − entry) · size`, so
+  //   mark = entry + upnl / sizeSigned
+  // using the SIGNED size, which carries the direction. `positionValue /
+  // |size|` gives the same number but loses the sign, so it is not used.
+  //
+  // The field is named `markPriceBulk` for the venue it was introduced for;
+  // it means "the venue's own mark" and is what the shared shift reads.
+  const venueMark =
+    sizeSigned !== 0 ? entryPrice + unrealizedPnl / sizeSigned : undefined;
 
   return {
     symbol,
@@ -135,6 +164,8 @@ export function toPosition(
     marginUsed,
     unrealizedPnl,
     openedAt: 0,
+    markPriceBulk:
+      venueMark != null && Number.isFinite(venueMark) ? venueMark : undefined,
     // Funding already charged, signed as Phoenix reports it (negative = paid).
     // Drives the true break-even line, like Bulk's `realizedPnl`.
     realizedPnl:

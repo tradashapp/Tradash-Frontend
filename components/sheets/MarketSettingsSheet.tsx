@@ -8,6 +8,7 @@ import {
   MARKETS,
   MIN_NOTIONAL_USD,
   defaultSizeFor,
+  maxLeverageFor,
   minSizeFor,
 } from "@/lib/markets";
 import { config } from "@/lib/config";
@@ -71,10 +72,10 @@ const usd4 = (n: number) =>
 // $50 minimum notional converts to a different margin at each market's leverage
 // (BTC 40× → $1.25, ETH 25× → $2, 10× → $5). See `minSizeFor` in lib/markets.
 
-// Trailing-distance bounds for the slider, in percent. Kept for the commented
-// out trailing section below.
-// const TRAIL_MIN_PCT = 0.1;
-// const TRAIL_MAX_PCT = 10;
+// Trailing-distance bounds for the slider, in percent. Used only by the
+// disabled trailing section below; kept so that block still type-checks.
+const TRAIL_MIN_PCT = 0.1;
+const TRAIL_MAX_PCT = 10;
 
 interface Props {
   open: boolean;
@@ -104,6 +105,8 @@ export function MarketSettingsSheet({
   // Bulk's $50 notional floor into this market's margin floor, and what the
   // notional readout is derived from.
   const lev = leverage.leverageOf(symbol);
+  // Only the disabled leverage section reads this; kept so it still compiles.
+  const max = maxLeverageFor(symbol);
   const size = s.defaultPositionSize;
 
   // This market's floor, and the default the size would return to. Both depend
@@ -301,134 +304,154 @@ export function MarketSettingsSheet({
           )}
         </section>
 
-        {/* ---- Leverage ---------------------------------------------------- */}
-        <section className="glass-inset rounded-2xl p-4">
-          <div className="mb-2 flex items-baseline justify-between">
-            <span className="text-[11px] font-medium uppercase tracking-wide text-text-muted">
-              Leverage
-            </span>
-            <span className="tabular text-[11px] text-text-muted">
-              max {max}×
-            </span>
-          </div>
+        {/* ---- Leverage + Trailing (DISABLED) -------------------------------
+            Both controls were removed from this sheet: size is now the only
+            thing edited here. They are kept, compiling and type-checked, behind
+            a `false` guard rather than deleted or block-commented, so bringing
+            either back is a one-word change and neither silently rots.
 
-          <div className="flex items-baseline gap-2">
+            What they do now instead of being edited:
+              - leverage: every market trades at its own cap (`leverageFor`
+                falls back to `maxLeverageFor`), and `store/persist.ts` clears
+                any lower value a device had already saved;
+              - trailing: fixed at `defaultTrailPct` (0.1%) in the settings
+                slice, which is what `useTrade` reads for every order.
+
+            NOTE if reviving the leverage slider: the minimum order size is
+            DERIVED from leverage (`minSizeFor`), so lowering it must also push
+            `defaultPositionSize` up to the new floor, or every order under it
+            is rejected for sub-$50 notional. --------------------------------- */}
+        {false && (
+          <>
+          <section className="glass-inset rounded-2xl p-4">
+            <div className="mb-2 flex items-baseline justify-between">
+              <span className="text-[11px] font-medium uppercase tracking-wide text-text-muted">
+                Leverage
+              </span>
+              <span className="tabular text-[11px] text-text-muted">
+                max {max}×
+              </span>
+            </div>
+
+            <div className="flex items-baseline gap-2">
+              <span className="tabular text-2xl font-bold text-text">
+                {lev.toFixed(2)}×
+              </span>
+              <span className="text-[11px] leading-tight text-text-muted">
+                liquidates on a{" "}
+                <span className="tabular text-text">
+                  {(100 / lev).toFixed(2)}%
+                </span>{" "}
+                move against you
+              </span>
+            </div>
+
+            <input
+              type="range"
+              min={1}
+              max={max}
+              step={1}
+              value={lev}
+              onChange={(e) =>
+                leverage.setLeverage(symbol, Number(e.target.value))
+              }
+              aria-label={`${symbol} leverage`}
+              className="lev-slider mt-3 w-full"
+              style={{
+                ["--fill" as string]: `${((lev - 1) / Math.max(max - 1, 1)) * 100}%`,
+              }}
+            />
+
+            <div className="mt-2 flex items-center gap-2">
+              {[...new Set([1, Math.round(max / 4), Math.round(max / 2), max])]
+                .filter((n) => n >= 1 && n <= max)
+                .map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => {
+                      playSound("tap");
+                      haptic("tap");
+                      leverage.setLeverage(symbol, p);
+                    }}
+                    className={`tabular flex-1 rounded-lg py-1.5 text-xs font-semibold transition-colors ${
+                      lev === p
+                        ? "bg-up text-black"
+                        : "bg-white/[0.07] text-text-muted hover:bg-white/10"
+                    }`}
+                  >
+                    {p}×
+                  </button>
+                ))}
+            </div>
+
+            {!leverage.canSync && (
+              <p className="mt-2 text-[11px] leading-snug text-text-muted">
+                Saved on this device. Finish setup and switch to live to apply
+                this on your trading account.
+              </p>
+            )}
+          </section>
+
+          {/* ---- Trailing ---------------------------------------------------- */}
+          <section className="glass-inset rounded-2xl p-4">
+            <div className="mb-2 flex items-baseline justify-between">
+              <span className="text-[11px] font-medium uppercase tracking-wide text-text-muted">
+                Trailing stop
+              </span>
+              <span className="tabular text-[11px] text-text-muted">
+                behind price
+              </span>
+            </div>
+
             <span className="tabular text-2xl font-bold text-text">
-              {lev.toFixed(2)}×
+              {trailPct.toFixed(2)}%
             </span>
-            <span className="text-[11px] leading-tight text-text-muted">
-              liquidates on a{" "}
-              <span className="tabular text-text">
-                {(100 / lev).toFixed(2)}%
-              </span>{" "}
-              move against you
-            </span>
-          </div>
 
-          <input
-            type="range"
-            min={1}
-            max={max}
-            step={1}
-            value={lev}
-            onChange={(e) =>
-              leverage.setLeverage(symbol, Number(e.target.value))
-            }
-            aria-label={`${symbol} leverage`}
-            className="lev-slider mt-3 w-full"
-            style={{
-              ["--fill" as string]: `${((lev - 1) / Math.max(max - 1, 1)) * 100}%`,
-            }}
-          />
+            <input
+              type="range"
+              min={TRAIL_MIN_PCT}
+              max={TRAIL_MAX_PCT}
+              step={0.1}
+              value={+trailPct.toFixed(2)}
+              onChange={(e) =>
+                dispatch(
+                  updateSettings({ defaultTrailPct: Number(e.target.value) / 100 })
+                )
+              }
+              aria-label="Trailing stop distance"
+              className="lev-slider mt-3 w-full"
+              style={{
+                ["--fill" as string]: `${
+                  ((trailPct - TRAIL_MIN_PCT) / (TRAIL_MAX_PCT - TRAIL_MIN_PCT)) *
+                  100
+                }%`,
+              }}
+            />
 
-          <div className="mt-2 flex items-center gap-2">
-            {[...new Set([1, Math.round(max / 4), Math.round(max / 2), max])]
-              .filter((n) => n >= 1 && n <= max)
-              .map((p) => (
+            <div className="mt-2 flex items-center gap-2">
+              {[0.5, 1, 2, 5].map((p) => (
                 <button
                   key={p}
                   type="button"
                   onClick={() => {
                     playSound("tap");
                     haptic("tap");
-                    leverage.setLeverage(symbol, p);
+                    dispatch(updateSettings({ defaultTrailPct: p / 100 }));
                   }}
                   className={`tabular flex-1 rounded-lg py-1.5 text-xs font-semibold transition-colors ${
-                    lev === p
+                    Math.abs(trailPct - p) < 0.001
                       ? "bg-up text-black"
                       : "bg-white/[0.07] text-text-muted hover:bg-white/10"
                   }`}
                 >
-                  {p}×
+                  {p.toFixed(2)}%
                 </button>
               ))}
-          </div>
-
-          {!leverage.canSync && (
-            <p className="mt-2 text-[11px] leading-snug text-text-muted">
-              Saved on this device. Finish setup and switch to live to apply
-              this on your trading account.
-            </p>
-          )}
-        </section>
-
-        {/* ---- Trailing ---------------------------------------------------- */}
-        <section className="glass-inset rounded-2xl p-4">
-          <div className="mb-2 flex items-baseline justify-between">
-            <span className="text-[11px] font-medium uppercase tracking-wide text-text-muted">
-              Trailing stop
-            </span>
-            <span className="tabular text-[11px] text-text-muted">
-              behind price
-            </span>
-          </div>
-
-          <span className="tabular text-2xl font-bold text-text">
-            {trailPct.toFixed(2)}%
-          </span>
-
-          <input
-            type="range"
-            min={TRAIL_MIN_PCT}
-            max={TRAIL_MAX_PCT}
-            step={0.1}
-            value={+trailPct.toFixed(2)}
-            onChange={(e) =>
-              dispatch(
-                updateSettings({ defaultTrailPct: Number(e.target.value) / 100 })
-              )
-            }
-            aria-label="Trailing stop distance"
-            className="lev-slider mt-3 w-full"
-            style={{
-              ["--fill" as string]: `${
-                ((trailPct - TRAIL_MIN_PCT) / (TRAIL_MAX_PCT - TRAIL_MIN_PCT)) *
-                100
-              }%`,
-            }}
-          />
-
-          <div className="mt-2 flex items-center gap-2">
-            {[0.5, 1, 2, 5].map((p) => (
-              <button
-                key={p}
-                type="button"
-                onClick={() => {
-                  playSound("tap");
-                  haptic("tap");
-                  dispatch(updateSettings({ defaultTrailPct: p / 100 }));
-                }}
-                className={`tabular flex-1 rounded-lg py-1.5 text-xs font-semibold transition-colors ${
-                  Math.abs(trailPct - p) < 0.001
-                    ? "bg-up text-black"
-                    : "bg-white/[0.07] text-text-muted hover:bg-white/10"
-                }`}
-              >
-                {p.toFixed(2)}%
-              </button>
-            ))}
-          </div>
-        </section>
+            </div>
+          </section>
+          </>
+        )}
 
         {/* ---- What the next order costs ----------------------------------- */}
         <section className="glass-inset flex flex-col gap-2 rounded-2xl p-4">

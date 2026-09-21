@@ -26,6 +26,12 @@ import type { MarketSymbol } from "@/types";
  *
  * The values are READ-ONLY here and come from the same settings slice the
  * order path reads, so the dock cannot drift from what actually gets sent.
+ *
+ * SIZE IS THE ONLY EDITABLE ONE now, so it is the only one shown. Leverage and
+ * trailing are fixed (market cap and 0.1%), and a readout you cannot act on is
+ * just noise on a dock this small — their rows are kept below behind a `false`
+ * guard, matching the disabled sections in MarketSettingsSheet, so the 3-row
+ * layout can come back with the controls.
  */
 
 // Drag band insets (px from top / bottom of the viewport). The dock is docked to
@@ -121,24 +127,36 @@ export function PositionDock({ symbol, onOpen }: Props) {
         type="button"
         onClick={activate}
         aria-label={`${symbol} order settings`}
-        // 2 columns (icon, value) × 3 rows (size, leverage, trailing).
+        // 2 columns (icon, value) × 1 row (size).
         className="glass-inset grid grid-cols-[auto_auto] items-center gap-x-2 gap-y-1.5 rounded-r-2xl py-2.5 pl-2 pr-3 shadow-lg transition-transform active:scale-95"
       >
         <Cell
           icon={Coins01Icon}
-          value={`$${size.toFixed(2)}`}
+          // Up to 4 decimals: the minimum is a 4-decimal number on the
+          // high-leverage markets ($1.2625 on BTC), and rounding the display to
+          // cents would show a size that is not the one being sent.
+          value={`$${size.toLocaleString(undefined, {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 4,
+          })}`}
           label="Size"
         />
-        <Cell
-          icon={ChartBreakoutCircleIcon}
-          value={`${lev.toFixed(2)}×`}
-          label="Leverage"
-        />
-        <Cell
-          icon={ArrowMoveDownRightIcon}
-          value={`${trailPct.toFixed(2)}%`}
-          label="Trailing"
-        />
+        {/* Leverage + trailing rows — disabled alongside their controls in
+            MarketSettingsSheet. See the note at the top of this file. */}
+        {false && (
+          <>
+            <Cell
+              icon={ChartBreakoutCircleIcon}
+              value={`${lev.toFixed(2)}×`}
+              label="Leverage"
+            />
+            <Cell
+              icon={ArrowMoveDownRightIcon}
+              value={`${trailPct.toFixed(2)}%`}
+              label="Trailing"
+            />
+          </>
+        )}
       </button>
     </motion.div>
   );

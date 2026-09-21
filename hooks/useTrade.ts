@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
-import { MARKETS, leverageFor } from "@/lib/markets";
+import { MARKETS, leverageFor, minSizeFor } from "@/lib/markets";
 import {
   openPosition,
   trailStopFor,
@@ -63,13 +63,14 @@ const profitStepFor = (marginUsd: number) => Math.max(marginUsd * 0.05, 1);
  */
 export const MARGIN_HEADROOM = 0.98;
 
-/**
- * Don't submit an order below this margin. Bulk enforces a per-market
- * `minNotional` (as low as $1 on BTC, $50 on most others); at 10x leverage $5 of
- * margin clears a $50 floor, and anything under this is a dust order the user
- * did not mean to place.
- */
-const MIN_MARGIN_USD = 5;
+// The minimum margin an order may carry is PER MARKET, not a flat number.
+//
+// It used to be a flat $5, which was the 10× market's floor applied everywhere.
+// That silently blocked perfectly valid orders once sizing moved to the real
+// per-market minimum: $50 of notional is $1.25 of margin at BTC's 40×, and a
+// flat $5 floor rejects it in our own code before Bulk ever sees it — with a
+// "deposit more USDC" toast on an account that had plenty. `minSizeFor` derives
+// the floor from the leverage the order will actually use; see lib/markets.ts.
 
 // Bulk's /order gateway can 504 (or the request abort) even though the order
 // STILL FILLS — so a timeout is not a real failure. When we see one, we leave
@@ -253,15 +254,25 @@ export function useTrade(
           ? Math.min(settings.defaultPositionSize, availableMargin * MARGIN_HEADROOM)
           : settings.defaultPositionSize;
 
-      if (availableMargin != null && marginUsd < MIN_MARGIN_USD) {
-        // Nothing to trade with — say so rather than letting Bulk reject it with
-        // a risk-limit message the user can do nothing about.
+      // NOTE the interaction with the minimum below: the 2% headroom trim can
+      // pull a size that was exactly at this market's floor just under it (a
+      // $1.2625 BTC order on a $1.27 balance trims to $1.2373). That order is
+      // correctly refused rather than nudged back up — there genuinely isn't
+      // enough margin for the smallest order the market takes, and raising it
+      // back would reintroduce the risk-limit rejection the trim exists to
+      // prevent.
+
+      // The smallest order this market accepts, at the leverage this order will
+      // use. Below it Bulk rejects for sub-$50 notional, so stop here and say
+      // what is actually wrong instead of surfacing that rejection.
+      const minMargin = minSizeFor(activeSymbol, settings.leverageByMarket);
+      if (availableMargin != null && marginUsd < minMargin) {
         dispatch(clearPendingChartEntry(activeSymbol));
         toast("Not enough margin", {
           type: "error",
-          description: `Deposit more USDC — $${availableMargin.toFixed(
+          description: `${activeSymbol} needs at least $${minMargin.toFixed(
             2
-          )} available.`,
+          )} — $${availableMargin.toFixed(2)} available.`,
         });
         return;
       }

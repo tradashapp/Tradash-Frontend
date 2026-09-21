@@ -4,7 +4,12 @@ import { useMemo } from "react";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { updateSettings } from "@/store/slices/settingsSlice";
 import { Sheet } from "@/components/ui/Sheet";
-import { MARKETS, maxLeverageFor } from "@/lib/markets";
+import {
+  MARKETS,
+  MIN_NOTIONAL_USD,
+  defaultSizeFor,
+  minSizeFor,
+} from "@/lib/markets";
 import { config } from "@/lib/config";
 import { MARGIN_HEADROOM } from "@/hooks/useTrade";
 import { haptic } from "@/lib/haptics";
@@ -13,7 +18,7 @@ import type { useLeverage } from "@/hooks/useLeverage";
 import type { MarketSymbol } from "@/types";
 
 /**
- * Market settings — size, leverage and trailing for the market being traded.
+ * Market settings — the SIZE of the next order on the market being traded.
  *
  * Replaces the old add/reduce dock panel. That dock was a position TOOL: it
  * existed only while a trade was open, and its buttons changed a live
@@ -22,11 +27,24 @@ import type { MarketSymbol } from "@/types";
  * underneath — the two questions asked here are "what will my next order look
  * like" and "what am I already in".
  *
- * WHERE THE VALUES GO. Everything edited here writes to the settings slice
- * (`defaultPositionSize`, `leverageByMarket` via useLeverage, and
- * `defaultTrailPct`) — the exact state `useTrade.open()` reads when it places
- * an order. There is deliberately no local draft copy: there is one source of
- * truth, so a number changed here IS the next order.
+ * SIZE IS THE ONLY OPTION. Leverage and trailing used to be edited here too;
+ * both sections are COMMENTED OUT below rather than deleted, so they can come
+ * back without being rebuilt. They did not become unused — they became fixed:
+ *   - leverage: every market trades at its OWN cap (`leverageFor` falls back to
+ *     the max, and `store/persist.ts` clears leverage a device had already
+ *     stored, so nobody is left on a lower one they can no longer see);
+ *   - trailing: fixed at the 0.1% default in the settings slice.
+ * `useLeverage` is still threaded in as a prop and still read here, because the
+ * min order size depends on the leverage the order will actually use.
+ *
+ * WHERE THE VALUE GOES. The size written here goes straight to the settings
+ * slice (`defaultPositionSize`) — the exact state `useTrade.open()` reads when
+ * it places an order. There is deliberately no local draft copy: there is one
+ * source of truth, so a number changed here IS the next order.
+ *
+ * It also sets `positionSizeTouched`, which stops `useDefaultSize` from
+ * recomputing the default underneath the user. That flag is the whole reason a
+ * hand-picked size survives the next balance tick.
  */
 
 /** Two decimals everywhere in this sheet, per the dock's display rule. */
@@ -36,12 +54,27 @@ const usd2 = (n: number) =>
     maximumFractionDigits: 2,
   })}`;
 
-/** Floor for the size slider, so it can never land on an unfillable order. */
-const MIN_SIZE_USD = 1;
+/**
+ * Sizes only — they carry up to 4 decimals and must be shown EXACTLY.
+ *
+ * A minimum of $1.2625 displayed as "$1.26" is a number that gets rejected when
+ * typed back in, so trailing precision is kept where it exists and dropped
+ * where it doesn't ($5, not $5.0000).
+ */
+const usd4 = (n: number) =>
+  `$${n.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 4,
+  })}`;
 
-/** Trailing-distance bounds for the slider, in percent. */
-const TRAIL_MIN_PCT = 0.1;
-const TRAIL_MAX_PCT = 10;
+// The size floor is no longer a flat constant: it is PER MARKET, because Bulk's
+// $50 minimum notional converts to a different margin at each market's leverage
+// (BTC 40× → $1.25, ETH 25× → $2, 10× → $5). See `minSizeFor` in lib/markets.
+
+// Trailing-distance bounds for the slider, in percent. Kept for the commented
+// out trailing section below.
+// const TRAIL_MIN_PCT = 0.1;
+// const TRAIL_MAX_PCT = 10;
 
 interface Props {
   open: boolean;
@@ -67,9 +100,17 @@ export function MarketSettingsSheet({
   const available =
     mode === "demo" ? demoBalance : liveBalance?.available ?? null;
 
-  const max = maxLeverageFor(symbol);
+  // Leverage is no longer editable, but it is still READ: it is what turns
+  // Bulk's $50 notional floor into this market's margin floor, and what the
+  // notional readout is derived from.
   const lev = leverage.leverageOf(symbol);
   const size = s.defaultPositionSize;
+
+  // This market's floor, and the default the size would return to. Both depend
+  // on the leverage the order will actually use, so both are recomputed when
+  // the market changes.
+  const minSize = minSizeFor(symbol, s.leverageByMarket);
+  const autoSize = defaultSizeFor(symbol, available, s.leverageByMarket);
 
   // What the order will ACTUALLY post as margin.
   //
@@ -96,14 +137,37 @@ export function MarketSettingsSheet({
   // back to the current size so the control still works while the feed catches
   // up, rather than trapping the handle at the minimum.
   const sliderMax = useMemo(() => {
-    if (available == null || available <= 0) return Math.max(size, 100);
-    return available;
-  }, [available, size]);
+    if (available == null || available <= 0) return Math.max(size, minSize * 20);
+    // Never below the floor, or the slider would have an inverted range on an
+    // account too small to meet this market's minimum at all.
+    return Math.max(available, minSize);
+  }, [available, size, minSize]);
 
+  // Every size the user picks is a DELIBERATE one, so it also sets
+  // `positionSizeTouched` and the auto-default stops applying from here on.
+  //
+  // Four decimals, not two: the minimum is itself a 4-decimal number
+  // ($1.2625 on BTC), and rounding it to cents would round it back under the
+  // notional floor — the exact rejection this is all meant to avoid.
   const setSize = (v: number) => {
     if (!Number.isFinite(v)) return;
-    const clamped = Math.min(sliderMax, Math.max(MIN_SIZE_USD, v));
-    dispatch(updateSettings({ defaultPositionSize: +clamped.toFixed(2) }));
+    const clamped = Math.min(sliderMax, Math.max(minSize, v));
+    dispatch(
+      updateSettings({
+        defaultPositionSize: +clamped.toFixed(4),
+        positionSizeTouched: true,
+      })
+    );
+  };
+
+  /** Hand the size back to the auto-default (min, or 5% of available). */
+  const resetSize = () => {
+    dispatch(
+      updateSettings({
+        defaultPositionSize: autoSize,
+        positionSizeTouched: false,
+      })
+    );
   };
 
   const pctOfAvailable =
@@ -137,7 +201,7 @@ export function MarketSettingsSheet({
           </div>
 
           <div className="flex items-end justify-between gap-3">
-            <SizeInput value={size} onChange={setSize} />
+            <SizeInput value={size} min={minSize} onChange={setSize} />
             {pctOfAvailable != null && (
               <span className="tabular pb-1.5 text-xs text-text-muted">
                 {pctOfAvailable.toFixed(0)}% of available
@@ -147,22 +211,45 @@ export function MarketSettingsSheet({
 
           <input
             type="range"
-            min={MIN_SIZE_USD}
-            max={Math.max(sliderMax, MIN_SIZE_USD)}
+            min={minSize}
+            max={Math.max(sliderMax, minSize)}
             step={0.01}
-            value={Math.min(size, sliderMax)}
+            value={Math.min(Math.max(size, minSize), sliderMax)}
             onChange={(e) => setSize(Number(e.target.value))}
             aria-label="Position size"
             className="lev-slider mt-3 w-full"
             style={{
+              // Fill is measured across [minSize, sliderMax], not from zero —
+              // the handle can never sit left of the floor, so a zero-based
+              // fill would never empty.
               ["--fill" as string]: `${
-                (Math.min(size, sliderMax) / Math.max(sliderMax, 1)) * 100
+                ((Math.min(Math.max(size, minSize), sliderMax) - minSize) /
+                  Math.max(sliderMax - minSize, 0.0001)) *
+                100
               }%`,
             }}
           />
 
           <div className="mt-2 flex items-center gap-2">
-            {[0.1, 0.25, 0.5, 1].map((f) => {
+            {/* "Min" is this market's floor, which is why it is a preset and
+                not a fixed percentage: it is the one size guaranteed to be
+                accepted, and on a small account it is the only one. */}
+            <button
+              type="button"
+              onClick={() => {
+                playSound("tap");
+                haptic("tap");
+                setSize(minSize);
+              }}
+              className={`tabular flex-1 rounded-lg py-1.5 text-xs font-semibold transition-colors ${
+                Math.abs(size - minSize) < 0.0005
+                  ? "bg-up text-black"
+                  : "bg-white/[0.07] text-text-muted hover:bg-white/10"
+              }`}
+            >
+              Min
+            </button>
+            {[0.25, 0.5, 1].map((f) => {
               const target = available != null && available > 0 ? available * f : null;
               const active = target != null && Math.abs(size - target) < 0.005;
               return (
@@ -186,6 +273,32 @@ export function MarketSettingsSheet({
               );
             })}
           </div>
+
+          {/* Why the floor is where it is. Without this the minimum reads as an
+              arbitrary number that moves between markets. */}
+          <p className="mt-2 text-[11px] leading-snug text-text-muted">
+            Minimum{" "}
+            <span className="tabular text-text">{usd4(minSize)}</span> on{" "}
+            {MARKETS[symbol].symbol} — orders must be worth at least $
+            {MIN_NOTIONAL_USD} at {lev}×.
+          </p>
+
+          {/* Only offered once the size has actually been pinned by hand, and
+              only when it differs from what the default would be — otherwise
+              it is a button that visibly does nothing. */}
+          {s.positionSizeTouched && Math.abs(size - autoSize) > 0.0005 && (
+            <button
+              type="button"
+              onClick={() => {
+                playSound("tap");
+                haptic("tap");
+                resetSize();
+              }}
+              className="mt-2 text-[11px] font-semibold text-text-muted underline underline-offset-2 hover:text-text"
+            >
+              Reset to default ({usd4(autoSize)})
+            </button>
+          )}
         </section>
 
         {/* ---- Leverage ---------------------------------------------------- */}
@@ -360,9 +473,12 @@ function SummaryRow({
 /** Tap-to-type size field. The slider covers coarse moves; this covers exact ones. */
 function SizeInput({
   value,
+  min,
   onChange,
 }: {
   value: number;
+  /** This market's floor — see `minSizeFor`. */
+  min: number;
   onChange: (v: number) => void;
 }) {
   return (
@@ -372,7 +488,7 @@ function SizeInput({
         type="number"
         inputMode="decimal"
         value={value}
-        min={MIN_SIZE_USD}
+        min={min}
         step={0.01}
         onChange={(e) => {
           const v = Number(e.target.value);

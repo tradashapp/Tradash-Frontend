@@ -109,6 +109,10 @@ export function TradeScreen({ initialMarket }: Props) {
   useDemoPnl();
   useLiveProfitSound();
   useTradeRecorder(); // records real price paths for trade replay
+  // Holds the order size at its per-market default (min, or 5% of available)
+  // until the user picks one by hand. After useBulkAccount, so the first
+  // computation sees a balance rather than null.
+  useDefaultSize();
   // A rejected-for-unapproved-builder-code order is the only reliable signal
   // that our cached approval is stale — feed it back so the Account sheet shows
   // the step as incomplete and offers the re-approve button.

@@ -38,11 +38,41 @@ function key(walletAddress: string) {
   return `${PREFIX}${config.bulk.network}:${walletAddress}`;
 }
 
+/**
+ * Load this wallet's agent key, MIGRATING a pre-network-scoping one.
+ *
+ * Scoping the key renamed the slot, which silently orphaned every agent stored
+ * before it: `loadAgent` looked under `<prefix><network>:<wallet>`, found
+ * nothing, and the app concluded there was no agent — for a browser that held a
+ * perfectly good, already-authorized key at `<prefix><wallet>`. Onboarding then
+ * issued ANOTHER key, which is how an account accumulates authorized agents
+ * that no browser can use.
+ *
+ * A rename needs a migration, so this does one: read the legacy slot when the
+ * scoped one is empty, and re-save it under the scoped key (keeping the legacy
+ * copy, so rolling this build back doesn't strand the key again).
+ *
+ * The legacy key is adopted for WHATEVER network is configured now. That is the
+ * pragmatic choice: which network it was authorized on is unknowable from the
+ * blob, and the caller verifies it against the live account anyway — an
+ * unauthorized key is rejected there rather than trusted here.
+ */
 export function loadAgent(walletAddress: string): StoredAgent | null {
   if (typeof window === "undefined") return null;
   try {
     const raw = window.localStorage.getItem(key(walletAddress));
-    return raw ? (JSON.parse(raw) as StoredAgent) : null;
+    if (raw) return JSON.parse(raw) as StoredAgent;
+
+    const legacy = window.localStorage.getItem(PREFIX + walletAddress);
+    if (!legacy) return null;
+    const parsed = JSON.parse(legacy) as StoredAgent;
+    if (!parsed?.secretBase58) return null;
+    try {
+      window.localStorage.setItem(key(walletAddress), legacy);
+    } catch {
+      /* migration is best-effort; the key still works this session */
+    }
+    return parsed;
   } catch {
     return null;
   }

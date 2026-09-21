@@ -164,6 +164,31 @@ export function useAgentWallet() {
   // this, `builderApproved` reset to false on every reload while the agent row
   // showed approved, and the onboard button — gated on the agent signer alone —
   // disappeared, leaving no way to ever re-approve.
+  // Expose a read-only diagnostic on `window` so the actual state of this
+  // browser's key can be INSPECTED rather than inferred. Every fix for
+  // `bad signature` before this one was a guess about which pair of values
+  // disagreed; this prints the answer. See lib/bulk/diagnose.ts.
+  useEffect(() => {
+    if (!masterAddress) return;
+    (window as unknown as Record<string, unknown>).__tradashDiagnose = async () => {
+      const { diagnoseAgent } = await import("@/lib/bulk/diagnose");
+      const d = await diagnoseAgent(masterAddress);
+      console.log("%c" + d.verdict, "font-weight:bold");
+      console.table({
+        network: d.network,
+        signatureDomain: d.signatureDomain,
+        storageKey: d.storageKey,
+        storedPubkeyLabel: d.storedPubkeyLabel ?? "(none)",
+        derivedPubkey: d.derivedPubkey ?? "(none)",
+        labelMatchesSecret: String(d.labelMatchesSecret),
+        derivedIsAuthorized: String(d.derivedIsAuthorized),
+        labelIsAuthorized: String(d.labelIsAuthorized),
+        builderApprovalMatches: String(d.builderApprovalMatches),
+      });
+      return d;
+    };
+  }, [masterAddress]);
+
   useEffect(() => {
     let cancelled = false;
     if (!masterAddress) {
@@ -289,10 +314,23 @@ export function useAgentWallet() {
       // working one. Verify, and generate fresh when it doesn't hold.
       let stored = loadAgent(masterAddress);
       if (stored) {
-        const usable = await makeAgentSigner(stored.secretBase58, masterAddress)
-          .then((s) => s.pubkey === stored!.pubkey)
-          .catch(() => false);
-        if (!usable) stored = null;
+        // Re-label from the SECRET rather than discarding the key when the
+        // label is wrong. The secret is the only part that matters; a stale
+        // `pubkey` field is a bookkeeping error, not a reason to burn a working
+        // (possibly already-authorized) key and add another to the account.
+        const derived = await makeAgentSigner(stored.secretBase58, masterAddress)
+          .then((s) => s.pubkey)
+          .catch(() => null);
+        if (!derived) {
+          stored = null; // secret unreadable — genuinely unusable
+        } else if (derived !== stored.pubkey) {
+          console.warn(
+            `[onboard] stored agent label ${stored.pubkey} does not match its ` +
+              `secret (${derived}); re-labelling.`
+          );
+          stored = { pubkey: derived, secretBase58: stored.secretBase58 };
+          saveAgent(masterAddress, stored);
+        }
       }
 
       // Is the key we hold ALREADY authorized on the account? If so there is
@@ -385,8 +423,36 @@ export function useAgentWallet() {
         if (privyId) void api.recordOnboard(privyId, "builder");
       }
 
-      // 4. Ready signer.
-      setSigner(await makeAgentSigner(stored.secretBase58, masterAddress));
+      // 4. Ready signer — but CONFIRM against the account before claiming
+      //    success. Setup previously announced "one-tap trading enabled" on the
+      //    strength of the calls not throwing, which is how a browser ended up
+      //    holding a key the account does not accept while the UI insisted
+      //    everything was fine. Re-read and check the key we will actually sign
+      //    with; if it isn't there, say so here rather than at the first trade.
+      const readySigner = await makeAgentSigner(stored.secretBase58, masterAddress);
+      const confirmed = await fetchAccount(masterAddress).catch(() => null);
+      const signerIsLive =
+        confirmed?.authorizedAgentWallets?.includes(readySigner.pubkey) ?? false;
+
+      setSigner(readySigner);
+      if (!signerIsLive) {
+        // Don't strand the user on a false success. The account read can also
+        // simply be stale, so this is a warning, not a thrown error.
+        dispatch(setAgentAuthorized(false));
+        console.warn(
+          `[onboard] agent ${readySigner.pubkey} is not in ` +
+            `authorizedAgentWallets after setup: ` +
+            `${JSON.stringify(confirmed?.authorizedAgentWallets ?? [])}`
+        );
+        toast("Setup incomplete", {
+          type: "error",
+          id: TID,
+          description:
+            "Your trading key wasn't registered. Tap setup again — run " +
+            "__tradashDiagnose() in the console if it repeats.",
+        });
+        return;
+      }
       toast("One-tap trading enabled", {
         type: "success",
         id: TID,

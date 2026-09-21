@@ -76,6 +76,25 @@ export async function submitSigned(
   signedEnvelope: unknown
 ): Promise<OrderResponse> {
   const res = await post<OrderResponse>("/order", signedEnvelope);
+  // A signature rejection says nothing about WHICH action was rejected or what
+  // was signed, and both an order and the leverage push travel this one
+  // function — so without this the same opaque message can come from either.
+  // Logs the envelope MINUS the signature, which is enough to compare the
+  // preimage inputs (actions/nonce/account/signer) against a known-good call.
+  const failed = res?.response?.data?.statuses?.[0] as
+    | Record<string, unknown>
+    | undefined;
+  const failMsg = (failed?.error as { message?: string } | undefined)?.message;
+  if (failMsg && /signature|signer/i.test(failMsg)) {
+    const env = demap(signedEnvelope) as Record<string, unknown>;
+    const { signature: _sig, ...rest } = env ?? {};
+    console.error(
+      `[bulk] "${failMsg}" for envelope:`,
+      JSON.stringify(rest),
+      "\nsignature length:",
+      typeof env?.signature === "string" ? env.signature.length : "(not a string)"
+    );
+  }
   const status = res?.response?.data?.statuses?.[0] as
     | Record<string, unknown>
     | undefined;

@@ -165,10 +165,29 @@ export interface BulkPosition {
   protection?: { orders?: unknown };
 }
 
+/**
+ * A builder-code approval as the ACCOUNT reports it.
+ *
+ * `maxFee` is a CAP in bps, not the fee charged: an order carrying a fee at or
+ * below it is accepted, above it rejected.
+ *
+ * Verified live 2026-09-21 on mainnet — `fullAccount` does return this. That
+ * contradicts the premise of `builderStore.ts` ("Bulk exposes NO readable
+ * builder-code approval state"), which is why that optimistic localStorage
+ * cache exists at all. The cache can be replaced by reading this; onboarding
+ * already prefers it.
+ */
+export interface BulkBuilderCodeApproval {
+  recipient: string;
+  maxFee: number;
+}
+
 export interface BulkFullAccount {
   kind: string; // "MasterEOA"
   name: string | null;
   authorizedAgentWallets: string[];
+  /** Optional: absent on older responses / accounts that never approved one. */
+  builderCodeApprovals?: BulkBuilderCodeApproval[];
   margin: BulkMargin;
   positions: BulkPosition[];
   openOrders: unknown[];

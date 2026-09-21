@@ -105,6 +105,28 @@ export async function fundAccount(
   return claimFaucet(masterAccount, signBytes);
 }
 
+/**
+ * Does this error mean "that agent is already authorized on this account"?
+ *
+ * Bulk refuses a duplicate `agentWalletCreation` with a message along the lines
+ * of "agent wallet already exists". That is not a failure in any meaningful
+ * sense — the authorization the caller wanted is in place — but it aborts
+ * onboarding at the agent step, before the builder code is approved, leaving
+ * setup half-done and un-retryable (every retry hits the same duplicate).
+ *
+ * This is reached whenever the LOCAL `agentAuthorized` flag is out of step with
+ * the account: the flag lives in Redux/localStorage, the authorization lives on
+ * Bulk, and clearing the former does not undo the latter.
+ *
+ * Matched loosely (`already` + `exist`) because the exact phrasing is the
+ * server's and unverified from here — the surrounding words have changed before
+ * (see `humanizeStatusKey` in client.ts for how many shapes these take).
+ */
+export function isAgentAlreadyAuthorizedError(e: unknown): boolean {
+  const msg = e instanceof Error ? e.message : String(e);
+  return /agent.*already|already.*(exist|authoriz)/i.test(msg);
+}
+
 /** Authorize the agent session key on the master account. */
 export async function authorizeAgentWallet(
   masterAccount: string,

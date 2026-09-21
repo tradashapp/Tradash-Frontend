@@ -25,6 +25,7 @@ import {
   fundAccount,
   authorizeAgentWallet,
   approveBuilderCode,
+  isAgentAlreadyAuthorizedError,
   type MasterSignBytes,
 } from "@/lib/bulk/onboarding";
 import { useAppDispatch } from "@/store/hooks";
@@ -293,16 +294,50 @@ export function useAgentWallet() {
           .catch(() => false);
         if (!usable) stored = null;
       }
+
+      // Is the key we hold ALREADY authorized on the account? If so there is
+      // nothing to authorize, and asking again is not idempotent — Bulk
+      // rejects a duplicate with "agent wallet already exists" and the whole
+      // setup fails at step 2.
+      //
+      // This is the state anyone lands in after forcing `agentAuthorized` back
+      // to false by hand (or clearing it to re-run setup): the flag is local,
+      // the authorization is not. The key is still perfectly good, so skip the
+      // authorize call rather than regenerating — a fresh key would work too,
+      // but it would add yet another entry to an account that already carries
+      // twelve, and each one stays authorized forever.
+      const existing = await fetchAccount(masterAddress).catch(() => null);
+      const alreadyAuthorized =
+        stored != null &&
+        (existing?.authorizedAgentWallets?.includes(stored.pubkey) ?? false);
+
       if (!stored) {
         const kp = await generateAgentKeypair();
         stored = { pubkey: kp.pubkey, secretBase58: kp.secretBase58 } satisfies StoredAgent;
         saveAgent(masterAddress, stored);
       }
 
-      // 2. Authorize the agent on the master account (master-signed).
-      toast("Authorizing agent wallet…", { type: "loading", id: TID });
-      await authorizeAgentWallet(masterAddress, stored.pubkey, masterSign);
-      dispatch(setAgentAuthorized(true));
+      // 2. Authorize the agent on the master account (master-signed), unless
+      //    the account already has this exact key.
+      if (alreadyAuthorized) {
+        // Nothing to sign — the local flag was simply out of step with the
+        // account. Converge on the truth instead of asking the user for a
+        // signature that can only be rejected.
+        dispatch(setAgentAuthorized(true));
+      } else {
+        toast("Authorizing agent wallet…", { type: "loading", id: TID });
+        try {
+          await authorizeAgentWallet(masterAddress, stored.pubkey, masterSign);
+        } catch (e) {
+          // "agent wallet already exists" means the authorization we wanted is
+          // in place — the account and our local flag had merely drifted (a
+          // race with the check above, or a retry after a dropped response).
+          // The goal state is reached, so treat it as success rather than
+          // failing setup for succeeding twice.
+          if (!isAgentAlreadyAuthorizedError(e)) throw e;
+        }
+        dispatch(setAgentAuthorized(true));
+      }
       if (privyId) void api.recordOnboard(privyId, "agent");
 
       // 3. Approve our builder code (master-signed) — required for revenue.
@@ -313,21 +348,41 @@ export function useAgentWallet() {
       //    generic "Setup failed" and the difference was invisible.
       const { recipient, feeBps } = config.builder;
       if (recipient && feeBps) {
-        toast("Approving builder code…", { type: "loading", id: TID });
-        try {
-          await approveBuilderCode(masterAddress, recipient, feeBps, masterSign);
-          saveApproval(masterAddress, { recipient, feeBps });
-          dispatch(setBuilderApproved(true));
-          if (privyId) void api.recordOnboard(privyId, "builder");
-        } catch (e) {
-          // Don't let a bad cache outlive the failure.
-          clearApproval(masterAddress);
-          dispatch(setBuilderApproved(false));
-          const msg = e instanceof Error ? e.message : String(e);
-          throw new Error(
-            `Builder-code approval failed: ${msg.replace(/^Bulk order error:\s*/, "")}`
-          );
+        // Already approved ON THE ACCOUNT? Then this step is done, whatever the
+        // local cache says — the same drift as the agent flag above, and asking
+        // again risks the same duplicate rejection.
+        //
+        // `builderCodeApprovals` IS readable on `fullAccount` (verified live
+        // 2026-09-21 on mainnet), despite the comment in builderStore.ts
+        // claiming no readable approval state — so the account can answer this
+        // directly rather than trusting localStorage.
+        //
+        // `maxFee >= feeBps` because Bulk approves a fee CAP, not an exact fee:
+        // an approval at 5bps covers a 5bps order, but raising
+        // NEXT_PUBLIC_BUILDER_FEE_BPS to 10 needs a fresh approval.
+        const approvedOnAccount =
+          existing?.builderCodeApprovals?.some(
+            (a) => a.recipient === recipient && a.maxFee >= feeBps
+          ) ?? false;
+
+        if (!approvedOnAccount) {
+          toast("Approving builder code…", { type: "loading", id: TID });
+          try {
+            await approveBuilderCode(masterAddress, recipient, feeBps, masterSign);
+          } catch (e) {
+            // Don't let a bad cache outlive the failure.
+            clearApproval(masterAddress);
+            dispatch(setBuilderApproved(false));
+            const msg = e instanceof Error ? e.message : String(e);
+            throw new Error(
+              `Builder-code approval failed: ${msg.replace(/^Bulk order error:\s*/, "")}`
+            );
+          }
         }
+
+        saveApproval(masterAddress, { recipient, feeBps });
+        dispatch(setBuilderApproved(true));
+        if (privyId) void api.recordOnboard(privyId, "builder");
       }
 
       // 4. Ready signer.

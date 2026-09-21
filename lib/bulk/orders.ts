@@ -46,14 +46,23 @@ export function isBuilderNotApprovedError(e: unknown): boolean {
  *    under EVERY signature domain (mainnet/testnet/devnet all answered this for
  *    a throwaway key), so the domain is NOT what distinguishes them.
  *  - `bad signature` — the signer IS authorized, but the signature does not
- *    verify against the preimage. In practice: the stored secret does not match
- *    the stored pubkey (see the rehydrate guard in useAgentWallet), the key was
- *    revoked, or `NEXT_PUBLIC_BULK_NETWORK` disagrees with the network
- *    `restUrl` points at (the domain byte is part of the preimage — see
- *    `signatureDomain()` in lib/config.ts).
+ *    verify. **This is usually NOT a key problem**, and re-running setup does
+ *    not fix it. Causes, in the order they have actually occurred:
  *
- * Both are fixed by re-running setup so a freshly generated agent is authorized
- * with its own secret, which is why they still share one message.
+ *      1. **A stale `bulk-keychain-wasm`.** The package defines the signing
+ *         preimage; 0.1.28 added a `"bulk-actions"` domain-separation prefix
+ *         that 0.1.26 lacked. Mainnet moved to the new format, so every order
+ *         signed by the old package was rejected — with an unchanged API, so
+ *         nothing failed to compile. THIS WAS THE REAL ONE. See keychain.ts.
+ *      2. `NEXT_PUBLIC_BULK_NETWORK` disagreeing with the network `restUrl`
+ *         points at — the domain byte is part of the preimage.
+ *      3. The stored secret not matching the stored pubkey (see the rehydrate
+ *         guard in useAgentWallet), or a revoked key. Rare, and the only one
+ *         setup can fix.
+ *
+ * Because (1) and (2) are configuration rather than credentials, the order path
+ * deliberately does NOT route this to the setup flow — that loop re-issues keys
+ * forever while the real fault sits in the client build.
  */
 export function isBadSignatureError(e: unknown): boolean {
   const msg = e instanceof Error ? e.message : String(e);
@@ -136,17 +145,47 @@ interface OpenParams {
   isolated?: boolean;
 }
 
-/** Open (or add to) a market position. */
+/**
+ * Open (or add to) a market position.
+ *
+ * THE SIZE MUST BE FLOORED TO THE MARKET'S LOT before it is signed. This is not
+ * tidiness — it is the difference between an order filling and an opaque
+ * `bad signature`.
+ *
+ * Sizes travel in the SIGNED PREIMAGE as a fixed-point integer (1e8 units),
+ * not as the float in the JSON. A size that is not a whole number of lots is
+ * re-quantised by the server, which then rebuilds the preimage from the snapped
+ * value — and that no longer matches what the client signed. Bulk reports the
+ * mismatch as `bad signature`, naming neither the size nor the rounding, which
+ * is why this looked for a long time like a key or network problem.
+ *
+ * Verified 2026-09-21 from a real failing envelope: 0.4265022573941039 SOL
+ * encodes to 42650226 fixed-point units, which is not a multiple of SOL's
+ * 10000-unit (0.0001) lot — remainder 226. Flooring to 0.4265 gives 42650000,
+ * an exact multiple.
+ *
+ * `baseSizeFromUsd` produces such a size on nearly every order (margin ÷ a live
+ * price is an arbitrary float), so this affects all markets, not just SOL.
+ */
 export async function openMarket(
   signer: AgentSigner,
   { bulkSymbol, isLong, size, refPrice, isolated = false }: OpenParams
 ): Promise<OrderResponse> {
+  const lot = lotSizeForBulkSymbol(bulkSymbol);
+  const lotSize = floorToLot(size, lot);
+  if (lotSize <= 0) {
+    // Below one lot there is no representable order. Say so here rather than
+    // sending a zero size for Bulk to reject with a fixed-point 422.
+    throw new Error(
+      `Order size ${size} is below the minimum increment (${lot}) for ${bulkSymbol}.`
+    );
+  }
   const bc = builderCode();
   const order = {
     type: "order",
     symbol: bulkSymbol,
     isBuy: isLong,
-    size,
+    size: lotSize,
     price: marketPriceBound(refPrice, isLong),
     reduceOnly: false,
     isolated,

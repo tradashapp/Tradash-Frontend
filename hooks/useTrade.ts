@@ -335,13 +335,19 @@ export function useTrade(
         // the key this account accepts. Raw, it is unactionable; the fix is
         // always to re-issue the trading key. See `isBadSignatureError`.
         if (isBadSignatureError(e)) {
-          toast("Trading key needs renewing", {
+          // Deliberately does NOT send the user to setup. `bad signature` is
+          // usually not a key problem at all — the signing PREIMAGE format is
+          // defined by bulk-keychain-wasm, and a version whose format the
+          // server has moved past rejects every order no matter how many times
+          // the key is re-issued. Pushing the user through setup on this error
+          // sent them round that loop repeatedly, fixing nothing. See
+          // `isBadSignatureError` and lib/bulk/keychain.ts.
+          toast("Order rejected by the exchange", {
             type: "error",
             id: `open-${activeSymbol}`,
             description:
-              "Re-run setup in Account to issue a new one — your funds and positions are untouched.",
+              "Signature not accepted. Your funds and positions are untouched — please report this.",
           });
-          onNeedsSetup?.();
           return;
         }
         toast("Order failed", {

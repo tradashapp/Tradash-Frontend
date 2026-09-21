@@ -21,15 +21,18 @@ export interface StoredAgent {
 /**
  * Storage key for a wallet's agent key — scoped to the BULK NETWORK.
  *
- * An agent wallet is authorized on ONE network. The key used to be
- * `<prefix><wallet>` with no network in it, so switching
- * NEXT_PUBLIC_BULK_NETWORK (testnet → mainnet) reused a key the new network
- * had never seen. Signatures then carried the new network's domain byte
- * against a key registered under the old one, and Bulk answered with an opaque
- * `bad signature` — a message that points at neither the key nor the network.
+ * An agent is authorized on ONE network, but the key used to be
+ * `<prefix><wallet>` with no network in it. Switching
+ * NEXT_PUBLIC_BULK_NETWORK therefore had the two networks OVERWRITE each
+ * other's agent: onboarding on mainnet replaced the testnet secret in place,
+ * and vice versa. Scoping gives each network its own slot, so switching back
+ * finds the original still authorized instead of a secret that was clobbered.
  *
- * Scoping the key means each network gets its own agent, and switching back
- * finds the original still authorized rather than having overwritten it.
+ * NOTE this is a correctness fix for switching, not the cause of every
+ * `bad signature` — that error is about the secret not matching the pubkey the
+ * account authorized. See `isBadSignatureError` in ./orders.ts for what the
+ * server actually distinguishes, and the rehydrate guard in
+ * hooks/useAgentWallet.ts for the check that catches it.
  */
 function key(walletAddress: string) {
   return `${PREFIX}${config.bulk.network}:${walletAddress}`;

@@ -34,19 +34,26 @@ export function isBuilderNotApprovedError(e: unknown): boolean {
  * Does this error mean "the signature didn't verify"?
  *
  * Bulk answers `bad signature` for several unrelated causes and names none of
- * them, so it is one of the least actionable errors in the API. In practice it
- * is almost never a corrupt signature — it is a MISMATCH between what signed
- * and what the server expected:
+ * them, so it is one of the least actionable errors in the API. It is almost
+ * never a corrupt signature — it is a MISMATCH between the key that signed and
+ * the key the server expected to sign.
  *
- *  - the agent key was authorized on a DIFFERENT NETWORK (the common one: the
- *    signature carries a domain byte, the server rebuilds the preimage with its
- *    own, and they disagree — see `signatureDomain()` in lib/config.ts);
- *  - the stored agent key was revoked, or belongs to another master account;
- *  - `NEXT_PUBLIC_BULK_NETWORK` doesn't match the network `restUrl` points at.
+ * VERIFIED live 2026-09-21 against mainnet-api1.bulk.trade, because the first
+ * guess here was wrong. The two messages are NOT interchangeable:
  *
- * All three are fixed the same way — re-run setup so a fresh agent is
- * authorized on the network actually in use — which is why they share one
- * message rather than being told apart.
+ *  - `unauthorized signer` — the signing pubkey is not on the account's
+ *    `authorizedAgentWallets`. Returned for a key the account has never seen,
+ *    under EVERY signature domain (mainnet/testnet/devnet all answered this for
+ *    a throwaway key), so the domain is NOT what distinguishes them.
+ *  - `bad signature` — the signer IS authorized, but the signature does not
+ *    verify against the preimage. In practice: the stored secret does not match
+ *    the stored pubkey (see the rehydrate guard in useAgentWallet), the key was
+ *    revoked, or `NEXT_PUBLIC_BULK_NETWORK` disagrees with the network
+ *    `restUrl` points at (the domain byte is part of the preimage — see
+ *    `signatureDomain()` in lib/config.ts).
+ *
+ * Both are fixed by re-running setup so a freshly generated agent is authorized
+ * with its own secret, which is why they still share one message.
  */
 export function isBadSignatureError(e: unknown): boolean {
   const msg = e instanceof Error ? e.message : String(e);

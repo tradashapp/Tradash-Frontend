@@ -331,15 +331,15 @@ export function useTrade(
           });
           return;
         }
-        // `bad signature` means the key that signed isn't one this network has
-        // authorized — most often an agent registered on the other network.
-        // Raw, it is unactionable; the fix is always to re-run setup.
+        // `bad signature` / `unauthorized signer`: the key that signed is not
+        // the key this account accepts. Raw, it is unactionable; the fix is
+        // always to re-issue the trading key. See `isBadSignatureError`.
         if (isBadSignatureError(e)) {
-          toast("Setup needed on this network", {
+          toast("Trading key needs renewing", {
             type: "error",
             id: `open-${activeSymbol}`,
             description:
-              "Your trading key isn't authorized here. Re-run setup in Account.",
+              "Re-run setup in Account to issue a new one — your funds and positions are untouched.",
           });
           onNeedsSetup?.();
           return;

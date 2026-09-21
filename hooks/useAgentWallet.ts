@@ -187,14 +187,49 @@ export function useAgentWallet() {
     }
     (async () => {
       const acct = await fetchAccount(masterAddress).catch(() => null);
-      const authorized =
-        acct?.authorizedAgentWallets?.includes(stored.pubkey) ?? false;
+      // Build the signer FIRST and authorize against the pubkey DERIVED FROM
+      // THE SECRET — never against the stored `pubkey` field.
+      //
+      // Those two can disagree, and when they do the failure is invisible:
+      // the check passes (the stored pubkey really is authorized) while every
+      // signature is made by a different key, so Bulk answers `bad signature`
+      // on every order while the UI keeps showing "authorized". The stored
+      // pubkey is a LABEL; the secret is the only thing that actually signs.
+      //
+      // How they diverge: `saveAgent` writes the pair non-atomically across
+      // re-onboards, and localStorage is shared by every build pointed at this
+      // origin. An account accumulating many authorized agents (this one had
+      // 12) is the visible symptom of repeated re-onboarding, and only the
+      // secret from the LAST one is still in the browser.
+      let agentSigner: Awaited<ReturnType<typeof makeAgentSigner>> | null = null;
+      try {
+        agentSigner = await makeAgentSigner(stored.secretBase58, masterAddress);
+      } catch {
+        agentSigner = null; // unreadable/corrupt secret — treat as no agent
+      }
       if (cancelled) return;
-      if (authorized) {
-        setSigner(await makeAgentSigner(stored.secretBase58, masterAddress));
+      const authorized =
+        agentSigner != null &&
+        (acct?.authorizedAgentWallets?.includes(agentSigner.pubkey) ?? false);
+      if (authorized && agentSigner) {
+        setSigner(agentSigner);
         dispatch(setAgentAuthorized(true));
+        // Heal a stale label so the mismatch can't outlive this session.
+        if (stored.pubkey !== agentSigner.pubkey) {
+          saveAgent(masterAddress, {
+            pubkey: agentSigner.pubkey,
+            secretBase58: stored.secretBase58,
+          });
+        }
       } else {
-        // Stored key isn't authorized on-chain — not usable. Force re-onboard.
+        // The key we HOLD isn't authorized here — whatever the stored label
+        // says. Not usable: force re-onboard.
+        if (agentSigner && stored.pubkey !== agentSigner.pubkey) {
+          console.warn(
+            "[agent] stored pubkey does not match the stored secret — " +
+              `label ${stored.pubkey}, actual ${agentSigner.pubkey}. Re-onboarding.`
+          );
+        }
         setSigner(null);
         dispatch(setAgentAuthorized(false));
       }
@@ -244,8 +279,20 @@ export function useAgentWallet() {
         }
       }
 
-      // 1. Agent keypair (reuse if present).
+      // 1. Agent keypair — reuse a stored one ONLY if its secret really is the
+      // secret for its pubkey. A blob whose two halves disagree is worse than
+      // no key at all: authorizing its (stale) pubkey succeeds, so setup
+      // reports success, and then every order fails `bad signature` because a
+      // different key does the signing. Re-authorizing the same broken pair is
+      // exactly how an account ends up with a dozen authorized agents and no
+      // working one. Verify, and generate fresh when it doesn't hold.
       let stored = loadAgent(masterAddress);
+      if (stored) {
+        const usable = await makeAgentSigner(stored.secretBase58, masterAddress)
+          .then((s) => s.pubkey === stored!.pubkey)
+          .catch(() => false);
+        if (!usable) stored = null;
+      }
       if (!stored) {
         const kp = await generateAgentKeypair();
         stored = { pubkey: kp.pubkey, secretBase58: kp.secretBase58 } satisfies StoredAgent;

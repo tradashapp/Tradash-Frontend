@@ -594,10 +594,17 @@ export function useTrade(
         mode === "live" && liveBalance?.available != null
           ? Math.min(deltaUsd, liveBalance.available * MARGIN_HEADROOM)
           : deltaUsd;
-      if (mode === "live" && addMargin < MIN_MARGIN_USD) {
+      // Per-market floor, as in `open`: an ADD is its own market order and
+      // carries the same $50 notional minimum. Keyed to the POSITION's market,
+      // not the active one — the positions list can add to a row you aren't
+      // currently looking at.
+      const addMin = minSizeFor(position.symbol, settings.leverageByMarket);
+      if (mode === "live" && addMargin < addMin) {
         toast("Not enough margin", {
           type: "error",
-          description: "Deposit more USDC to add to this position.",
+          description: `Adding to ${
+            position.symbol
+          } needs at least $${addMin.toFixed(2)}.`,
         });
         return;
       }
@@ -683,6 +690,7 @@ export function useTrade(
       resolveTarget,
       signer,
       liveBalance,
+      settings.leverageByMarket,
       requireLiveSetup,
       dispatch,
       toast,

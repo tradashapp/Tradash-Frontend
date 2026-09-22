@@ -12,131 +12,101 @@ export const contentType = "image/png";
 const UP = "#72E912";
 const TEXT = "#e8eaed";
 const TEXT_MUTED = "#8b90a0";
+const DOT = "#2a2e3a";
 
-/**
- * Inline a public/ asset as a data URI.
- *
- * next/og cannot fetch a relative URL at build time — there is no origin to
- * resolve it against — so every image has to be embedded in the payload.
- */
+// The `.glass-sheet` recipe (globals.css) as ONE background value.
+//
+// Three satori rules are baked in here, each of which renders a blank card if
+// broken — and breaks SILENTLY, since the route still answers 200 image/png:
+//   1. Gradients must be comma-stacked on the element that shows them. Satori
+//      drops a gradient painted by an absolutely-positioned overlay div.
+//   2. Each gradient must sit on ONE line. A multi-line value throws
+//      "object null is not iterable" and the response never pipes.
+//   3. Radii are explicit px. Satori accepts `120% 60%` but resolves it to a
+//      far tighter bloom than a browser, washing the glow out.
+const SHEET_BG =
+  "radial-gradient(1100px 620px at 20% -10%, rgba(114,233,18,0.20) 0%, rgba(114,233,18,0.06) 40%, rgba(114,233,18,0) 72%), " +
+  "linear-gradient(to bottom, rgba(114,233,18,0.05) 0%, rgba(114,233,18,0.012) 22%, rgba(114,233,18,0) 45%), " +
+  "linear-gradient(to bottom, #0b0e11 0%, #08090c 55%, #060709 100%)";
+
+/** Inline a public/ asset as a data URI — satori cannot fetch a relative URL. */
 function assetUri(relPath: string): string | null {
   try {
     const p = path.join(process.cwd(), "public", relPath);
     return `data:image/png;base64,${fs.readFileSync(p).toString("base64")}`;
   } catch {
-    // A missing asset must not 500 the card: the layout below degrades to
-    // wordmark-less and still renders.
     return null;
   }
 }
 
 export default function Image() {
-  // The horizontal lockup (790×316), not the square icon — it reads as a
-  // brand mark at small sizes in a timeline.
+  // The horizontal lockup (790×316 → 2.5 aspect), not the square icon.
   const logoSrc = assetUri("images/logos/tradash-full.png");
 
   return new ImageResponse(
     (
+      // Plain flex column. No absolute positioning anywhere: satori's layout
+      // engine supports only a subset of CSS, and absolute children are where
+      // this card silently lost its content before.
       <div
         style={{
           width: "100%",
           height: "100%",
           display: "flex",
-          position: "relative",
-          overflow: "hidden",
-          // The whole `.glass-sheet` recipe (globals.css) in ONE value: brand
-          // bloom, vertical wash, then the near-black base.
-          //
-          // Two satori constraints are baked into this string, both of which
-          // cost a render to find:
-          //   1. It must be comma-stacked here rather than painted by an
-          //      absolutely-positioned overlay div — satori silently drops a
-          //      gradient on such a div and renders nothing.
-          //   2. Each gradient must sit on ONE line; a multi-line value throws
-          //      "object null is not iterable" and the response never pipes.
-          background:
-            "radial-gradient(1100px 620px at 20% -10%, rgba(114,233,18,0.20) 0%, rgba(114,233,18,0.06) 40%, rgba(114,233,18,0) 72%), " +
-            "linear-gradient(to bottom, rgba(114,233,18,0.05) 0%, rgba(114,233,18,0.012) 22%, rgba(114,233,18,0) 45%), " +
-            "linear-gradient(to bottom, #0b0e11 0%, #08090c 55%, #060709 100%)",
+          flexDirection: "column",
+          justifyContent: "center",
+          background: SHEET_BG,
+          borderTop: "3px solid rgba(114,233,18,0.28)",
+          padding: "72px",
           fontFamily: "system-ui, sans-serif",
         }}
       >
-        {/* The sheet's top hairline, which is where its green edge lives. */}
-        <div
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 3,
-            background: "rgba(114, 233, 18, 0.28)",
-          }}
-        />
+        <div style={{ display: "flex", marginBottom: 52 }}>
+          {logoSrc ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={logoSrc} width={250} height={100} alt="" />
+          ) : (
+            <span style={{ color: TEXT, fontSize: 44, fontWeight: 700 }}>Tradash</span>
+          )}
+        </div>
 
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "center",
-            gap: 56,
-            padding: "72px 72px",
-          }}
-        >
-          {/* Logo, top left. */}
-          <div style={{ display: "flex", alignItems: "center" }}>
-            {logoSrc ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={logoSrc} width={250} height={100} alt="" style={{ display: "block" }} />
-            ) : (
-              <span style={{ color: TEXT, fontSize: 44, fontWeight: 700 }}>Tradash</span>
-            )}
-          </div>
+        <div style={{ display: "flex", flexDirection: "column" }}>
+          <span
+            style={{
+              display: "flex",
+              color: TEXT,
+              fontSize: 92,
+              fontWeight: 800,
+              lineHeight: 1.08,
+              letterSpacing: "-0.02em",
+            }}
+          >
+            One Tap Away
+          </span>
+          <span
+            style={{
+              display: "flex",
+              color: UP,
+              fontSize: 92,
+              fontWeight: 800,
+              lineHeight: 1.08,
+              letterSpacing: "-0.02em",
+            }}
+          >
+            From Glory
+          </span>
+        </div>
 
-          {/* Headline block, bottom left. */}
-          <div style={{ display: "flex", flexDirection: "column" }}>
-            <span
-              style={{
-                color: TEXT,
-                fontSize: 92,
-                fontWeight: 800,
-                lineHeight: 1.05,
-                letterSpacing: "-0.02em",
-                display: "flex",
-              }}
-            >
-              One Tap Away
-            </span>
-            <span
-              style={{
-                color: UP,
-                fontSize: 92,
-                fontWeight: 800,
-                lineHeight: 1.05,
-                letterSpacing: "-0.02em",
-                display: "flex",
-              }}
-            >
-              From Glory
-            </span>
-
-            <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 28 }}>
-              <span style={{ color: TEXT_MUTED, fontSize: 30, fontWeight: 500 }}>
-                Perpetuals on Solana
-              </span>
-              <span style={{ color: "#2a2e3a", fontSize: 30 }}>•</span>
-              {/* 40x is BTC's ceiling in lib/markets.ts — the highest any
-                  market offers. Keep in step if that table changes. */}
-              <span style={{ color: TEXT_MUTED, fontSize: 30, fontWeight: 500 }}>
-                Up to 40x
-              </span>
-              <span style={{ color: "#2a2e3a", fontSize: 30 }}>•</span>
-              <span style={{ color: TEXT_MUTED, fontSize: 30, fontWeight: 500 }}>
-                No gas
-              </span>
-            </div>
-          </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 30 }}>
+          <span style={{ color: TEXT_MUTED, fontSize: 30, fontWeight: 500 }}>
+            Perpetuals on Solana
+          </span>
+          <span style={{ color: DOT, fontSize: 30 }}>•</span>
+          {/* 40x is BTC's ceiling in lib/markets.ts, the highest any market
+              offers. Keep in step if that table changes. */}
+          <span style={{ color: TEXT_MUTED, fontSize: 30, fontWeight: 500 }}>Up to 40x</span>
+          <span style={{ color: DOT, fontSize: 30 }}>•</span>
+          <span style={{ color: TEXT_MUTED, fontSize: 30, fontWeight: 500 }}>No gas</span>
         </div>
       </div>
     ),

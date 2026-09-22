@@ -543,6 +543,12 @@ function Menu({
         <ActionButton
           icon={Upload04Icon}
           label="Withdraw"
+          // External withdrawals (wallet → outside address) are paused while
+          // the collateral credit model is settled. WithdrawPanel and
+          // useWithdrawal are left wired up, so re-enabling is just dropping
+          // these two props. Internal Trading↔Wallet transfers still work.
+          disabled
+          badge="Soon"
           onClick={onWithdraw}
         />
         <ActionButton
@@ -798,12 +804,15 @@ function ActionButton({
   onClick,
   primary,
   disabled,
+  badge,
 }: {
   icon: typeof Download04Icon;
   label: string;
   onClick: () => void;
   primary?: boolean;
   disabled?: boolean;
+  /** Corner tag for a deliberately unavailable action, e.g. "Soon". */
+  badge?: string;
 }) {
   return (
     <button
@@ -815,16 +824,27 @@ function ActionButton({
         haptic("tap");
         onClick();
       }}
-      className="flex flex-col items-center gap-1.5 transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+      className="group flex flex-col items-center gap-1.5 transition-transform active:scale-95 disabled:cursor-not-allowed"
     >
-      <span
-        className={`flex h-12 w-12 items-center justify-center rounded-full ${
-          primary ? "bg-up text-black" : "glass text-text"
-        }`}
-      >
-        <HugeiconsIcon icon={icon} size={20} />
+      <span className="relative">
+        {/* The dim is applied per-child rather than to the button, so a badge
+            explaining WHY the action is unavailable is not itself faded out. */}
+        <span
+          className={`flex h-12 w-12 items-center justify-center rounded-full group-disabled:opacity-40 ${
+            primary ? "bg-up text-black" : "glass text-text"
+          }`}
+        >
+          <HugeiconsIcon icon={icon} size={20} />
+        </span>
+        {badge && (
+          <span className="absolute -right-1 -top-1 rounded-full bg-text px-1.5 py-px text-[9px] font-semibold leading-tight text-bg">
+            {badge}
+          </span>
+        )}
       </span>
-      <span className="text-[11px] font-medium text-text-muted">{label}</span>
+      <span className="text-[11px] font-medium text-text-muted group-disabled:opacity-40">
+        {label}
+      </span>
     </button>
   );
 }

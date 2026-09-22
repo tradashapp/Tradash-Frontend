@@ -8,11 +8,14 @@ import {
   ArrowDataTransferVerticalIcon,
   Loading03Icon,
   Alert02Icon,
+  LinkSquare02Icon,
 } from "@hugeicons/core-free-icons";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { formatUsd } from "@/lib/format";
 import type { Movement } from "@/lib/api";
 import type { useWithdrawal } from "@/hooks/useWithdrawal";
+import { playSound } from "@/lib/sound";
+import { haptic } from "@/lib/haptics";
 
 /**
  * Money history: deposits, wallet↔trading transfers, and external withdrawals.
@@ -67,6 +70,19 @@ function when(iso: string): string {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
+/**
+ * Solscan link for a movement's transaction.
+ *
+ * `network` is written by the backend as "mainnet" or "devnet"; Solscan
+ * defaults to mainnet and needs the cluster spelled out for anything else.
+ * Null when there's no signature yet — a pending withdrawal has no tx to link.
+ */
+function explorerUrl(m: Movement): string | null {
+  if (!m.signature) return null;
+  const cluster = m.network === "mainnet" ? "" : `?cluster=${m.network}`;
+  return `https://solscan.io/tx/${m.signature}${cluster}`;
+}
+
 export function MoneyHistoryPanel({
   withdrawal,
 }: {
@@ -114,6 +130,7 @@ function MovementRow({ movement: m }: { movement: Movement }) {
   const kind = KIND[m.kind];
   const failed = m.status === "failed";
   const pending = m.status === "pending";
+  const url = explorerUrl(m);
 
   return (
     <div className="glass-inset flex items-center gap-3 rounded-2xl px-4 py-3">
@@ -131,8 +148,6 @@ function MovementRow({ movement: m }: { movement: Movement }) {
         </span>
         <span className="truncate text-[11px] text-text-muted">
           {m.recipient ? `To ${short(m.recipient)}` : kind.detail}
-          {" · "}
-          {when(m.createdAt)}
         </span>
       </div>
 
@@ -141,18 +156,44 @@ function MovementRow({ movement: m }: { movement: Movement }) {
           {kind.sign}
           {formatUsd(m.amount)}
         </span>
-        {pending && (
-          <span className="flex items-center gap-1 text-[10px] text-text-muted">
-            <HugeiconsIcon
-              icon={Loading03Icon}
-              size={9}
-              className="animate-spin"
-            />
-            Pending
-          </span>
-        )}
-        {failed && <span className="text-[10px] text-down">Failed</span>}
+        {/* Date sits under the amount. Status, when there is one, rides in
+          front of it so a pending row still says when it was started. */}
+        <span className="flex items-center gap-1 text-[10px] text-text-muted">
+          {pending && (
+            <>
+              <HugeiconsIcon
+                icon={Loading03Icon}
+                size={9}
+                className="animate-spin"
+              />
+              Pending ·
+            </>
+          )}
+          {failed && <span className="text-down">Failed ·</span>}
+          {when(m.createdAt)}
+        </span>
       </div>
+
+      {/* Explorer link, right-aligned. A movement with no signature (a pending
+        withdrawal, a local transfer) has nothing to open — the slot is held
+        empty so amounts stay on one vertical line down the list. */}
+      {url ? (
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={() => {
+            playSound("tap");
+            haptic("tap");
+          }}
+          className="shrink-0 rounded-full p-1.5 text-text-muted transition-colors hover:bg-white/10 hover:text-text"
+          aria-label={`View ${kind.label.toLowerCase()} on Solscan`}
+        >
+          <HugeiconsIcon icon={LinkSquare02Icon} size={15} />
+        </a>
+      ) : (
+        <span className="h-[27px] w-[27px] shrink-0" aria-hidden />
+      )}
     </div>
   );
 }

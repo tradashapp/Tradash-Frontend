@@ -22,6 +22,41 @@ function required(name: string, value: string | undefined): string {
  */
 export type BulkNetwork = "devnet" | "testnet" | "mainnet";
 
+/**
+ * Normalise the public origin used for `metadataBase` (and share links).
+ *
+ * Link previews fail SILENTLY when this is wrong: the og:image route keeps
+ * serving a valid PNG, and only the scraper — which never follows a redirect
+ * and never reports back — sees the 308 or the dead host. So rather than trust
+ * the deploy env, fix the two mistakes that have actually shipped:
+ *   - the retired `tradash.app` host (NXDOMAIN), and
+ *   - the bare `tradash.xyz` apex, which 308-redirects to `www`.
+ * Anything else (preview URLs, localhost, a future domain) passes through
+ * untouched — this guards known-bad values, it does not pin the origin.
+ */
+function canonicalAppUrl(raw: string | undefined, fallback: string): string {
+  const trimmed = raw?.trim().replace(/\/+$/, "");
+  if (!trimmed) return fallback;
+
+  let url: URL;
+  try {
+    url = new URL(trimmed);
+  } catch {
+    return fallback; // Not a usable absolute origin.
+  }
+
+  // The dead domain, in any subdomain form. Nothing there answers.
+  if (url.hostname === "tradash.app" || url.hostname.endsWith(".tradash.app")) {
+    return fallback;
+  }
+  // The apex redirects to www; crawlers drop the image rather than follow it.
+  if (url.hostname === "tradash.xyz") {
+    url.hostname = "www.tradash.xyz";
+    return url.origin;
+  }
+  return url.origin;
+}
+
 export const config = {
   privyAppId: process.env.NEXT_PUBLIC_PRIVY_APP_ID ?? "",
 
@@ -84,9 +119,23 @@ export const config = {
   apiUrl: process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000",
 
   // Public site origin — used to build shareable PnL-card referral links
-  // (domain/?ref=<username>). Usernames don't exist yet, so the link is the bare
-  // domain for now. Prefers the live origin at runtime, falling back to the env.
-  appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "https://tradash.app",
+  // (domain/?ref=<username>) AND as `metadataBase`, which is what turns the
+  // OG/Twitter image routes into the absolute URLs crawlers fetch.
+  //
+  // The fallback MUST be the real, canonical, non-redirecting origin. It used
+  // to be tradash.app (a dead domain), so any deploy without
+  // NEXT_PUBLIC_APP_URL set advertised og:image at a host that answered
+  // nothing — every scraper reported "image is invalid" while the image route
+  // itself served a perfectly good PNG.
+  //
+  // `www` is deliberate: the apex 308-redirects to www, and Telegram/X do not
+  // follow redirects when fetching an image.
+  //
+  // A correct fallback is not enough on its own: a deploy that SETS
+  // NEXT_PUBLIC_APP_URL to the bare apex (or to the old tradash.app) overrides
+  // it and reintroduces the exact same broken previews. canonicalAppUrl()
+  // normalises that away, so the value below is a floor, not a hope.
+  appUrl: canonicalAppUrl(process.env.NEXT_PUBLIC_APP_URL, "https://www.tradash.xyz"),
 
   // Community / docs destinations shown in the landing-page footer. Env-
   // overridable so the links can be pointed at the real channels without a

@@ -68,7 +68,7 @@ export interface PnlCardProps {
   data: PnlCardData;
   metric: ShareMetric;
   /** QR code of the referral link, as a data URL. */
-  qrDataUrl: string | null;
+  qrDataUrl?: string;
   /** Brand mark. */
   logoSrc?: string;
   /** Market icon (the coin logo). */
@@ -302,9 +302,9 @@ export function PnlCard({
             <img
               src={qrDataUrl}
               alt=""
-              width={200}
-              height={200}
-              style={{ width: 200, height: 200, display: "block" }}
+              width={176}
+              height={176}
+              style={{ width: 176, height: 176, display: "block" }}
             />
           </div>
         )}

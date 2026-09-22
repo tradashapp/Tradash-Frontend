@@ -68,7 +68,7 @@ function ShareCardInner({
   // for an `/images/...` src — a plain path renders as a blank box in the export
   // even though the preview shows it fine. Inlining them up front makes the
   // export deterministic instead of racing html-to-image's own fetch pass.
-  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [qrDataUrl, setQrDataUrl] = useState<string | undefined>();
   const [logoDataUrl, setLogoDataUrl] = useState<string | undefined>();
   const [iconDataUrl, setIconDataUrl] = useState<string | undefined>();
   // Reveal gate. With the mascot gone there's only one chain left to wait on:
@@ -76,6 +76,9 @@ function ShareCardInner({
   // folder probe of its own, which is why this was two flags.)
   const [ready, setReady] = useState(false);
   const [exporting, setExporting] = useState(false);
+  // Set when a render comes back empty, so the failure is visible rather than
+  // looking like a download that silently did nothing.
+  const [failed, setFailed] = useState(false);
 
   const symbol: MarketSymbol =
     subject.kind === "position" ? subject.position.symbol : subject.trade.symbol;
@@ -101,29 +104,50 @@ function ShareCardInner({
 
   // Load what the card needs before revealing it: the referral QR, the brand
   // mark, the market icon (all as data URLs — see above) and the card's fonts.
+  //
+  // Every bitmap is not just fetched but DECODED before `ready` flips. Holding
+  // the gate on the fetch alone was the bug behind "it said it was ready but the
+  // logo/QR/coin came out missing": a data URL resolving only means the bytes
+  // are in a string, not that the browser has a paintable bitmap for it. The
+  // export clones the DOM, so an <img> that hasn't decoded yet clones as an
+  // empty box — and which of the three lost the race varied per run, which is
+  // exactly why it looked like a different image went missing each time.
   useEffect(() => {
     let alive = true;
     setReady(false);
     (async () => {
       const [qr, logo, icon] = await Promise.all([
-        QRCode.toDataURL(referralUrl, {
-          margin: 0,
-          width: 220,
-          color: { dark: "#08090c", light: "#ffffff" },
-        }).catch(() => null),
-        toDataUrl("/icon-512.png"),
-        toDataUrl(MARKETS[symbol].logo),
+        cachedAsset(`qr:${referralUrl}`, () =>
+          QRCode.toDataURL(referralUrl, {
+            margin: 0,
+            width: 220,
+            color: { dark: "#08090c", light: "#ffffff" },
+          }).catch(() => undefined)
+        ),
+        cachedAsset("logo", () => toDataUrl("/icon-512.png")),
+        cachedAsset(`icon:${symbol}`, () => toDataUrl(MARKETS[symbol].logo)),
         // Prime the fonts the card names, so the first paint (and the export)
         // land in Space Grotesk / JetBrains Mono rather than a system fallback.
         ensureCardFonts(),
       ]);
       if (!alive) return;
+
+      // Decode all three off-document before any of them is handed to the card.
+      // `decode()` resolves only once the bitmap is ready to paint.
+      await Promise.all([qr, logo, icon].map(decodeDataUrl));
+      if (!alive) return;
+
       setQrDataUrl(qr);
       setLogoDataUrl(logo);
       setIconDataUrl(icon);
-      // One more frame so the freshly-loaded fonts are ready to paint.
+
+      // The srcs above are already-decoded data URLs, so the <img> tags the card
+      // renders paint synchronously. Two frames: one for React to commit them,
+      // one for the browser to paint that commit.
       requestAnimationFrame(() => {
-        if (alive) setReady(true);
+        requestAnimationFrame(() => {
+          if (alive) setReady(true);
+        });
       });
     })();
     return () => {
@@ -172,35 +196,53 @@ function ShareCardInner({
   // transform, which lives on the parent. `pixelRatio: 1` pins it there rather
   // than multiplying by the device's DPR, which would make the exported file a
   // different size on a phone than on a desktop.
+  //
+  // It is rendered TWICE and only the second result kept. This is not
+  // superstition: the library resolves its embedded resources while building the
+  // clone, and the <img> elements inside that freshly-built SVG are not
+  // guaranteed to have decoded by the time the first rasterization runs — so the
+  // first frame can come back with one or more images blank. The first pass
+  // warms those bitmaps; the second reuses them and comes out complete. The cost
+  // is a few hundred ms on an operation the user already sees a spinner for.
   const snapshot = useCallback(async (): Promise<string | null> => {
     const node = cardRef.current;
     if (!node) return null;
+    // The clone is rendered detached from the page, where the modal's own
+    // transform/opacity would otherwise bleed in.
+    const opts = {
+      width: CARD_W,
+      height: CARD_H,
+      pixelRatio: 1,
+      cacheBust: false,
+      style: { transform: "none", opacity: "1" },
+    };
     try {
-      return await toPng(node, {
-        width: CARD_W,
-        height: CARD_H,
-        pixelRatio: 1,
-        // The clone is rendered detached from the page, where the modal's own
-        // transform/opacity would otherwise bleed in.
-        style: { transform: "none", opacity: "1" },
-      });
+      await toPng(node, opts); // warm-up pass, result deliberately discarded
+      return await toPng(node, opts);
     } catch {
       return null;
     }
   }, []);
 
-  const download = useCallback(async () => {
-    if (!ready || exporting) return;
+  const download = useCallback(async (): Promise<boolean> => {
+    if (!ready || exporting) return false;
     setExporting(true);
+    setFailed(false);
     const url = await snapshot();
     setExporting(false);
-    if (!url) return;
+    // A failed render used to return silently, which looked identical to a
+    // download that worked — the user only found out by opening the file.
+    if (!url) {
+      setFailed(true);
+      return false;
+    }
     const a = document.createElement("a");
     a.href = url;
     a.download = `tradash-${data.symbol.toLowerCase()}-${
       data.pnl >= 0 ? "profit" : "loss"
     }.png`;
     a.click();
+    return true;
   }, [ready, exporting, snapshot, data.symbol, data.pnl]);
 
   // Share on X: X's web intent only carries text + a link (it can't attach a
@@ -208,7 +250,9 @@ function ShareCardInner({
   // open the composer pre-filled with a short, human caption + the ref link.
   const shareOnX = async () => {
     if (!ready || exporting) return;
-    await download();
+    // Only open the composer if the user actually got the image — otherwise
+    // they'd land on X with a caption and nothing to attach.
+    if (!(await download())) return;
     const text = tweetText(data);
     const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(
       text
@@ -314,7 +358,13 @@ function ShareCardInner({
             className="flex items-center justify-center gap-2 rounded-xl bg-white/10 py-3 text-sm font-bold text-text transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <HugeiconsIcon icon={Download04Icon} size={18} />
-            {!ready ? "Preparing…" : exporting ? "Saving…" : "Download"}
+            {!ready
+              ? "Preparing…"
+              : exporting
+                ? "Saving…"
+                : failed
+                  ? "Retry"
+                  : "Download"}
           </button>
           <button
             type="button"
@@ -329,6 +379,44 @@ function ShareCardInner({
       </motion.div>
     </motion.div>
   );
+}
+
+// Data URLs, cached for the life of the tab and keyed by source path. The brand
+// mark and the coin icons never change, and the QR only changes with the
+// referral link — so the second open of the share sheet (and every one after)
+// skips the fetch/encode entirely and reveals on the next frame. Promises are
+// cached rather than results, so two opens in flight at once share one fetch.
+const assetCache = new Map<string, Promise<string | undefined>>();
+
+function cachedAsset(
+  key: string,
+  load: () => Promise<string | undefined>
+): Promise<string | undefined> {
+  let hit = assetCache.get(key);
+  if (!hit) {
+    // A failed load must not be cached as a permanent miss — drop it so the next
+    // open retries rather than showing a card that is short an image forever.
+    hit = load().then((v) => {
+      if (v === undefined) assetCache.delete(key);
+      return v;
+    });
+    assetCache.set(key, hit);
+  }
+  return hit;
+}
+
+/** Decode a data URL to a paintable bitmap, so the <img> that later carries it
+ *  paints (and clones, for the export) on its very first frame. Resolves either
+ *  way: a bitmap that won't decode must not strand the user on a spinner. */
+async function decodeDataUrl(src: string | null | undefined): Promise<void> {
+  if (!src) return;
+  try {
+    const img = new Image();
+    img.src = src;
+    await img.decode();
+  } catch {
+    /* card renders without it rather than hanging */
+  }
 }
 
 /** Fetch a same-origin image and hand it back as a data URL, or undefined if it

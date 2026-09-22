@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import QRCode from "qrcode";
-import { toPng } from "html-to-image";
+import { getFontEmbedCSS, toPng } from "html-to-image";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Cancel01Icon,
@@ -105,13 +105,13 @@ function ShareCardInner({
   // Load what the card needs before revealing it: the referral QR, the brand
   // mark, the market icon (all as data URLs — see above) and the card's fonts.
   //
-  // Every bitmap is not just fetched but DECODED before `ready` flips. Holding
-  // the gate on the fetch alone was the bug behind "it said it was ready but the
-  // logo/QR/coin came out missing": a data URL resolving only means the bytes
-  // are in a string, not that the browser has a paintable bitmap for it. The
-  // export clones the DOM, so an <img> that hasn't decoded yet clones as an
-  // empty box — and which of the three lost the race varied per run, which is
-  // exactly why it looked like a different image went missing each time.
+  // Every bitmap is fetched AND decoded before `ready` flips. Gating on the
+  // fetch alone was too weak: a data URL resolving only means the bytes are in a
+  // string, not that the browser has a paintable bitmap — and the export clones
+  // the live DOM, so an <img> that hasn't decoded yet can clone as an empty box.
+  // That is a plausible path to "it said ready but an image was missing", though
+  // the real defence is the pixel check on the export itself (`hasAllImages`),
+  // since this gate alone can't prove what ended up in the PNG.
   useEffect(() => {
     let alive = true;
     setReady(false);
@@ -197,16 +197,18 @@ function ShareCardInner({
   // than multiplying by the device's DPR, which would make the exported file a
   // different size on a phone than on a desktop.
   //
-  // It is rendered TWICE and only the second result kept. This is not
-  // superstition: the library resolves its embedded resources while building the
-  // clone, and the <img> elements inside that freshly-built SVG are not
-  // guaranteed to have decoded by the time the first rasterization runs — so the
-  // first frame can come back with one or more images blank. The first pass
-  // warms those bitmaps; the second reuses them and comes out complete. The cost
-  // is a few hundred ms on an operation the user already sees a spinner for.
+  // It renders TWICE and keeps the second result. The first pass is a warm-up:
+  // the library resolves the resources it embeds while building the clone, and a
+  // first frame can come back before all of them have landed. Rather than trust
+  // that, the result is VERIFIED below — the warm-up only makes the verification
+  // pass on the first attempt instead of costing a retry.
   const snapshot = useCallback(async (): Promise<string | null> => {
     const node = cardRef.current;
     if (!node) return null;
+    // Embedding the self-hosted next/font faces is the slowest part of a render
+    // and the result never changes, so it's computed once per tab and handed
+    // back in. Without this every export re-walks and re-downloads them.
+    const fontEmbedCSS = await cachedFontCss(node);
     // The clone is rendered detached from the page, where the modal's own
     // transform/opacity would otherwise bleed in.
     const opts = {
@@ -214,11 +216,19 @@ function ShareCardInner({
       height: CARD_H,
       pixelRatio: 1,
       cacheBust: false,
+      fontEmbedCSS,
       style: { transform: "none", opacity: "1" },
     };
     try {
-      await toPng(node, opts); // warm-up pass, result deliberately discarded
-      return await toPng(node, opts);
+      await toPng(node, opts); // warm-up, result deliberately discarded
+      // Verify rather than assume. A PNG that came out short an image is still a
+      // valid PNG, so the only honest check is to look at the pixels where the
+      // images should be — which is exactly the failure being fixed here.
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const url = await toPng(node, opts);
+        if (await hasAllImages(url)) return url;
+      }
+      return null;
     } catch {
       return null;
     }
@@ -379,6 +389,63 @@ function ShareCardInner({
       </motion.div>
     </motion.div>
   );
+}
+
+// Where the card's three bitmaps land inside the CARD_W×CARD_H rectangle, as
+// [x, y, w, h] boxes well inside each one. These mirror the layout in
+// PnlCard.tsx — if the card's geometry moves, these move with it.
+const IMAGE_REGIONS: [number, number, number, number][] = [
+  [90, 90, 60, 60], // market icon (top-left, inside the 80px pad)
+  [85, 855, 40, 40], // brand logo (footer, bottom-left)
+  [1360, 800, 150, 150], // QR code (footer, bottom-right)
+];
+
+/**
+ * Does this exported PNG actually contain all three images?
+ *
+ * A render that dropped one is still a structurally valid PNG, so the only way
+ * to know is to look. Each region is checked for luminance VARIANCE: real
+ * artwork spans a wide range, whereas a dropped image leaves flat card
+ * background (or flat white, for the QR plate). Returns true if it can't check
+ * at all — a browser that won't give us the pixels shouldn't block the download.
+ */
+async function hasAllImages(dataUrl: string): Promise<boolean> {
+  try {
+    const img = new Image();
+    img.src = dataUrl;
+    await img.decode();
+    const canvas = document.createElement("canvas");
+    canvas.width = CARD_W;
+    canvas.height = CARD_H;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) return true;
+    ctx.drawImage(img, 0, 0, CARD_W, CARD_H);
+
+    return IMAGE_REGIONS.every(([x, y, w, h]) => {
+      const { data } = ctx.getImageData(x, y, w, h);
+      let min = 255;
+      let max = 0;
+      for (let p = 0; p < data.length; p += 4) {
+        const lum = (data[p] + data[p + 1] + data[p + 2]) / 3;
+        if (lum < min) min = lum;
+        if (lum > max) max = lum;
+      }
+      // Measured spread for the real artwork is 150–250; flat background is 0.
+      return max - min > 40;
+    });
+  } catch {
+    return true;
+  }
+}
+
+// The embedded @font-face CSS, computed once per tab. This is the single most
+// expensive part of a render (it walks the stylesheets and inlines the woff2
+// payloads) and its output is identical every time.
+let fontCssPromise: Promise<string | undefined> | null = null;
+
+function cachedFontCss(node: HTMLElement): Promise<string | undefined> {
+  fontCssPromise ??= getFontEmbedCSS(node).catch(() => undefined);
+  return fontCssPromise;
 }
 
 // Data URLs, cached for the life of the tab and keyed by source path. The brand

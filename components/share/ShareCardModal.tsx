@@ -331,6 +331,23 @@ function ShareCardInner({
   );
 }
 
+/** Fetch a same-origin image and hand it back as a data URL, or undefined if it
+ *  can't be read — the card just renders without that bitmap. */
+async function toDataUrl(src: string): Promise<string | undefined> {
+  try {
+    const blob = await fetch(src).then((r) => (r.ok ? r.blob() : null));
+    if (!blob) return undefined;
+    return await new Promise<string | undefined>((resolve) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(typeof fr.result === "string" ? fr.result : undefined);
+      fr.onerror = () => resolve(undefined);
+      fr.readAsDataURL(blob);
+    });
+  } catch {
+    return undefined;
+  }
+}
+
 // A short, human caption for the X composer — the way a trader actually posts a
 // win or a loss. No hashtags, no filler, no "check out my trade on…". The card
 // image (downloaded first) carries the details; this is just the one-liner.

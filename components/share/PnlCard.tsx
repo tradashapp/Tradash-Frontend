@@ -126,23 +126,26 @@ export function PnlCard({
           occupy. Deliberately the SAME gradient recipe as `.glass-sheet` in
           globals.css (brand green fading to nothing), just rotated to bloom from
           the right edge instead of the top, so the card and the sheet it's
-          shared from read as one surface. */}
+          shared from read as one surface.
+          The stops are a touch hotter than the sheet's: the sheet's glow sits
+          behind content at the top edge, whereas here it has to carry an
+          otherwise empty half of the card on its own. */}
       <div
         style={{
           position: "absolute",
           inset: 0,
           background: `
             radial-gradient(
-              70% 120% at 100% 50%,
-              rgba(114, 233, 18, 0.16) 0%,
-              rgba(114, 233, 18, 0.05) 35%,
-              rgba(114, 233, 18, 0) 70%
+              75% 120% at 100% 50%,
+              rgba(114, 233, 18, 0.26) 0%,
+              rgba(114, 233, 18, 0.09) 38%,
+              rgba(114, 233, 18, 0) 72%
             ),
             linear-gradient(
               to left,
-              rgba(114, 233, 18, 0.05) 0%,
-              rgba(114, 233, 18, 0.012) 22%,
-              rgba(114, 233, 18, 0) 45%
+              rgba(114, 233, 18, 0.09) 0%,
+              rgba(114, 233, 18, 0.02) 24%,
+              rgba(114, 233, 18, 0) 48%
             )
           `,
         }}
@@ -299,9 +302,9 @@ export function PnlCard({
             <img
               src={qrDataUrl}
               alt=""
-              width={176}
-              height={176}
-              style={{ width: 176, height: 176, display: "block" }}
+              width={200}
+              height={200}
+              style={{ width: 200, height: 200, display: "block" }}
             />
           </div>
         )}
@@ -356,17 +359,22 @@ export function PnlCardPreview({
   cardRef,
   ...props
 }: PnlCardProps & { scale: number; cardRef: React.Ref<HTMLDivElement> }) {
+  // A CSS transform doesn't change the space the node reserves in layout, so
+  // the scaled card would still claim its full CARD_H and leave a tall gap
+  // beneath it. The outer box is sized to the SCALED dimensions and clips.
   return (
-    <div
-      style={{
-        width: CARD_W,
-        height: CARD_H,
-        transform: `scale(${scale})`,
-        transformOrigin: "top left",
-      }}
-    >
-      <div ref={cardRef} style={{ width: CARD_W, height: CARD_H }}>
-        <PnlCard {...props} />
+    <div style={{ width: CARD_W * scale, height: CARD_H * scale, overflow: "hidden" }}>
+      <div
+        style={{
+          width: CARD_W,
+          height: CARD_H,
+          transform: `scale(${scale})`,
+          transformOrigin: "top left",
+        }}
+      >
+        <div ref={cardRef} style={{ width: CARD_W, height: CARD_H }}>
+          <PnlCard {...props} />
+        </div>
       </div>
     </div>
   );

@@ -22,6 +22,13 @@ import {
   markLiveHydrated,
 } from "@/store/slices/historySlice";
 import { recordClose } from "@/lib/history";
+import {
+  rememberOpen,
+  readStoredOpen,
+  forgetOpen,
+  type StoredOpenPosition,
+} from "@/lib/bulk/openPositionStore";
+import { reconcileClose } from "@/lib/bulk/reconcileClose";
 import { hydrateLiveEpisodes } from "@/store/slices/replaySlice";
 import { useToast, type ToastOptions } from "@/components/toast/ToastProvider";
 import type { Direction, MarketSymbol, Position } from "@/types";
@@ -60,6 +67,12 @@ export function useBulkAccount(
       // the history panel would show a loading state indefinitely.
       dispatch(markLiveHydrated());
       lastOpen.current = {};
+      // The stored open-position sentinel is deliberately NOT cleared here.
+      // Signing out says nothing about what happened on Bulk, and the whole
+      // point of it is to survive the app not running — clearing it would throw
+      // away the only record of a position whose stop fires before the next
+      // sign-in, which is exactly the case this exists to catch. It is keyed by
+      // wallet, so it can only ever be read back by the account that wrote it.
       return;
     }
 
@@ -96,6 +109,10 @@ export function useBulkAccount(
           dispatch(setBalance({ equity: 0, available: 0, marginUsed: 0 }));
           dispatch(clearAllPositions());
           lastOpen.current = {};
+          // A flat account still has to answer for anything we last saw open:
+          // a stop that fired while the app was closed leaves exactly this
+          // shape. Reconcile against an EMPTY open set.
+          backfillUnobservedCloses(store, dispatch, walletAddress, privyId, []);
           return;
         }
         // Bulk renamed these (totalBalance→totalMargin, availableBalance→
@@ -138,6 +155,11 @@ export function useBulkAccount(
         for (const p of open) map[p.symbol] = p;
         lastOpen.current = map;
         dispatch(reconcilePositions(open));
+        // Anything we last saw open that Bulk no longer reports closed while we
+        // were not watching — record it before overwriting the snapshot, or the
+        // evidence it ever existed is gone.
+        backfillUnobservedCloses(store, dispatch, walletAddress, privyId, open);
+        rememberOpen(walletAddress, open);
       })
       .catch(() => {});
 
@@ -172,6 +194,10 @@ export function useBulkAccount(
         }
         lastOpen.current = incoming;
         dispatch(reconcilePositions(Object.values(incoming) as Position[]));
+        rememberOpen(
+          walletAddress,
+          Object.values(incoming) as Position[]
+        );
       },
 
       // Single-market delta.
@@ -180,6 +206,9 @@ export function useBulkAccount(
         if (prev && !p) {
           recordCloseFor(store, dispatch, privyId, prev, toast);
           delete lastOpen.current[symbol];
+          // Recorded here, so the sentinel has done its job. Dropping it is
+          // what stops the next load backfilling this same close a second time.
+          forgetOpen(walletAddress, symbol);
           dispatch(setPosition({ symbol, position: null }));
           return;
         }
@@ -197,6 +226,10 @@ export function useBulkAccount(
           }
           lastOpen.current[symbol] = next;
           dispatch(setPosition({ symbol, position: next }));
+          rememberOpen(
+            walletAddress,
+            Object.values(lastOpen.current) as Position[]
+          );
         }
       },
     });
@@ -226,6 +259,100 @@ function enrich(
     priceAnchorMb: mbNow,
     chartEntryPrice: tapEntry ?? mbNow ?? p.entryPrice,
   };
+}
+
+/**
+ * Record closes that happened while the app was NOT running.
+ *
+ * TP / SL / trailing stops rest on Bulk and fire server-side, so a position can
+ * go flat with no client watching. The normal recording path keys off an
+ * open→absent transition seen live, which in that case never happens — so the
+ * trade was silently missing from history, stats and the leaderboard, while an
+ * identical trade closed by hand recorded fine.
+ *
+ * Compares the positions we durably remembered as open against what Bulk
+ * actually reports now; anything remembered but no longer open is a close we
+ * missed. Called with the authoritative open set from the seed `/account` read.
+ *
+ * Each missed market is forgotten BEFORE the row is written, so a close is
+ * recorded ONCE — the write has no server-side dedupe, and a duplicate would
+ * inflate the public leaderboard.
+ */
+function backfillUnobservedCloses(
+  store: AppStore,
+  dispatch: AppDispatch,
+  wallet: string,
+  privyId: string | null,
+  openNow: Position[]
+) {
+  const stored = readStoredOpen(wallet);
+  if (stored.length === 0) return;
+
+  const stillOpen = new Set(openNow.map((p) => p.symbol));
+  const missed = stored.filter((p) => !stillOpen.has(p.symbol));
+  if (missed.length === 0) return;
+
+  // CLAIM the missed markets synchronously, before any awaiting. Everything
+  // below is async, and both `rememberOpen` (which rewrites the whole map) and a
+  // second call to this function can land in that window — so leaving the
+  // sentinels in place until the write completes is how the same close gets
+  // recorded twice. Forgetting them first makes the claim atomic: whoever reads
+  // the store next sees these markets as already handled.
+  for (const prev of missed) forgetOpen(wallet, prev.symbol);
+
+  // The price feed streams in and starts EMPTY, while this runs as soon as the
+  // seed /account read resolves — so reading prices right now usually gets
+  // nothing, and every backfill would fall back to entry (PnL 0) or pick a
+  // trigger without being able to tell which one fired. One short wait for the
+  // first tick is the difference between a truthful row and a placeholder.
+  void waitForPrice(store, missed[0].symbol).then(() => {
+    for (const prev of missed) recordBackfilled(store, dispatch, privyId, prev);
+  });
+}
+
+/**
+ * Resolve once this market has a price, or after a short timeout.
+ *
+ * Bounded deliberately: a backfilled row that is slightly less precise is far
+ * better than one that never gets written because the oracle happened to be
+ * down. On timeout the reconciler falls back as documented.
+ */
+function waitForPrice(store: AppStore, symbol: MarketSymbol): Promise<void> {
+  if (store.getState().price.prices[symbol] != null) return Promise.resolve();
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      unsub();
+      clearTimeout(timer);
+      resolve();
+    };
+    const timer = setTimeout(finish, 4000);
+    const unsub = store.subscribe(() => {
+      if (store.getState().price.prices[symbol] != null) finish();
+    });
+  });
+}
+
+/** Write ONE backfilled close: reconcile it, forget it, record it. */
+function recordBackfilled(
+  store: AppStore,
+  dispatch: AppDispatch,
+  privyId: string | null,
+  prev: StoredOpenPosition
+) {
+  const price = store.getState().price.prices[prev.symbol];
+  const { position, exitPrice, pnl, confident } = reconcileClose(prev, price);
+
+  const trade = recordClose(dispatch, "live", position, exitPrice, pnl);
+  if (privyId) void api.recordTrade(privyId, trade);
+
+  console.info(
+    `[tradash] backfilled an unobserved ${prev.symbol} close ` +
+      `(exit ${exitPrice}${confident ? " from a resting trigger" : " ESTIMATED"}, ` +
+      `pnl ${pnl.toFixed(2)}) — closed server-side while the app was shut.`
+  );
 }
 
 function recordCloseFor(

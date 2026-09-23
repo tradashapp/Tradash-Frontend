@@ -35,6 +35,15 @@ body:has(.landing-root) {
   padding-bottom: 0;
 }
 
+/* Dev tool pages (/og-preview) are ordinary long documents, not the app shell.
+   The body above sets `overflow: hidden` because the chart owns the viewport on
+   every real route — but that also means a tall tool page silently clips
+   instead of scrolling. Opt back into normal document scrolling here. */
+body:has(.tool-root) {
+  overflow: auto;
+  height: auto;
+}
+
 /* Tabular figures so live price / PnL digits don't jitter width as they count. */
 .tabular {
   font-variant-numeric: tabular-nums;

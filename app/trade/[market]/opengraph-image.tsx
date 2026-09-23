@@ -62,7 +62,7 @@ export default async function Image({
           justifyContent: "space-between",
           background: SHEET_BG,
           borderTop: "3px solid rgba(114,233,18,0.28)",
-          padding: "68px 72px",
+          padding: "30px 50px",
           fontFamily: "system-ui, sans-serif",
         }}
       >

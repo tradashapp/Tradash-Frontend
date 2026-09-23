@@ -13,14 +13,19 @@ import { markSplashDone } from "@/lib/splash";
 export function SplashScreen() {
   // The marketing landing page ("/") is not the app booting — it should paint
   // immediately, with no splash in front of it. The splash still runs for every
-  // app route. Its components ignore the splash gate directly (ignoreSplash),
-  // so nothing there waits on the flag this component would otherwise set.
+  // real app route. Those components ignore the splash gate directly
+  // (ignoreSplash), so nothing waits on the flag this component would set.
   const pathname = usePathname();
-  const isLanding = pathname === "/";
-  const [show, setShow] = useState(!isLanding);
+  // Dev tool pages (/og-preview, /haptics-test) are not the app booting either,
+  // and the splash is a `fixed inset-0 z-[100]` sheet — on those routes it just
+  // swallows the first ~1.4s of clicks and re-covers the page after every hot
+  // reload, which reads as "the buttons don't work".
+  const isTool = pathname === "/og-preview" || pathname === "/haptics-test";
+  const skipSplash = pathname === "/" || isTool;
+  const [show, setShow] = useState(!skipSplash);
 
   useEffect(() => {
-    if (isLanding) {
+    if (skipSplash) {
       // Nothing is covering the screen here — release the gate so any splash-
       // aware component on this route runs straight away.
       markSplashDone();
@@ -58,7 +63,7 @@ export function SplashScreen() {
       window.clearTimeout(cap);
       window.clearTimeout(release);
     };
-  }, [isLanding]);
+  }, [skipSplash]);
 
   return (
     <AnimatePresence onExitComplete={markSplashDone}>

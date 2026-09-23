@@ -54,59 +54,63 @@ export default function Image() {
           height: "100%",
           display: "flex",
           flexDirection: "column",
-          justifyContent: "center",
+          justifyContent: "space-between",
           background: SHEET_BG,
           borderTop: "3px solid rgba(114,233,18,0.28)",
-          padding: "72px",
+          padding: "30px 50px",
           fontFamily: "system-ui, sans-serif",
         }}
       >
-        <div style={{ display: "flex", marginBottom: 52 }}>
+        <div style={{
+          display: "flex",
+        }}>
           {logoSrc ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={logoSrc} width={250} height={100} alt="" />
+            <img src={logoSrc} width={200} height={80} alt="" />
           ) : (
-            <span style={{ color: TEXT, fontSize: 44, fontWeight: 700 }}>Tradash</span>
+            <span style={{ color: TEXT, fontSize: 40, fontWeight: 700 }}>Tradash</span>
           )}
         </div>
-
         <div style={{ display: "flex", flexDirection: "column" }}>
-          <span
-            style={{
-              display: "flex",
-              color: TEXT,
-              fontSize: 92,
-              fontWeight: 800,
-              lineHeight: 1.08,
-              letterSpacing: "-0.02em",
-            }}
-          >
-            One Tap Away
-          </span>
-          <span
-            style={{
-              display: "flex",
-              color: UP,
-              fontSize: 92,
-              fontWeight: 800,
-              lineHeight: 1.08,
-              letterSpacing: "-0.02em",
-            }}
-          >
-            From Glory
-          </span>
-        </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 30 }}>
-          <span style={{ color: TEXT_MUTED, fontSize: 30, fontWeight: 500 }}>
-            Perpetuals on Solana
-          </span>
-          <span style={{ color: DOT, fontSize: 30 }}>•</span>
-          {/* 40x is BTC's ceiling in lib/markets.ts, the highest any market
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            <span
+              style={{
+                display: "flex",
+                color: TEXT,
+                fontSize: 92,
+                fontWeight: 800,
+                lineHeight: 1.08,
+                letterSpacing: "-0.02em",
+              }}
+            >
+              One Tap Away
+            </span>
+            <span
+              style={{
+                display: "flex",
+                color: UP,
+                fontSize: 92,
+                fontWeight: 800,
+                lineHeight: 1.08,
+                letterSpacing: "-0.02em",
+              }}
+            >
+              From Glory
+            </span>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 50 }}>
+            <span style={{ color: TEXT_MUTED, fontSize: 30, fontWeight: 500 }}>
+              Perpetuals on Solana
+            </span>
+            <span style={{ color: DOT, fontSize: 30 }}>•</span>
+            {/* 40x is BTC's ceiling in lib/markets.ts, the highest any market
               offers. Keep in step if that table changes. */}
-          <span style={{ color: TEXT_MUTED, fontSize: 30, fontWeight: 500 }}>Up to 40x</span>
-          <span style={{ color: DOT, fontSize: 30 }}>•</span>
-          <span style={{ color: TEXT_MUTED, fontSize: 30, fontWeight: 500 }}>No gas</span>
+            <span style={{ color: TEXT_MUTED, fontSize: 30, fontWeight: 500 }}>Up to 40x</span>
+            <span style={{ color: DOT, fontSize: 30 }}>•</span>
+            <span style={{ color: TEXT_MUTED, fontSize: 30, fontWeight: 500 }}>No gas</span>
+          </div>
         </div>
       </div>
     ),

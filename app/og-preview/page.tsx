@@ -22,9 +22,16 @@ import { useCallback, useEffect, useState } from "react";
 import { MARKETS, MARKET_ORDER } from "@/lib/markets";
 import type { MarketSymbol } from "@/types";
 
-/** Cache-buster: image routes are cached hard, so a refresh alone can lie. */
+/**
+ * Cache-buster: image routes are cached hard, so a refresh alone can lie.
+ *
+ * Starts at 0 rather than `Date.now()` — seeding from the clock makes the
+ * server and client render different `src` URLs and React reports a hydration
+ * mismatch. The first paint doesn't need busting (it's a fresh request); only
+ * subsequent reloads do.
+ */
 function useReloadKey() {
-  const [key, setKey] = useState(() => Date.now());
+  const [key, setKey] = useState(0);
   const reload = useCallback(() => setKey(Date.now()), []);
   return [key, reload] as const;
 }
@@ -79,7 +86,11 @@ export default function OgPreview() {
   ];
 
   return (
+    // `tool-root` is the hook that re-enables document scrolling — the app's
+    // body is `overflow: hidden` because the chart owns the viewport on real
+    // routes, which would otherwise clip this page's lower card. See globals.css.
     <main
+      className="tool-root"
       style={{
         minHeight: "100vh",
         background: "#0b0e11",
@@ -106,11 +117,27 @@ export default function OgPreview() {
         <button onClick={reload} style={btn(true)}>
           Reload cards
         </button>
+        {/* When the window is already wide enough to show the card 1:1, `fit`
+            and `full` are the same size and this toggle would be a no-op that
+            still claimed it could zoom. Disable it and say why instead. */}
         <button
           onClick={() => setZoom(zoom === "fit" ? "full" : "fit")}
-          style={btn(false)}
+          disabled={scale === 1}
+          title={
+            scale === 1
+              ? "Window is already wide enough to show the card at 1:1"
+              : undefined
+          }
+          style={{
+            ...btn(zoom === "full"),
+            ...(scale === 1 ? { opacity: 0.45, cursor: "default" } : null),
+          }}
         >
-          {zoom === "fit" ? `Actual size (100%)` : `Fit to window (${Math.round(scale * 100)}%)`}
+          {scale === 1
+            ? "Actual size (100%)"
+            : zoom === "fit"
+              ? `Zoom to actual size (now ${Math.round(scale * 100)}%)`
+              : `Fit to window (${Math.round(scale * 100)}%)`}
         </button>
 
         <span style={{ width: 1, background: "#2a2e3a", margin: "0 4px" }} />
@@ -143,7 +170,11 @@ export default function OgPreview() {
               style={{
                 width: FRAME_W * shown,
                 height: FRAME_H * shown,
-                overflow: "hidden",
+                // At actual size on a narrow window the card is wider than the
+                // page; cap the box and let it scroll sideways rather than
+                // pushing the whole document into a horizontal scroll.
+                maxWidth: "100%",
+                overflow: zoom === "full" ? "auto" : "hidden",
                 borderRadius: 12,
                 border: "1px solid #2a2e3a",
                 // Checkerboard: any transparency in the card reads as a bug,

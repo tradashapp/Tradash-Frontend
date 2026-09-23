@@ -51,6 +51,8 @@ const BULK = [
   "wss://mainnet-ws1.bulk.trade",
   "https://exchange-api.bulk.trade",
   "wss://exchange-ws1.bulk.trade",
+  // Public indexer — Bulk Aura points (AuraPanel).
+  "https://indexer.bulk.trade",
 ];
 const SOLANA_RPC = [
   // Wallet USDC reads + the vault deposit transaction.

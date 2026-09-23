@@ -25,6 +25,7 @@ import {
   ChampionIcon,
   TelegramIcon,
   Cancel01Icon,
+  SparklesIcon,
 } from "@hugeicons/core-free-icons";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { resetDemo } from "@/store/slices/tradingModeSlice";
@@ -41,6 +42,7 @@ import { DepositPanel } from "./panels/DepositPanel";
 import { WithdrawPanel } from "./panels/WithdrawPanel";
 import { MoneyHistoryPanel } from "./panels/MoneyHistoryPanel";
 import { AdvancedPanel } from "./panels/AdvancedPanel";
+import { AuraPanel } from "./panels/AuraPanel";
 import { useWithdrawal } from "@/hooks/useWithdrawal";
 import type { ShareSubject } from "@/components/share/ShareCardModal";
 import type { CompletedTrade, TradeEpisode } from "@/types";
@@ -66,7 +68,8 @@ type View =
   | "deposit"
   | "withdraw"
   | "money"
-  | "advanced";
+  | "advanced"
+  | "aura";
 
 interface Props {
   open: boolean;
@@ -91,6 +94,7 @@ const TITLES: Record<View, string> = {
   withdraw: "Withdraw USDC",
   money: "Account history",
   advanced: "Advanced",
+  aura: "Bulk Aura",
 };
 
 // Central account hub. A single sheet with sub-views (menu → settings/history)
@@ -222,6 +226,7 @@ export function AccountSheet({
                 onSettings={() => go("settings")}
                 onHistory={() => go("history")}
                 onAdvanced={() => go("advanced")}
+                onAura={() => go("aura")}
                 onTransfer={(dir) => {
                   setTransferDir(dir);
                   go("transfer");
@@ -236,6 +241,7 @@ export function AccountSheet({
             )}
             {view === "settings" && <SettingsPanel />}
             {view === "advanced" && <AdvancedPanel agent={agent} />}
+            {view === "aura" && <AuraPanel wallet={agent.masterAddress} />}
             {view === "settingsMenu" && <SettingsMenuPanel />}
             {view === "history" && (
               <HistoryPanel
@@ -305,6 +311,7 @@ function Menu({
   onSettings,
   onHistory,
   onAdvanced,
+  onAura,
   onTransfer,
   onWithdraw,
   onMoneyHistory,
@@ -336,6 +343,8 @@ function Menu({
   onSettings: () => void;
   onHistory: () => void;
   onAdvanced: () => void;
+  /** Bulk Aura points for the signed-in wallet. */
+  onAura: () => void;
   onTransfer: (dir: "in" | "out") => void;
   /** Open the external-withdrawal panel (wallet → outside address). */
   onWithdraw: () => void;
@@ -571,6 +580,10 @@ function Menu({
           label="Leaderboard"
           onClick={onLeaderboard}
         />
+        {/* Aura is keyed by wallet, so it needs a signed-in account. */}
+        {authenticated && agent.masterAddress && (
+          <NavRow icon={SparklesIcon} label="Bulk Aura" onClick={onAura} />
+        )}
         <NavRow icon={Settings02Icon} label="Settings" onClick={onSettings} />
         {/* Advanced opens the Bulk permission panel (agent key + builder code).
             It was its own top-level section; both steps are one-time setup, so

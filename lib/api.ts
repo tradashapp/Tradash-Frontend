@@ -327,11 +327,13 @@ export const api = {
    * than throwing — a taken name is an expected outcome, not a failure.
    */
   claimUsername: async (privyId: string, username: string): Promise<boolean> => {
+    // Bypasses `req` to read the 409 status, so it must attach auth itself.
+    const auth = await authHeader();
     const res = await fetch(
       `${BASE}/users/${encodeURIComponent(privyId)}/username`,
       {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...auth },
         body: JSON.stringify({ username }),
       }
     );

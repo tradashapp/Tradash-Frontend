@@ -219,6 +219,57 @@ export function useProtection(signer: AgentSigner | null) {
     [signer, toast, readBack, verify]
   );
 
+  /**
+   * Re-size a position's resting triggers after its SIZE changed (add/reduce).
+   *
+   * Every trigger carries an explicit size — Bulk drops `reduceOnly` on write
+   * (see lib/bulk/protection.ts) — so after an add, a TP/SL/trail still sized
+   * to the old position closes only PART of it, and after a reduce it is
+   * oversized. Since these orders fire server-side with the app closed, that
+   * mismatch is exactly when nobody is watching. So the fill is followed by
+   * cancel + re-place at the new size, keeping every level where it was.
+   *
+   * Bulk's position size lags the fill slightly, so it polls until the size
+   * moves off `prevSize`. A flat result is left alone: the close paths already
+   * cancel protection for a position that no longer exists.
+   *
+   * CAVEAT: a re-placed trail restarts its high-water mark at the current
+   * price. Unavoidable — Bulk has no way to edit a resting `trl` in place.
+   */
+  const resizeProtection = useCallback(
+    async (
+      symbol: MarketSymbol,
+      prevSize: number,
+      /** Used only if Bulk's read-back omits the trail's `trb`. */
+      fallbackTrailBps: number
+    ): Promise<void> => {
+      if (!signer || !walletAddress) return;
+      const bulkSymbol = MARKETS[symbol].bulkSymbol;
+      for (let i = 0; i < VERIFY_ATTEMPTS; i++) {
+        await sleep(VERIFY_DELAY_MS);
+        const acct = await fetchAccount(walletAddress).catch(() => null);
+        const row = acct?.positions?.find((p) => p.symbol === bulkSymbol);
+        if (!row || row.size === 0) return;
+        const size = Math.abs(row.size);
+        // Not reflected yet — keep waiting rather than re-placing at the old size.
+        if (Math.abs(size - prevSize) <= prevSize * 1e-9) continue;
+        const orders = readProtection(row.protection?.orders);
+        if (orders.length === 0) return;
+        const trail = findTrailingStop(orders);
+        await setProtection({
+          symbol,
+          direction: row.size > 0 ? "long" : "short",
+          size,
+          takeProfit: findTakeProfit(orders)?.triggerPrice ?? null,
+          stopLoss: findStopLoss(orders)?.triggerPrice ?? null,
+          trailBps: trail ? (trail.trailBps ?? fallbackTrailBps) : null,
+        });
+        return;
+      }
+    },
+    [signer, walletAddress, setProtection]
+  );
+
   /** Remove every resting trigger from a position. */
   const clearProtection = useCallback(
     (symbol: MarketSymbol, direction: Direction, size: number) =>
@@ -233,5 +284,5 @@ export function useProtection(signer: AgentSigner | null) {
     [setProtection]
   );
 
-  return { setProtection, clearProtection };
+  return { setProtection, clearProtection, resizeProtection };
 }

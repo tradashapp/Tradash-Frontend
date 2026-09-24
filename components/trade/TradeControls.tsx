@@ -13,6 +13,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { roi } from "@/lib/perp";
 import { useAllPositions } from "@/hooks/useAllPositions";
+import { useAppSelector } from "@/store/hooks";
 import { Odometer } from "@/components/ui/Odometer";
 import { playSound } from "@/lib/sound";
 import { haptic } from "@/lib/haptics";
@@ -56,6 +57,8 @@ export function TradeControls({
   // sheet it opens has always listed every market.
   const { items, totalPnl, totalMargin } = useAllPositions();
   const anyOpen = items.length > 0;
+  // Where the trail runs depends on the mode — see the note under the button.
+  const mode = useAppSelector((s) => s.tradingMode.mode);
 
   return (
     <div className="flex flex-col gap-2">
@@ -108,6 +111,7 @@ export function TradeControls({
             trailActive={trailActive}
             trailEligible={trailEligible}
             trailPct={trailPct}
+            live={mode === "live"}
             onToggleTrail={onToggleTrail}
             onClose={onClose}
           />
@@ -179,6 +183,7 @@ function ActivePosition({
   trailActive,
   trailEligible,
   trailPct,
+  live,
   onToggleTrail,
   onClose,
 }: {
@@ -186,6 +191,7 @@ function ActivePosition({
   trailActive: boolean;
   trailEligible: boolean;
   trailPct: number;
+  live: boolean;
   onToggleTrail: () => void;
   onClose: () => void;
 }) {
@@ -217,12 +223,13 @@ function ActivePosition({
               Need +{(trailPct * 100).toFixed(trailPct < 0.01 ? 1 : 0)}% to trail
             </span>
           )}
-          {/* Trailing runs client-side, so it only watches price while the app
-              is open. Small honest note so users aren't misled (server-side
-              always-on keeper is a separate, planned project). */}
+          {/* LIVE: the trail is a native Bulk `trl` order that ratchets and
+              fires on Bulk's side, so it keeps working with the app closed.
+              DEMO has no Bulk account to rest it on — useDemoPnl simulates it
+              in the tab, so there it really does stop when the app closes. */}
           {trailActive && (
             <span className="mt-1 text-center text-[10px] text-text-muted">
-              Active only while app is open
+              {live ? "" : "Demo: only while app is open"}
             </span>
           )}
         </div>

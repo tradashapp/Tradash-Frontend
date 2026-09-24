@@ -112,7 +112,7 @@ export function useTrade(
   const { toast } = useToast();
   // Native Bulk trigger orders (TP / SL / trailing). Live trailing routes
   // through here so it rests server-side rather than in a client watcher.
-  const { setProtection } = useProtection(signer);
+  const { setProtection, resizeProtection } = useProtection(signer);
   const mode = useAppSelector((s) => s.tradingMode.mode);
   // Optimistic (Bulk exposes no readable builder-approval state), so a stale
   // `true` is still possible on a new device — `onBuilderNotApproved` remains
@@ -691,6 +691,15 @@ export function useTrade(
         dispatch(setOrderStatus("filled"));
         playSound("open");
         haptic("open");
+        // Resting TP/SL/trail are still sized to the OLD position — grow them
+        // so a server-side exit closes all of it, not just the original part.
+        if (position.protection?.length) {
+          void resizeProtection(
+            position.symbol,
+            position.size,
+            Math.round(settings.defaultTrailPct * 10_000)
+          );
+        }
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Order failed";
         dispatch(setOrderError(msg));
@@ -711,7 +720,9 @@ export function useTrade(
       signer,
       liveBalance,
       settings.leverageByMarket,
+      settings.defaultTrailPct,
       requireLiveSetup,
+      resizeProtection,
       dispatch,
       toast,
     ]
@@ -784,6 +795,14 @@ export function useTrade(
         dispatch(setOrderStatus("filled"));
         playSound("close");
         haptic("close");
+        // Shrink resting triggers to what is left, so none is oversized.
+        if (position.protection?.length) {
+          void resizeProtection(
+            position.symbol,
+            position.size,
+            Math.round(settings.defaultTrailPct * 10_000)
+          );
+        }
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Reduce failed";
         dispatch(setOrderError(msg));
@@ -798,7 +817,16 @@ export function useTrade(
         }
       }
     },
-    [mode, resolveTarget, signer, requireLiveSetup, dispatch, toast]
+    [
+      mode,
+      resolveTarget,
+      signer,
+      settings.defaultTrailPct,
+      requireLiveSetup,
+      resizeProtection,
+      dispatch,
+      toast,
+    ]
   );
 
   // Can a trail be armed right now? Only when in enough profit that the clamped

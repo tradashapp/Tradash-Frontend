@@ -34,6 +34,10 @@ const REPLAY_BUDGET_BYTES = 1_500_000;
 // longer any UI showing or changing it, and with a min order size computed
 // against a leverage the user can't see. Clearing the map once puts everyone on
 // `leverageFor`'s max fallback. Bump the suffix to run it again.
+//
+// Leverage is editable again (2026-09-24). Do NOT bump this now: the reset has
+// already run, and bumping it would wipe choices users make in the revived
+// slider. Max stays the default through `leverageFor`, not through this.
 const LEVERAGE_RESET_KEY = "tradash.leverageReset.v2";
 
 // Load persisted settings + trade history on the client and subscribe to

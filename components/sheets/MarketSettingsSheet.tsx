@@ -19,7 +19,7 @@ import type { useLeverage } from "@/hooks/useLeverage";
 import type { MarketSymbol } from "@/types";
 
 /**
- * Market settings — the SIZE of the next order on the market being traded.
+ * Market settings — the SIZE and LEVERAGE of the next order on the market being traded.
  *
  * Replaces the old add/reduce dock panel. That dock was a position TOOL: it
  * existed only while a trade was open, and its buttons changed a live
@@ -28,15 +28,11 @@ import type { MarketSymbol } from "@/types";
  * underneath — the two questions asked here are "what will my next order look
  * like" and "what am I already in".
  *
- * SIZE IS THE ONLY OPTION. Leverage and trailing used to be edited here too;
- * both sections are COMMENTED OUT below rather than deleted, so they can come
- * back without being rebuilt. They did not become unused — they became fixed:
- *   - leverage: every market trades at its OWN cap (`leverageFor` falls back to
- *     the max, and `store/persist.ts` clears leverage a device had already
- *     stored, so nobody is left on a lower one they can no longer see);
- *   - trailing: fixed at the 0.1% default in the settings slice.
- * `useLeverage` is still threaded in as a prop and still read here, because the
- * min order size depends on the leverage the order will actually use.
+ * SIZE AND LEVERAGE are edited here. Leverage defaults to each market's OWN
+ * cap (`leverageFor` falls back to the max), so a user who never opens the
+ * slider trades at max; moving it pushes `updateUserSettings` to Bulk through
+ * `useLeverage`. Trailing is fixed at the 0.1% default in the settings slice;
+ * its section is kept below behind a `false` guard.
  *
  * WHERE THE VALUE GOES. The size written here goes straight to the settings
  * slice (`defaultPositionSize`) — the exact state `useTrade.open()` reads when
@@ -101,11 +97,10 @@ export function MarketSettingsSheet({
   const available =
     mode === "demo" ? demoBalance : liveBalance?.available ?? null;
 
-  // Leverage is no longer editable, but it is still READ: it is what turns
-  // Bulk's $50 notional floor into this market's margin floor, and what the
-  // notional readout is derived from.
+  // Leverage is also what turns Bulk's $50 notional floor into this market's
+  // margin floor, and what the notional readout is derived from.
   const lev = leverage.leverageOf(symbol);
-  // Only the disabled leverage section reads this; kept so it still compiles.
+  // The slider's upper bound — and the default for an untouched market.
   const max = maxLeverageFor(symbol);
   const size = s.defaultPositionSize;
 
@@ -304,25 +299,15 @@ export function MarketSettingsSheet({
           )}
         </section>
 
-        {/* ---- Leverage + Trailing (DISABLED) -------------------------------
-            Both controls were removed from this sheet: size is now the only
-            thing edited here. They are kept, compiling and type-checked, behind
-            a `false` guard rather than deleted or block-commented, so bringing
-            either back is a one-word change and neither silently rots.
+        {/* ---- Leverage ---------------------------------------------------
+            Revived 2026-09-24 on community feedback. It still DEFAULTS to the
+            market's own cap: `leverageFor` falls back to `maxLeverageFor` for
+            any market the user has not touched, so the slider opens at max.
 
-            What they do now instead of being edited:
-              - leverage: every market trades at its own cap (`leverageFor`
-                falls back to `maxLeverageFor`), and `store/persist.ts` clears
-                any lower value a device had already saved;
-              - trailing: fixed at `defaultTrailPct` (0.1%) in the settings
-                slice, which is what `useTrade` reads for every order.
-
-            NOTE if reviving the leverage slider: the minimum order size is
-            DERIVED from leverage (`minSizeFor`), so lowering it must also push
-            `defaultPositionSize` up to the new floor, or every order under it
-            is rejected for sub-$50 notional. --------------------------------- */}
-        {false && (
-          <>
+            Lowering it raises this market's minimum size (`minSizeFor` divides
+            the $50 notional floor by leverage). `useDefaultSize` watches
+            `leverageByMarket` and lifts `defaultPositionSize` to the new floor,
+            so a lower leverage can never leave a size Bulk would reject. */}
           <section className="glass-inset rounded-2xl p-4">
             <div className="mb-2 flex items-baseline justify-between">
               <span className="text-[11px] font-medium uppercase tracking-wide text-text-muted">
@@ -335,7 +320,7 @@ export function MarketSettingsSheet({
 
             <div className="flex items-baseline gap-2">
               <span className="tabular text-2xl font-bold text-text">
-                {lev.toFixed(2)}×
+                {lev}×
               </span>
               <span className="text-[11px] leading-tight text-text-muted">
                 liquidates on a{" "}
@@ -393,7 +378,10 @@ export function MarketSettingsSheet({
             )}
           </section>
 
-          {/* ---- Trailing ---------------------------------------------------- */}
+        {/* ---- Trailing (DISABLED) -----------------------------------------
+            Fixed at `defaultTrailPct` (0.1%) in the settings slice. Kept
+            compiling behind a `false` guard so it can come back unchanged. */}
+        {false && (
           <section className="glass-inset rounded-2xl p-4">
             <div className="mb-2 flex items-baseline justify-between">
               <span className="text-[11px] font-medium uppercase tracking-wide text-text-muted">
@@ -450,7 +438,6 @@ export function MarketSettingsSheet({
               ))}
             </div>
           </section>
-          </>
         )}
 
         {/* ---- What the next order costs ----------------------------------- */}

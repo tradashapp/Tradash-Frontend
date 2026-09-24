@@ -10,7 +10,7 @@ import {
   ArrowMoveDownRightIcon,
 } from "@hugeicons/core-free-icons";
 import { useAppSelector } from "@/store/hooks";
-import { maxLeverageFor } from "@/lib/markets";
+import { leverageFor } from "@/lib/markets";
 import { config } from "@/lib/config";
 import { playSound } from "@/lib/sound";
 import { haptic } from "@/lib/haptics";
@@ -29,10 +29,10 @@ import type { MarketSymbol } from "@/types";
  * The values are READ-ONLY here and come from the same settings slice the
  * order path reads, so the dock cannot drift from what actually gets sent.
  *
- * The three rows are SIZE, LEVERAGE and FEE. Only size is editable (in the
- * settings sheet); the other two are consequences of it, and that is the point
- * — they answer "what does this size actually open, and what does it cost"
- * without opening anything.
+ * The three rows are SIZE, LEVERAGE and FEE. Size and leverage are edited in
+ * the settings sheet (leverage defaults to the market's cap until the user
+ * moves it); the fee is a consequence of both — it answers "what does this
+ * order actually cost" without opening anything.
  *
  * Trailing is no longer shown: it is fixed at 0.1% and, unlike leverage, it
  * changes nothing about the order being described here. Its row is kept behind
@@ -78,8 +78,7 @@ export function PositionDock({ symbol, onOpen }: Props) {
 
   // Resolved the same way the order path resolves it: an unset market uses its
   // own cap, so the dock shows the leverage the next order will actually use.
-  const lev =
-    settings.leverageByMarket[symbol] ?? maxLeverageFor(symbol);
+  const lev = leverageFor(symbol, settings.leverageByMarket);
   const size = settings.defaultPositionSize;
   const trailPct = settings.defaultTrailPct * 100;
 
@@ -173,9 +172,9 @@ export function PositionDock({ symbol, onOpen }: Props) {
           value={usd2(size)}
           label="Size"
         />
-        {/* Leverage is read-only here — it is no longer editable in the sheet
-            and is always the market's cap. It stays on the dock because it is
-            what turns the size above into the position actually opened.
+        {/* Leverage — the market's cap unless the user lowered it in the
+            sheet. It is what turns the size above into the position actually
+            opened.
 
             Whole number, deliberately, while the dollar rows are 2dp:
             `clampLeverage` rounds leverage to an integer, so "40.00×" would be

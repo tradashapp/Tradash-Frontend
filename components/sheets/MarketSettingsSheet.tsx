@@ -100,6 +100,8 @@ export function MarketSettingsSheet({
   // Leverage is also what turns Bulk's $50 notional floor into this market's
   // margin floor, and what the notional readout is derived from.
   const lev = leverage.leverageOf(symbol);
+  // Frozen while this market has an open position — see `useLeverage.isLocked`.
+  const levLocked = leverage.isLocked(symbol);
   // The slider's upper bound — and the default for an untouched market.
   const max = maxLeverageFor(symbol);
   const size = s.defaultPositionSize;
@@ -337,11 +339,12 @@ export function MarketSettingsSheet({
               max={max}
               step={1}
               value={lev}
+              disabled={levLocked}
               onChange={(e) =>
                 leverage.setLeverage(symbol, Number(e.target.value))
               }
               aria-label={`${symbol} leverage`}
-              className="lev-slider mt-3 w-full"
+              className="lev-slider mt-3 w-full disabled:opacity-40"
               style={{
                 ["--fill" as string]: `${((lev - 1) / Math.max(max - 1, 1)) * 100}%`,
               }}
@@ -354,12 +357,13 @@ export function MarketSettingsSheet({
                   <button
                     key={p}
                     type="button"
+                    disabled={levLocked}
                     onClick={() => {
                       playSound("tap");
                       haptic("tap");
                       leverage.setLeverage(symbol, p);
                     }}
-                    className={`tabular flex-1 rounded-lg py-1.5 text-xs font-semibold transition-colors ${
+                    className={`tabular flex-1 rounded-lg py-1.5 text-xs font-semibold transition-colors disabled:opacity-40 ${
                       lev === p
                         ? "bg-up text-black"
                         : "bg-white/[0.07] text-text-muted hover:bg-white/10"
@@ -370,7 +374,12 @@ export function MarketSettingsSheet({
                 ))}
             </div>
 
-            {!leverage.canSync && (
+            {levLocked ? (
+              <p className="mt-2 text-[11px] leading-snug text-text-muted">
+                Locked while your {MARKETS[symbol].symbol} position is open.
+                Close it to change leverage.
+              </p>
+            ) : !leverage.canSync && (
               <p className="mt-2 text-[11px] leading-snug text-text-muted">
                 Saved on this device. Finish setup and switch to live to apply
                 this on your trading account.

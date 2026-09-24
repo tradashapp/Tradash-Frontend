@@ -31,6 +31,27 @@ export function useLeverage(signer: AgentSigner | null) {
   const { toast } = useToast();
   const mode = useAppSelector((s) => s.tradingMode.mode);
   const byMarket = useAppSelector((s) => s.settings.leverageByMarket);
+  // Markets holding an open position in the CURRENT mode. Leverage is locked on
+  // those — see `isLocked`.
+  const livePositions = useAppSelector((s) => s.position.bySymbol);
+  const demoPositions = useAppSelector((s) => s.tradingMode.demo.positions);
+  const positions = mode === "demo" ? demoPositions : livePositions;
+
+  /**
+   * Leverage can't change on a market with an open position.
+   *
+   * Bulk stores leverage per SYMBOL on the account, not per order, so an
+   * `updateUserSettings` pushed while a position is open applies to THAT
+   * position, not just the next order: its margin requirement and liquidation
+   * level move under the user's feet. The setting only exists to shape the next
+   * order, and there is no next order on a market that is already occupied (one
+   * position per market; adds use the position's own leverage). Demo is locked
+   * too so both modes behave the same.
+   */
+  const isLocked = useCallback(
+    (symbol: MarketSymbol) => positions[symbol] != null,
+    [positions]
+  );
 
   const [sync, setSync] = useState<Partial<Record<MarketSymbol, LeverageSync>>>(
     {}
@@ -74,6 +95,9 @@ export function useLeverage(signer: AgentSigner | null) {
   /** Set a market's leverage. Applies locally at once, syncs to Bulk after a beat. */
   const setLeverage = useCallback(
     (symbol: MarketSymbol, raw: number) => {
+      // Backstop for the disabled UI: never push to a market with an open
+      // position, even if a stale control fires.
+      if (isLocked(symbol)) return;
       const leverage = clampLeverage(symbol, raw);
       dispatch(setMarketLeverage({ symbol, leverage }));
 
@@ -92,7 +116,7 @@ export function useLeverage(signer: AgentSigner | null) {
         void flush(symbol);
       }, PUSH_DEBOUNCE_MS);
     },
-    [dispatch, mode, signer, flush]
+    [dispatch, mode, signer, flush, isLocked]
   );
 
   return {
@@ -105,6 +129,8 @@ export function useLeverage(signer: AgentSigner | null) {
     byMarket,
     sync,
     setLeverage,
+    /** True while this market holds an open position — leverage is frozen. */
+    isLocked,
     /** True once the account can actually receive leverage changes. */
     canSync: mode === "live" && signer !== null,
   };

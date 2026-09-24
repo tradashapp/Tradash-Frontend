@@ -859,7 +859,16 @@ export function useTrade(
     const sym = position.symbol;
     const trailBps = Math.round(settings.defaultTrailPct * 10_000);
 
-    if (position.trailActive) {
+    // Same source as the returned `trailActive`: live reads the RESTING trl on
+    // Bulk. `position.trailActive` is a demo-only flag that nothing sets for a
+    // live position, so checking it here sent every live tap down the ARM path
+    // — the trail could be re-armed but never cancelled.
+    const armed =
+      mode === "demo"
+        ? position.trailActive === true
+        : findTrailingStop(position.protection) != null;
+
+    if (armed) {
       if (mode === "demo") {
         dispatch(
           patchDemoPosition({

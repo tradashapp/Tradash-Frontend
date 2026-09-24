@@ -1,11 +1,12 @@
 import { Connection, PublicKey } from "@solana/web3.js";
 import { config } from "@/lib/config";
-import { MARKETS } from "@/lib/markets";
-import type { MarketSymbol } from "@/types";
 
 // MagicBlock real-time pricing oracle client. Prices live in on-chain
 // Ephemeral Rollup accounts updated every 50-200ms; we subscribe directly.
 // Layout confirmed from github.com/magicblock-labs/oracle-template.
+//
+// Callers should go through `subscribeToPrice` in ./index, which routes each
+// market to its feed — not every market is priced by MagicBlock.
 
 const PROGRAM_ID = new PublicKey(
   "PriCems5tHihc6UDXDjzjeawomAwBduWMGAi8ZUjppd"
@@ -32,9 +33,9 @@ function getConnection(): Connection {
 // isn't present in the browser).
 const utf8 = (s: string) => new TextEncoder().encode(s);
 
-/** Derive the price-feed PDA for a market. Seed is the feed id as a string. */
-export function feedAddress(symbol: MarketSymbol): PublicKey {
-  const feedName = MARKETS[symbol].pythLazerId.toString();
+/** Derive the price-feed PDA for a Pyth Lazer id. Seed is the id as a string. */
+export function feedAddress(pythLazerId: number): PublicKey {
+  const feedName = pythLazerId.toString();
   return PublicKey.findProgramAddressSync(
     [utf8("price_feed"), utf8("pyth-lazer"), utf8(feedName)],
     PROGRAM_ID
@@ -57,16 +58,16 @@ export type PriceCallback = (price: number) => void;
 export type Unsubscribe = () => void;
 
 /**
- * Subscribe to live price updates for a market. Immediately fetches the current
- * account so the chart has a starting value, then streams changes.
+ * Subscribe to live price updates for one oracle feed. Immediately fetches the
+ * current account so the chart has a starting value, then streams changes.
  */
-export function subscribeToPrice(
-  symbol: MarketSymbol,
+export function subscribeToMagicBlockPrice(
+  pythLazerId: number,
+  exponent: number,
   onPrice: PriceCallback
 ): Unsubscribe {
   const conn = getConnection();
-  const address = feedAddress(symbol);
-  const { exponent } = MARKETS[symbol];
+  const address = feedAddress(pythLazerId);
 
   // Seed with the current value (non-blocking).
   conn

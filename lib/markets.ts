@@ -1,12 +1,17 @@
 import type { MarketCategory, MarketInfo, MarketSymbol } from "@/types";
 
-// Markets are the intersection of two sources, both verified 2026-08-17:
+// Markets come from two sources, both verified 2026-08-17:
 //   1. Bulk's exchangeInfo (status "TRADING") — what we can actually trade on.
-//   2. MagicBlock's oracle program — what we can actually price in real time.
-// Bulk also lists LIT, MEGA, MON, XPL and PUMP, but those have a Pyth Lazer id
-// with NO deployed price-feed PDA on the ER, so they'd render a dead price.
-// They're deliberately excluded; re-probe before adding them back (PUMP, id
-// 1578, re-probed 2026-09-24 on devnet + mainnet ER: still no account).
+//   2. A live price feed — MagicBlock's oracle program by default.
+//
+// A market Bulk lists but MagicBlock has no LIVE feed for can still be added
+// with `priceSource: "bulk"`: its chart then runs off Bulk's own ticker stream
+// (lib/oracle/bulkTicker.ts) and needs no pythLazerId/exponent. PUMP is priced
+// this way — its Pyth Lazer id (1578) has no price-feed PDA on either the
+// devnet or mainnet ER (probed 2026-09-24). LIT, MEGA, MON and XPL are in the
+// same position but are suspended from trading on Bulk; add them the same way
+// once they reopen. Check the feed PDA's value, not just its existence — PAXG's
+// (163) exists but reads 0.
 //
 // pythLazerId + exponent come from MagicBlock's oracle-template
 // (pyth_lazer_list.json): the feed PDA seed is the id as a string, and
@@ -193,6 +198,16 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
     logo: "/images/crypto/paxg.png",
     categories: ["commodities"],
   },
+  PUMP: {
+    symbol: "PUMP",
+    bulkSymbol: "PUMP-USD",
+    label: "Pump.fun",
+    priceSource: "bulk",
+    maxLeverage: 10,
+    lotSize: 0.00000001,
+    logo: "/images/crypto/pump.png",
+    categories: ["crypto"],
+  },
   // FARTCOIN: {
   //   symbol: "FARTCOIN",
   //   bulkSymbol: "FARTCOIN-USD",
@@ -241,6 +256,7 @@ export const MARKET_ORDER: MarketSymbol[] = [
   // "JUP",
   "HYPE",
   "PAXG",
+  "PUMP",
   // "FARTCOIN",
 ];
 
@@ -374,6 +390,14 @@ export function inCategory(
   if (category === "all") return true;
   if (category === "favourites" || category === "hot") return false;
   return MARKETS[symbol]?.categories.includes(category) ?? false;
+}
+
+/**
+ * True if this market's chart is priced off Bulk's own ticker rather than the
+ * MagicBlock oracle — i.e. the chart and Bulk's quotes share one price space.
+ */
+export function isBulkPriced(symbol: MarketSymbol): boolean {
+  return MARKETS[symbol]?.priceSource === "bulk";
 }
 
 /** Type guard: is this string one of our supported markets? */

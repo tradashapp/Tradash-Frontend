@@ -1,3 +1,4 @@
+import { isBulkPriced } from "@/lib/markets";
 import type { Balance, Direction, Position } from "@/types";
 
 // Shared perpetual math used by the demo simulator and by live PnL display.
@@ -115,6 +116,11 @@ export function displayPnlFor(
  * same quantity from PnL, which is what this file did before `fairPrice` was
  * captured: solving `pnlAnchor + (p − priceAnchorMb)·size·dir = 0` yields the
  * MagicBlock price of zero PnL, and subtracting Bulk's entry gives the shift.
+ *
+ * A Bulk-priced market (`priceSource: "bulk"`) has only ONE space: its chart
+ * runs off Bulk's own mark price, so there's nothing to translate and the shift
+ * is exactly 0 — not a measured ~0, which would still wobble with the timing
+ * between the ticker and the account stream.
  */
 export function bulkToChartShift(
   mode: "demo" | "live",
@@ -122,6 +128,8 @@ export function bulkToChartShift(
 ): number {
   // Demo's prices all come from the one feed — there is nothing to translate.
   if (mode === "demo") return 0;
+  // Neither is there when the chart itself is priced off Bulk.
+  if (isBulkPriced(pos.symbol)) return 0;
 
   // Direct: both feeds sampled at the same moment.
   if (

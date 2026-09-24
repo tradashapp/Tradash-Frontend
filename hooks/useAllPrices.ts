@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { subscribeToPrice } from "@/lib/oracle/magicblock";
+import { subscribeToPrice } from "@/lib/oracle";
 import { commitPrice } from "@/store/slices/priceSlice";
 import { useAppDispatch } from "@/store/hooks";
 import { MARKET_ORDER } from "@/lib/markets";
@@ -16,9 +16,10 @@ const COMMIT_INTERVAL_MS = 200;
 // correct PnL/liquidation. The active chart still drives its own 60fps rendering
 // via CanvasChart's useLivePrice; this is purely for the store-backed values.
 //
-// All markets share one Connection, so this is a single WebSocket with one
-// account subscription each (measured: 16 subs stream ~107 ticks/sec combined
-// with no drops). The throttle below is keyed per symbol, so Redux still sees
+// All MagicBlock-priced markets share one Connection, so this is a single
+// WebSocket with one account subscription each (measured: 16 subs stream ~107
+// ticks/sec combined with no drops); Bulk-priced markets share one ticker
+// socket (lib/oracle/bulkTicker.ts). The throttle below is keyed per symbol, so Redux still sees
 // at most 5 commits/sec per market regardless of how many markets we add.
 export function useAllPrices() {
   const dispatch = useAppDispatch();

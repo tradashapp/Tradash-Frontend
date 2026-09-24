@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { subscribeToPrice } from "@/lib/oracle/magicblock";
+import { subscribeToPrice } from "@/lib/oracle";
 import type { MarketSymbol } from "@/types";
 
 /**

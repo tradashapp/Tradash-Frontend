@@ -13,7 +13,7 @@ import {
 import { fetchGapPrices, isBackfillable } from "@/lib/replay/backfill";
 import { breakEvenPrice, chartLiquidationPrice } from "@/lib/perp";
 import { MARKET_ORDER } from "@/lib/markets";
-import { subscribeToPrice } from "@/lib/oracle/magicblock";
+import { subscribeToPrice } from "@/lib/oracle";
 import type { MarketSymbol, Position } from "@/types";
 
 // Drives the replay recorder: opens an episode when a position appears, feeds

@@ -357,8 +357,8 @@ export const MARKET_CATEGORIES: { id: MarketCategory; label: string }[] = [
   { id: "all", label: "All" },
   { id: "hot", label: "Hot 🔥" },
   { id: "crypto", label: "Crypto" },
-  { id: "stocks", label: "Stocks" },
   { id: "commodities", label: "Commodities" },
+  { id: "stocks", label: "Stocks" },
 ];
 
 /** True if a market belongs to a STATIC category. Two categories are dynamic

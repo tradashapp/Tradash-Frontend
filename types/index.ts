@@ -21,16 +21,34 @@ export type Direction = "long" | "short";
  * circular import (the slice imports from this module). */
 export type TradingMode = "demo" | "live";     
 
-export interface MarketInfo {
+/**
+ * Where a market's LIVE price (the chart's Y axis) comes from.
+ *
+ * - "magicblock" (the default): the MagicBlock oracle on the ER. Bulk quotes
+ *   its prices against a DIFFERENT feed, so every Bulk-derived chart line is
+ *   translated by a measured shift (see `bulkToChartShift` in lib/perp.ts).
+ * - "bulk": Bulk's own ticker stream, for markets Bulk lists but MagicBlock
+ *   has no live feed for. The chart and Bulk's quotes then share ONE price
+ *   space, so no line is shifted.
+ */
+export type MarketPriceFeed =
+  | {
+      priceSource?: "magicblock";
+      /** Pyth Lazer feed id — used as the oracle PDA seed (as a string). */
+      pythLazerId: number;
+      /** Price scaling exponent; USD price = rawI64 * 10^exponent. */
+      exponent: number;
+    }
+  | { priceSource: "bulk" };
+
+export type MarketInfo = MarketFields & MarketPriceFeed;
+
+interface MarketFields {
   symbol: MarketSymbol; 
   /** Bulk market identifier, e.g. "BTC-USD". */  
   bulkSymbol: string;
   /** Human label. */
   label: string;
-  /** Pyth Lazer feed id — used as the oracle PDA seed (as a string). */
-  pythLazerId: number;
-  /** Price scaling exponent; USD price = rawI64 * 10^exponent. */
-  exponent: number;
   /** Max leverage Bulk allows on this market (from exchangeInfo). */
   maxLeverage: number;
   /**

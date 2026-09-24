@@ -3,9 +3,10 @@ import type { MarketCategory, MarketInfo, MarketSymbol } from "@/types";
 // Markets are the intersection of two sources, both verified 2026-08-17:
 //   1. Bulk's exchangeInfo (status "TRADING") — what we can actually trade on.
 //   2. MagicBlock's oracle program — what we can actually price in real time.
-// Bulk also lists LIT, MEGA, MON and XPL, but those four have a Pyth Lazer id
+// Bulk also lists LIT, MEGA, MON, XPL and PUMP, but those have a Pyth Lazer id
 // with NO deployed price-feed PDA on the ER, so they'd render a dead price.
-// They're deliberately excluded; re-probe before adding them back.
+// They're deliberately excluded; re-probe before adding them back (PUMP, id
+// 1578, re-probed 2026-09-24 on devnet + mainnet ER: still no account).
 //
 // pythLazerId + exponent come from MagicBlock's oracle-template
 // (pyth_lazer_list.json): the feed PDA seed is the id as a string, and
@@ -44,17 +45,17 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
     logo: "/images/crypto/sol.png",
     categories: ["crypto"],
   },
-  // XRP: {
-  //   symbol: "XRP",
-  //   bulkSymbol: "XRP-USD",
-  //   label: "XRP",
-  //   pythLazerId: 14,
-  //   exponent: -8,
-  //   maxLeverage: 20,
-  //   lotSize: 0.000001,
-  //   logo: "/images/crypto/xrp.png",
-  //   categories: ["crypto"],
-  // },
+  XRP: {
+    symbol: "XRP",
+    bulkSymbol: "XRP-USD",
+    label: "XRP",
+    pythLazerId: 14,
+    exponent: -8,
+    maxLeverage: 10,
+    lotSize: 0.000001,
+    logo: "/images/crypto/xrp.png",
+    categories: ["crypto"],
+  },
   // BNB: {
   //   symbol: "BNB",
   //   bulkSymbol: "BNB-USD",
@@ -227,7 +228,7 @@ export const MARKET_ORDER: MarketSymbol[] = [
   "BTC",
   "ETH",
   "SOL",
-  // "XRP",
+  "XRP",
   // "BNB",
   // "DOGE",
   // "SUI",
@@ -247,7 +248,7 @@ export const DEFAULT_MARKET: MarketSymbol = "BTC";
 
 // --- Leverage ----------------------------------------------------------------
 // Every market has its OWN ceiling on Bulk (see `maxLeverage` above, mirrored
-// from exchangeInfo: BTC 40×, ETH 25×, SOL/XRP/PAXG 20×, everything else 10×), so
+// from exchangeInfo: BTC 40×, ETH 25×, SOL/PAXG 20×, everything else 10×), so
 // leverage is stored per market and always resolved through these helpers —
 // never read raw. That keeps a value chosen on BTC from leaking onto a 10×
 // market as an order Bulk would margin differently than the UI promised.

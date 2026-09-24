@@ -12,7 +12,8 @@ export type MarketCategory =
   | "all"
   | "hot"
   | "crypto"
-  | "stocks";
+  | "stocks"
+  | "commodities";
 
 export type Direction = "long" | "short"; 
 

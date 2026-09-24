@@ -176,6 +176,22 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
     logo: "/images/crypto/hype.png",
     categories: ["crypto"],
   },
+  // Bulk's PAXG-USD settles against spot gold (its exchangeInfo baseAsset is
+  // "XAU"), and MagicBlock's own PAXG feed (id 163) is a dead PDA reading 0 —
+  // so this prices off Metal.XAU/USD (id 346), which is live and tracks Bulk's
+  // oracle. Note the -3 exponent, unlike every crypto feed's -8. Verified
+  // 2026-09-24.
+  PAXG: {
+    symbol: "PAXG",
+    bulkSymbol: "PAXG-USD",
+    label: "Gold",
+    pythLazerId: 346,
+    exponent: -3,
+    maxLeverage: 20,
+    lotSize: 0.0001,
+    logo: "/images/crypto/paxg.png",
+    categories: ["commodities"],
+  },
   // FARTCOIN: {
   //   symbol: "FARTCOIN",
   //   bulkSymbol: "FARTCOIN-USD",
@@ -223,6 +239,7 @@ export const MARKET_ORDER: MarketSymbol[] = [
   // "JTO",
   // "JUP",
   "HYPE",
+  "PAXG",
   // "FARTCOIN",
 ];
 
@@ -230,7 +247,7 @@ export const DEFAULT_MARKET: MarketSymbol = "BTC";
 
 // --- Leverage ----------------------------------------------------------------
 // Every market has its OWN ceiling on Bulk (see `maxLeverage` above, mirrored
-// from exchangeInfo: BTC 40×, ETH 25×, SOL/XRP 20×, everything else 10×), so
+// from exchangeInfo: BTC 40×, ETH 25×, SOL/XRP/PAXG 20×, everything else 10×), so
 // leverage is stored per market and always resolved through these helpers —
 // never read raw. That keeps a value chosen on BTC from leaking onto a 10×
 // market as an order Bulk would margin differently than the UI promised.
@@ -341,6 +358,7 @@ export const MARKET_CATEGORIES: { id: MarketCategory; label: string }[] = [
   { id: "hot", label: "Hot 🔥" },
   { id: "crypto", label: "Crypto" },
   { id: "stocks", label: "Stocks" },
+  { id: "commodities", label: "Commodities" },
 ];
 
 /** True if a market belongs to a STATIC category. Two categories are dynamic

@@ -186,10 +186,13 @@ export function TradeScreen({ initialMarket }: Props) {
   } | null>(null);
 
   // Auto-show the "how it works" walkthrough on first visit (persisted flag).
+  // Waits for settings to load: this effect runs before Providers' hydrate
+  // effect, so without the gate it read the default `false` on every reload.
+  const settingsHydrated = useAppSelector((s) => s.settings.hydrated);
   const tutorialSeen = useAppSelector((s) => s.settings.tutorialSeen);
   useEffect(() => {
-    if (!tutorialSeen) setTutorialOpen(true);
-  }, [tutorialSeen]);
+    if (settingsHydrated && !tutorialSeen) setTutorialOpen(true);
+  }, [settingsHydrated, tutorialSeen]);
 
   // Per-market leverage, owned here so the market-settings sheet (inside the
   // layout) and the order path agree on one instance — it debounces its push to

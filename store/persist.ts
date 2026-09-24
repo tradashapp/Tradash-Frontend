@@ -2,6 +2,7 @@ import type { AppStore } from "./index";
 import {
   defaultSettings,
   hydrateSettings,
+  markSettingsHydrated,
   type SettingsState,
 } from "./slices/settingsSlice";
 import { hydrateHistory } from "./slices/historySlice";
@@ -77,6 +78,11 @@ export function wireSettingsPersistence(store: AppStore) {
   } catch {
     /* corrupt storage — keep defaults */
   }
+  // Always flag completion — a first visit has nothing stored, and corrupt
+  // storage falls back to defaults; either way loading is over.
+  if (!store.getState().settings.hydrated) {
+    store.dispatch(markSettingsHydrated());
+  }
 
   // Hydrate history. Only demo trades are persisted locally; live trades come
   // from the backend on login. Filter defensively in case an older build wrote
@@ -139,10 +145,9 @@ export function wireSettingsPersistence(store: AppStore) {
     if (state.settings !== lastSettings) {
       lastSettings = state.settings;
       try {
-        window.localStorage.setItem(
-          SETTINGS_KEY,
-          JSON.stringify(state.settings)
-        );
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { hydrated, ...persisted } = state.settings;
+        window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(persisted));
       } catch {
         /* non-fatal */
       }

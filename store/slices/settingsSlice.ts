@@ -50,6 +50,13 @@ export interface SettingsState {
    * the settings blob stays small enough for localStorage).
    */
   avatar: string;
+  /**
+   * Whether the persisted blob has been loaded (store/persist.ts). NOT itself
+   * persisted. Settings are read in an effect after mount, and child effects
+   * run before that one — so anything acting on a stored flag at mount (the
+   * first-run tutorial) must wait for this, or it sees the defaults.
+   */
+  hydrated: boolean;
 }
 
 const initialState: SettingsState = {
@@ -71,6 +78,7 @@ const initialState: SettingsState = {
   tutorialSeen: false,
   feedbackBannerDismissed: false,
   avatar: "\u{1F680}", // rocket
+  hydrated: false,
 };
 
 const settingsSlice = createSlice({
@@ -81,7 +89,11 @@ const settingsSlice = createSlice({
       return { ...state, ...action.payload };
     },
     hydrateSettings(_state, action: PayloadAction<SettingsState>) {
-      return action.payload;
+      return { ...action.payload, hydrated: true };
+    },
+    /** Nothing stored (first visit) — defaults stand, but loading is done. */
+    markSettingsHydrated(state) {
+      state.hydrated = true;
     },
     /** Set (or clear) one market's leverage. Callers clamp to the market cap. */
     setMarketLeverage(
@@ -103,6 +115,7 @@ const settingsSlice = createSlice({
 export const {
   updateSettings,
   hydrateSettings,
+  markSettingsHydrated,
   setMarketLeverage,
   toggleFavouriteMarket,
 } = settingsSlice.actions;

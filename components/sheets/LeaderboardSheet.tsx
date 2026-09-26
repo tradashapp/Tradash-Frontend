@@ -26,6 +26,9 @@ interface Props {
   onBack?: () => void;
 }
 
+/** How many traders the board lists. */
+const LEADERBOARD_SIZE = 10;
+
 /**
  * The leaderboard: filters at the top, the top-3 podium beneath them, then the
  * ranked table with the user's own row pinned to the bottom.
@@ -46,8 +49,10 @@ export function LeaderboardSheet({ open, onClose, onBack }: Props) {
     open
   );
 
-  const entries = board?.entries ?? [];
-  // The podium highlights the top three; the table still lists the full 1-20,
+  // Only the top LEADERBOARD_SIZE are listed; a signed-in user below that sees
+  // their own row pinned under the table instead (LeaderboardTable).
+  const entries = (board?.entries ?? []).slice(0, LEADERBOARD_SIZE);
+  // The podium highlights the top three; the table still lists the full 1-10,
   // so the ranks read as one continuous column rather than starting at 4.
   const top3 = entries.slice(0, 3);
 

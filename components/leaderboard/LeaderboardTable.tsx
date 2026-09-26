@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { formatUsd } from "@/lib/format";
 import { Avatar } from "./Avatar";
@@ -16,45 +15,15 @@ interface Props {
 }
 
 /**
- * The ranked table (top 20) with the user's own row pinned to the bottom.
+ * The ranked table (the top 10 — see LEADERBOARD_SIZE) with the signed-in
+ * user highlighted.
  *
- * The pinned row is NOT a permanent fixture: when the user's real row scrolls
- * into view inside the table, the floating copy drops away and the in-table row
- * takes over — otherwise the same person would appear twice, once floating over
- * the other. An IntersectionObserver on the in-table row drives that swap; when
- * the user ranks outside the top 20 there is no in-table row to observe, so the
- * floating row simply stays.
+ * A user inside the list is highlighted in place. A user OUTSIDE it (11th and
+ * below, or unranked on the ROI board) gets their own row pinned to the bottom
+ * instead, so they always see where they stand without the list growing.
  */
 export function LeaderboardTable({ entries, me, metric, onSelect }: Props) {
-  const scrollRef = useRef<HTMLDivElement | null>(null);
-  const ownRowRef = useRef<HTMLDivElement | null>(null);
-  // True while the user's own in-table row is visible in the scroll region.
-  const [ownRowVisible, setOwnRowVisible] = useState(false);
-
   const meInTable = me != null && entries.some((e) => e.userId === me.userId);
-
-  useEffect(() => {
-    // Nothing to observe unless the user is inside the visible slice.
-    if (!meInTable) {
-      setOwnRowVisible(false);
-      return;
-    }
-    const row = ownRowRef.current;
-    const root = scrollRef.current;
-    if (!row || !root) return;
-
-    const io = new IntersectionObserver(
-      ([entry]) => setOwnRowVisible(!!entry?.isIntersecting),
-      {
-        root,
-        // Require most of the row to be showing before handing over, so the two
-        // don't trade places while the row is half-hidden behind the float.
-        threshold: 0.6,
-      }
-    );
-    io.observe(row);
-    return () => io.disconnect();
-  }, [meInTable, entries]);
 
   if (entries.length === 0) {
     return (
@@ -64,34 +33,28 @@ export function LeaderboardTable({ entries, me, metric, onSelect }: Props) {
     );
   }
 
-  // The float is suppressed only while the real row is actually on screen.
-  const showFloating = me != null && !ownRowVisible;
+  const showFloating = me != null && !meInTable;
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
       <HeaderRow metric={metric} />
 
       <div
-        ref={scrollRef}
         className="min-h-0 flex-1 overflow-y-auto"
         // Leave room for the floating row so the last entry isn't trapped
         // underneath it at the bottom of the scroll.
         style={{ paddingBottom: showFloating ? 60 : 8 }}
       >
         <div className="flex flex-col gap-1">
-          {entries.map((e) => {
-            const isMe = me?.userId === e.userId;
-            return (
-              <Row
-                key={e.userId}
-                ref={isMe ? ownRowRef : undefined}
-                entry={e}
-                metric={metric}
-                isMe={isMe}
-                onSelect={onSelect}
-              />
-            );
-          })}
+          {entries.map((e) => (
+            <Row
+              key={e.userId}
+              entry={e}
+              metric={metric}
+              isMe={me?.userId === e.userId}
+              onSelect={onSelect}
+            />
+          ))}
         </div>
       </div>
 
@@ -142,9 +105,7 @@ interface RowProps {
   onSelect: (entry: LeaderboardEntry) => void;
 }
 
-function Row({ entry, metric, isMe, floating, onSelect, ref }: RowProps & {
-  ref?: React.Ref<HTMLDivElement>;
-}) {
+function Row({ entry, metric, isMe, floating, onSelect }: RowProps) {
   const value = metric === "pnl" ? entry.pnl : entry.roi;
   const up = value >= 0;
   const text =
@@ -154,7 +115,6 @@ function Row({ entry, metric, isMe, floating, onSelect, ref }: RowProps & {
 
   return (
     <div
-      ref={ref}
       className={`flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition-colors ${
         floating
           ? "bg-up-soft ring-1 ring-up/40 backdrop-blur"

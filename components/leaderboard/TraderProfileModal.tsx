@@ -264,7 +264,14 @@ function TradeRow({ trade }: { trade: CompletedTrade }) {
         />
       </span>
       <div className="min-w-0 flex-1 leading-tight">
-        <div className="truncate text-xs font-medium">{trade.symbol}</div>
+        <div className="flex items-center gap-1">
+          <span className="truncate text-xs font-medium">{trade.symbol}</span>
+          {trade.liquidated && (
+            <span className="rounded bg-down-soft px-1 text-[8px] font-semibold uppercase tracking-wide text-down">
+              Liq
+            </span>
+          )}
+        </div>
         <div className="text-[10px] text-text-muted">{trade.leverage}×</div>
       </div>
       <div className="text-right leading-tight">

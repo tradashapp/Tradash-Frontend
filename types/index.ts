@@ -262,6 +262,18 @@ export interface CompletedTrade {
   durationMs: number;
   openedAt: number;
   closedAt: number;
+  /**
+   * Live rows only. `bulk` = rebuilt by the backend from Bulk's fills (the
+   * exchange's record, including closes the app never saw); `live` = posted
+   * by this client when it observed the close. Absent on demo rows.
+   */
+  source?: "live" | "bulk";
+  /** Trading + builder fees as a cashflow (negative = paid). Bulk rows only. */
+  fees?: number | null;
+  /** Net funding while open, as a cashflow (negative = paid). Bulk rows only. */
+  funding?: number | null;
+  /** Any fill of the position was a liquidation / ADL. */
+  liquidated?: boolean;
 }
 
 // Leaderboard -----------------------------------------------------------------

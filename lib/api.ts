@@ -95,6 +95,15 @@ interface ApiTrade {
   episodeId?: string;
 }
 
+// Server-set fields that come back on reads only; the client never posts them.
+interface ApiTradeRead extends ApiTrade {
+  id?: string;
+  source?: "live" | "bulk";
+  fees?: number | null;
+  funding?: number | null;
+  liquidated?: boolean;
+}
+
 // Backend episode shape. Timestamps are ISO on the wire, ms epoch in the store.
 interface ApiEpisode {
   id: string;
@@ -158,7 +167,7 @@ function toApiTrade(t: CompletedTrade): ApiTrade {
   };
 }
 
-function fromApiTrade(t: ApiTrade & { id?: string }): CompletedTrade {
+function fromApiTrade(t: ApiTradeRead): CompletedTrade {
   return {
     id: t.id ?? `${t.closedAt}-${t.symbol}`,
     // Backend only ever stores live trades.
@@ -175,6 +184,10 @@ function fromApiTrade(t: ApiTrade & { id?: string }): CompletedTrade {
     openedAt: new Date(t.openedAt).getTime(),
     closedAt: new Date(t.closedAt).getTime(),
     episodeId: t.episodeId,
+    source: t.source,
+    fees: t.fees,
+    funding: t.funding,
+    liquidated: t.liquidated,
   };
 }
 
@@ -198,7 +211,7 @@ export interface ApiUserProfile {
 
 /** Raw trade rows come back with ISO timestamps; the UI wants ms epoch. */
 interface ApiTraderProfile extends Omit<TraderProfile, "recentTrades"> {
-  recentTrades: (ApiTrade & { id?: string })[];
+  recentTrades: ApiTradeRead[];
 }
 
 /** What the backend knows about a withdrawal recipient before funds move. */
@@ -419,7 +432,7 @@ export const api = {
 
   /** Fetch a user's live trade history (newest first). */
   fetchHistory: async (privyId: string): Promise<CompletedTrade[]> => {
-    const rows = await req<(ApiTrade & { id?: string })[]>(
+    const rows = await req<ApiTradeRead[]>(
       `/users/${encodeURIComponent(privyId)}/trades`
     );
     return rows.map(fromApiTrade);

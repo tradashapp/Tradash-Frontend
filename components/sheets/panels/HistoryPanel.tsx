@@ -177,9 +177,8 @@ function TradeRow({
             </span>
           )}
         </div>
-        <div className="truncate text-[11px] text-text-muted">
+        <div className="text-[11px] text-text-muted">
           {trade.leverage}× · {fmtDuration(trade.durationMs)}
-          {costsLabel(trade)}
         </div>
       </div>
       <div className="text-right leading-tight">
@@ -241,29 +240,6 @@ function StatTile({
       </div>
     </div>
   );
-}
-
-/**
- * Fees and funding, when the row carries them (rows rebuilt from Bulk fills).
- * Shown BESIDE the PnL, not taken out of it: the headline PnL is price PnL
- * before costs, the same number the leaderboard ranks on.
- */
-function costsLabel(trade: CompletedTrade): string {
-  const parts: string[] = [];
-  if (trade.fees != null && Math.abs(trade.fees) >= 0.005) {
-    // A cashflow: negative = paid. A net maker rebate reads as a credit.
-    parts.push(
-      trade.fees < 0
-        ? `fees ${formatUsd(-trade.fees)}`
-        : `rebate ${formatUsd(trade.fees)}`
-    );
-  }
-  if (trade.funding != null && Math.abs(trade.funding) >= 0.005) {
-    parts.push(
-      `funding ${trade.funding >= 0 ? "+" : "−"}${formatUsd(Math.abs(trade.funding))}`
-    );
-  }
-  return parts.length ? ` · ${parts.join(" · ")}` : "";
 }
 
 function fmtDuration(ms: number): string {

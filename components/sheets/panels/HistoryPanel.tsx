@@ -5,7 +5,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import {
   ArrowUpRight01Icon,
   ArrowDownRight01Icon,
-  Share05Icon,
+  ArrowRight01Icon,
   PlayIcon,
 } from "@hugeicons/core-free-icons";
 import { useAppSelector } from "@/store/hooks";
@@ -18,8 +18,8 @@ import { playSound } from "@/lib/sound";
 import { haptic } from "@/lib/haptics";
 
 interface Props {
-  /** Open the shareable PnL card for a completed trade. */
-  onShare: (trade: CompletedTrade) => void;
+  /** Open the details sheet for a completed trade (sharing lives there). */
+  onOpenTrade: (trade: CompletedTrade) => void;
   /** Play the recorded price path for a trade (only for replayable rows). */
   onReplay: (trade: CompletedTrade, episode: TradeEpisode) => void;
 }
@@ -27,7 +27,7 @@ interface Props {
 // Trade history + derived stats, rendered inside the AccountSheet as a sub-view.
 // Scoped to the active trading mode so demo (localStorage) and live (backend)
 // trades never mix — demo money and real money keep separate logs + stats.
-export function HistoryPanel({ onShare, onReplay }: Props) {
+export function HistoryPanel({ onOpenTrade, onReplay }: Props) {
   const mode = useAppSelector((s) => s.tradingMode.mode);
   const allTrades = useAppSelector((s) => s.history.trades);
   const episodes = useAppSelector((s) => s.replay.byId);
@@ -83,7 +83,7 @@ export function HistoryPanel({ onShare, onReplay }: Props) {
               <TradeRow
                 key={t.id}
                 trade={t}
-                onShare={() => onShare(t)}
+                onOpenDetails={() => onOpenTrade(t)}
                 onReplay={
                   canReplay && episode ? () => onReplay(t, episode) : undefined
                 }
@@ -98,11 +98,11 @@ export function HistoryPanel({ onShare, onReplay }: Props) {
 
 function TradeRow({
   trade,
-  onShare,
+  onOpenDetails,
   onReplay,
 }: {
   trade: CompletedTrade;
-  onShare: () => void;
+  onOpenDetails: () => void;
   /** Absent when there's no usable recording — the row then isn't tappable. */
   onReplay?: () => void;
 }) {
@@ -209,12 +209,12 @@ function TradeRow({
           e.stopPropagation();
           playSound("tap");
           haptic("tap");
-          onShare();
+          onOpenDetails();
         }}
         className="rounded-full p-1.5 text-text-muted transition-colors hover:bg-white/10 hover:text-text"
-        aria-label={`Share ${trade.symbol} trade`}
+        aria-label={`${trade.symbol} trade details`}
       >
-        <HugeiconsIcon icon={Share05Icon} size={16} />
+        <HugeiconsIcon icon={ArrowRight01Icon} size={16} />
       </button>
     </div>
   );

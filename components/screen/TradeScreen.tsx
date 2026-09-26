@@ -12,6 +12,7 @@ import { RegisterSW } from "@/components/pwa/RegisterSW";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { DesktopLayout } from "@/components/layout/DesktopLayout";
 import { ShareCardModal, type ShareSubject } from "@/components/share/ShareCardModal";
+import { TradeDetailsSheet } from "@/components/sheets/TradeDetailsSheet";
 import { TradeReplayModal } from "@/components/replay/TradeReplayModal";
 import {
   breakEvenPrice,
@@ -184,6 +185,14 @@ export function TradeScreen({ initialMarket }: Props) {
     episode: TradeEpisode;
     trade: CompletedTrade;
   } | null>(null);
+  // The history trade whose details sheet is open. Null while it's shut.
+  const [detailTrade, setDetailTrade] = useState<CompletedTrade | null>(null);
+  // Which view the account sheet opens on. "history" only for the details
+  // sheet's back button; every other way in lands on the menu.
+  const [accountView, setAccountView] = useState<"menu" | "history">("menu");
+  useEffect(() => {
+    if (!accountOpen) setAccountView("menu");
+  }, [accountOpen]);
 
   // Auto-show the "how it works" walkthrough on first visit (persisted flag).
   // Waits for settings to load: this effect runs before Providers' hydrate
@@ -222,7 +231,13 @@ export function TradeScreen({ initialMarket }: Props) {
         open={accountOpen}
         onClose={() => setAccountOpen(false)}
         agent={agent}
-        onShare={(subject) => setShareSubject(subject)}
+        initialView={accountView}
+        onOpenTrade={(trade) => {
+          // Swap sheets rather than stacking them — two grabbers leave it
+          // unclear which one a drag dismisses. Back reverses the swap.
+          setAccountOpen(false);
+          setDetailTrade(trade);
+        }}
         onReplay={(trade, episode) => setReplaySubject({ trade, episode })}
         onOpenTutorial={() => {
           setAccountOpen(false);
@@ -253,6 +268,20 @@ export function TradeScreen({ initialMarket }: Props) {
         onBack={() => {
           setLeaderboardOpen(false);
           setAccountOpen(true);
+        }}
+      />
+      <TradeDetailsSheet
+        trade={detailTrade}
+        onClose={() => setDetailTrade(null)}
+        onBack={() => {
+          setDetailTrade(null);
+          setAccountView("history");
+          setAccountOpen(true);
+        }}
+        onShare={(trade) => {
+          // Hand off to the PnL card; the two overlays never stack.
+          setDetailTrade(null);
+          setShareSubject({ kind: "trade", trade });
         }}
       />
       <ShareCardModal

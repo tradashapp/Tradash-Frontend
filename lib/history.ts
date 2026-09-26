@@ -3,6 +3,7 @@ import { addTrade } from "@/store/slices/historySlice";
 import { addEpisode } from "@/store/slices/replaySlice";
 import { episodeIdFor, sealEpisode } from "@/lib/replay/recorder";
 import { roi } from "@/lib/perp";
+import { findStopLoss, findTakeProfit } from "@/lib/bulk/protection";
 import type {
   CompletedTrade,
   Position,
@@ -46,6 +47,9 @@ export function recordClose(
     durationMs: now - position.openedAt,
     openedAt: position.openedAt,
     closedAt: now,
+    // What was resting on Bulk when it closed — shown on the details sheet.
+    takeProfit: findTakeProfit(position.protection)?.triggerPrice ?? null,
+    stopLoss: findStopLoss(position.protection)?.triggerPrice ?? null,
   };
   dispatch(addTrade(trade));
 

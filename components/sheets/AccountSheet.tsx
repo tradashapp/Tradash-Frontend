@@ -44,7 +44,6 @@ import { MoneyHistoryPanel } from "./panels/MoneyHistoryPanel";
 import { AdvancedPanel } from "./panels/AdvancedPanel";
 import { AuraPanel } from "./panels/AuraPanel";
 import { useWithdrawal } from "@/hooks/useWithdrawal";
-import type { ShareSubject } from "@/components/share/ShareCardModal";
 import type { CompletedTrade, TradeEpisode } from "@/types";
 import { playSound } from "@/lib/sound";
 import { haptic } from "@/lib/haptics";
@@ -78,7 +77,13 @@ interface Props {
   onOpenTutorial: () => void;
   onOpenInstall: () => void;
   onOpenLeaderboard: () => void;
-  onShare: (subject: ShareSubject) => void;
+  /** Open the details sheet for a trade tapped in the history. */
+  onOpenTrade: (trade: CompletedTrade) => void;
+  /**
+   * The view to show when the sheet opens — "history" when returning from a
+   * trade's details sheet, so back lands where the user left. Default: menu.
+   */
+  initialView?: "menu" | "history";
   /** Play a completed trade's recorded price path. */
   onReplay: (trade: CompletedTrade, episode: TradeEpisode) => void;
 }
@@ -106,7 +111,8 @@ export function AccountSheet({
   onOpenTutorial,
   onOpenInstall,
   onOpenLeaderboard,
-  onShare,
+  onOpenTrade,
+  initialView = "menu",
   onReplay,
 }: Props) {
   const dispatch = useAppDispatch();
@@ -160,9 +166,12 @@ export function AccountSheet({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // Reset to the menu whenever the sheet is (re)opened.
+  // Reset whenever the sheet is (re)opened — to the menu, or to the view the
+  // caller is returning the user to. Read at open time only: a change while
+  // the sheet is up must not yank the user out of wherever they navigated.
   useEffect(() => {
-    if (open) setView("menu");
+    if (open) setView(initialView);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const go = (v: View) => {
@@ -245,7 +254,7 @@ export function AccountSheet({
             {view === "settingsMenu" && <SettingsMenuPanel />}
             {view === "history" && (
               <HistoryPanel
-                onShare={(trade) => onShare({ kind: "trade", trade })}
+                onOpenTrade={onOpenTrade}
                 onReplay={onReplay}
               />
             )}

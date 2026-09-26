@@ -274,6 +274,12 @@ export interface CompletedTrade {
   funding?: number | null;
   /** Any fill of the position was a liquidation / ADL. */
   liquidated?: boolean;
+  /**
+   * Take-profit / stop-loss trigger in effect when it closed (Bulk price
+   * space); null or absent = none was set.
+   */
+  takeProfit?: number | null;
+  stopLoss?: number | null;
 }
 
 // Leaderboard -----------------------------------------------------------------

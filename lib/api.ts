@@ -93,6 +93,8 @@ interface ApiTrade {
   openedAt: string; // ISO
   closedAt: string; // ISO
   episodeId?: string;
+  takeProfit?: number | null;
+  stopLoss?: number | null;
 }
 
 // Server-set fields that come back on reads only; the client never posts them.
@@ -164,6 +166,8 @@ function toApiTrade(t: CompletedTrade): ApiTrade {
     openedAt: new Date(t.openedAt).toISOString(),
     closedAt: new Date(t.closedAt).toISOString(),
     episodeId: t.episodeId,
+    takeProfit: t.takeProfit ?? null,
+    stopLoss: t.stopLoss ?? null,
   };
 }
 
@@ -188,6 +192,8 @@ function fromApiTrade(t: ApiTradeRead): CompletedTrade {
     fees: t.fees,
     funding: t.funding,
     liquidated: t.liquidated,
+    takeProfit: t.takeProfit ?? null,
+    stopLoss: t.stopLoss ?? null,
   };
 }
 

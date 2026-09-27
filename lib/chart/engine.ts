@@ -693,11 +693,12 @@ export class ChartEngine {
       this.candleStep = candles.closed.length > 0 ? fit : -fit;
     }
     const autoStep = Math.abs(this.candleStep);
-    vp.frame(plotW, usableH, price, (autoStep * RULER_LABELS) / 2, candles.closed.length + 1);
+    vp.frame(plotW, top, bottom, price, (autoStep * RULER_LABELS) / 2, candles.closed.length + 1);
     const { center, half } = vp.window();
     this.center = center;
     // Free: labels re-space with the zoom, ~15 on screen whatever the scale.
     const step = vp.free ? niceStep((2 * half) / RULER_LABELS) : autoStep;
+    vp.step = step;
     this.labelDecimals = labelDecimalsFor(step, price);
     const min = center - half;
     const span = half * 2 || 1;
@@ -792,7 +793,61 @@ export class ChartEngine {
     const pillH = pos ? 34 : 26;
     const pillY = Math.max(top + pillH / 2, Math.min(bottom - pillH / 2, ly));
     this.finishFrame(plotW, min, span, step, top, bottom, yOf, pillY, price, accent, null);
+
+    if (vp.cross) {
+      // Snap the vertical line to the candle under it (when there is one).
+      const k = vp.slotAt(vp.cross.x);
+      const x = k >= 0 && k <= candles.closed.length ? xOfSlot(k) : vp.cross.x;
+      this.drawCrosshair(x, vp.cross.y, plotW, min + span - ((vp.cross.y - top) / usableH) * span);
+    }
     return 1 - (pillY - top) / usableH;
+  }
+
+  /**
+   * Candle-view crosshair: white dashed lines through the point — full height,
+   * and across the plot into the scale — a white dot where they cross, and a
+   * white pill on the scale reading the price at the dot.
+   */
+  private drawCrosshair(x: number, y: number, plotW: number, price: number) {
+    const { ctx, w, h } = this;
+    ctx.save();
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.75)";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, h);
+    ctx.moveTo(0, y);
+    ctx.lineTo(plotW, y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // The dot, ringed in the background color so it reads over a candle.
+    ctx.beginPath();
+    ctx.arc(x, y, 4.5, 0, Math.PI * 2);
+    ctx.fillStyle = "#08090c";
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(x, y, 3.5, 0, Math.PI * 2);
+    ctx.fillStyle = "#ffffff";
+    ctx.fill();
+
+    // Price pill at the right end, over the scale labels.
+    const label = this.fmtLabel(price);
+    ctx.font = "700 12px ui-monospace, SFMono-Regular, Menlo, monospace";
+    const padX = 8;
+    const pillW = ctx.measureText(label).width + padX * 2;
+    const pillH = 22;
+    const pillX = w - AXIS_RIGHT_INSET - pillW;
+    const py = Math.max(pillH / 2, Math.min(h - pillH / 2, y));
+    ctx.fillStyle = "#ffffff";
+    this.roundRect(pillX, py - pillH / 2, pillW, pillH, pillH / 2);
+    ctx.fill();
+    ctx.fillStyle = "#08090c";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.fillText(label, pillX + padX, py);
+    ctx.restore();
   }
 
   /** Vertical PnL gradient: strongest at the mark, fading toward entry. */

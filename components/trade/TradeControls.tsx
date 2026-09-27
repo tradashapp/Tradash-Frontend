@@ -218,9 +218,13 @@ function ActivePosition({
             <HugeiconsIcon icon={ArrowMoveUpRightIcon} size={20} />
             {trailActive ? "Trailing" : "Trail"}
           </button>
+          {/* The trail's floor is break-even after fees (live) — so arming
+              needs the trail distance PAST B/E, not past entry. Demo has no
+              fees, so there B/E is entry. */}
           {!trailActive && !trailEligible && (
             <span className="mt-1 text-center text-[10px] text-text-muted">
-              Need +{(trailPct * 100).toFixed(trailPct < 0.01 ? 1 : 0)}% to trail
+              Need +{(trailPct * 100).toFixed(trailPct < 0.01 ? 1 : 0)}%
+              {live ? " past B/E" : ""} to trail
             </span>
           )}
           {/* LIVE: the trail is a native Bulk `trl` order that ratchets and

@@ -1,3 +1,5 @@
+import { haptic } from "@/lib/haptics";
+
 // Free-roam viewport for the candlestick view — pan, zoom and axis-scale like a
 // normal exchange chart. The LINE view never uses this: it stays the pinned,
 // non-interactive live chart.
@@ -8,6 +10,10 @@
 //   - Free: the user dragged, zoomed or scaled. The view holds wherever they
 //     left it; the price pill tracks the real price (clamped to the plot
 //     edges). `recenter()` glides back to following.
+//
+// The crosshair (tap to show) also lives here, in SCREEN coordinates: it stays
+// where it was put while the chart moves underneath, and the price under it is
+// read fresh every frame.
 //
 // Horizontal geometry: slot k counts candles back from the forming one (k = 0),
 // drawn at x = plotW − spacing·(0.5 + k − offset). `offset` > 0 scrolls into
@@ -22,6 +28,13 @@ const MAX_SPACING = 40;
 const MAX_FUTURE_FRAC = 0.6;
 /** Per-frame easing while gliding back to following. */
 const RECENTER_EASE = 0.2;
+/** Ruler subdivisions per labelled step — the crosshair's vertical detents. */
+const CROSS_PRICE_DETENTS = 5;
+
+export interface Crosshair {
+  x: number;
+  y: number;
+}
 
 export class CandleViewport {
   /** Candle slot width in px; null = derived from the plot width. */
@@ -32,9 +45,19 @@ export class CandleViewport {
   yHalf = 0;
   recentering = false;
 
+  /** Crosshair position in canvas px, or null while hidden. */
+  cross: Crosshair | null = null;
+  // Last detent the crosshair sat on (candle slot + price step), so moving it
+  // ticks a haptic only when it actually crosses into the next one.
+  private crossDetent = "";
+
   // Geometry and scale from the last frame — gestures arrive between frames.
   plotW = 0;
+  top = 0;
+  bottom = 0;
   usableH = 1;
+  /** The ruler's labelled price step this frame (for crosshair detents). */
+  step = 0;
   price = 0;
   autoHalf = 0;
   /** Candles available to scroll through (closed + forming). */
@@ -62,9 +85,18 @@ export class CandleViewport {
   }
 
   /** Per-frame: record geometry, and advance a recenter glide. */
-  frame(plotW: number, usableH: number, price: number, autoHalf: number, count: number) {
+  frame(
+    plotW: number,
+    top: number,
+    bottom: number,
+    price: number,
+    autoHalf: number,
+    count: number
+  ) {
     this.plotW = plotW;
-    this.usableH = Math.max(1, usableH);
+    this.top = top;
+    this.bottom = bottom;
+    this.usableH = Math.max(1, bottom - top);
     this.price = price;
     this.autoHalf = autoHalf;
     this.count = count;
@@ -99,6 +131,7 @@ export class CandleViewport {
 
   /** Back to following at the default zoom (market or view change). */
   reset() {
+    this.cross = null;
     this.spacing = null;
     this.offset = 0;
     this.free = false;
@@ -110,6 +143,58 @@ export class CandleViewport {
     const s = this.scrolled;
     this.scrolled = 0;
     return s;
+  }
+
+  // --- Crosshair ---------------------------------------------------------------
+
+  /** Candle slot under canvas x (0 = forming), unclamped. */
+  slotAt(x: number): number {
+    const sp = this.spacingFor(this.plotW);
+    return Math.round((this.plotW - x) / sp - 0.5 + this.offset);
+  }
+
+  /** Price under canvas y in the current window. */
+  priceAt(y: number): number {
+    const { center, half } = this.window();
+    return center + half - ((y - this.top) / this.usableH) * 2 * half;
+  }
+
+  private clampCross(x: number, y: number): Crosshair {
+    return {
+      x: Math.max(0, Math.min(this.plotW, x)),
+      y: Math.max(this.top, Math.min(this.bottom, y)),
+    };
+  }
+
+  private detentOf(c: Crosshair): string {
+    const minor = this.step > 0 ? this.step / CROSS_PRICE_DETENTS : 0;
+    const bucket = minor > 0 ? Math.floor(this.priceAt(c.y) / minor) : 0;
+    return `${this.slotAt(c.x)}|${bucket}`;
+  }
+
+  showCross(x: number, y: number) {
+    this.cross = this.clampCross(x, y);
+    this.crossDetent = this.detentOf(this.cross);
+  }
+
+  hideCross() {
+    this.cross = null;
+  }
+
+  /**
+   * Move the crosshair to (x, y) — or by (dx, dy) when `relative`. Returns true
+   * when it crossed into a new candle or price step: the caller's haptic tick.
+   */
+  moveCross(x: number, y: number, relative: boolean): boolean {
+    if (!this.cross) return false;
+    const next = relative
+      ? this.clampCross(this.cross.x + x, this.cross.y + y)
+      : this.clampCross(x, y);
+    this.cross = next;
+    const detent = this.detentOf(next);
+    if (detent === this.crossDetent) return false;
+    this.crossDetent = detent;
+    return true;
   }
 
   private ensureFree() {
@@ -183,11 +268,15 @@ export class CandleViewport {
  *   pinch                   → spread / squeeze candles around the fingers
  *   wheel / trackpad pinch  → the same, around the cursor; sideways = pan
  *   wheel over the scale    → scale the price axis
- *   double-tap / click      → recenter
+ *   tap / click             → show the crosshair there; tap again to hide
+ *   touch drag (crosshair)  → move the crosshair, ticking a haptic per
+ *                             candle / price step, instead of panning
+ *   mouse hover (crosshair) → the crosshair follows the cursor; drag still pans
+ *   double-tap / click      → recenter (and hide the crosshair)
  */
 export class CandleGestures {
   private pointers = new Map<number, { x: number; y: number }>();
-  private mode: "pan" | "axis" | "pinch" | null = null;
+  private mode: "pan" | "axis" | "pinch" | "cross" | null = null;
   private pinchDist = 0;
   private lastTap = { t: 0, x: 0, y: 0 };
   private downAt = { t: 0, x: 0, y: 0 };
@@ -247,7 +336,14 @@ export class CandleGestures {
       /* capture is best-effort */
     }
     if (this.pointers.size === 1) {
-      this.mode = p.x > this.vp.plotW ? "axis" : "pan";
+      // Touch with the crosshair up drags the crosshair; a mouse always pans
+      // (its crosshair follows the hover instead).
+      this.mode =
+        p.x > this.vp.plotW
+          ? "axis"
+          : this.vp.cross && e.pointerType !== "mouse"
+            ? "cross"
+            : "pan";
       this.downAt = { t: performance.now(), x: p.x, y: p.y };
       this.moved = false;
       this.canvas.style.cursor = this.mode === "axis" ? "ns-resize" : "grabbing";
@@ -265,7 +361,17 @@ export class CandleGestures {
 
   private onMove(e: PointerEvent) {
     const prev = this.pointers.get(e.pointerId);
-    if (!prev || !this.active()) return;
+    if (!this.active()) return;
+    if (!prev) {
+      // Mouse hover (no button down): the crosshair, if shown, follows it.
+      if (e.pointerType === "mouse" && this.pointers.size === 0 && this.vp.cross) {
+        const p = this.local(e);
+        if (p.x <= this.vp.plotW && this.vp.moveCross(p.x, p.y, false)) {
+          haptic("tick");
+        }
+      }
+      return;
+    }
     const p = this.local(e);
     const dx = p.x - prev.x;
     const dy = p.y - prev.y;
@@ -274,6 +380,8 @@ export class CandleGestures {
 
     if (this.mode === "pan") {
       this.vp.pan(dx, dy);
+    } else if (this.mode === "cross") {
+      if (this.vp.moveCross(dx, dy, true)) haptic("tick");
     } else if (this.mode === "axis") {
       // Drag down → zoom out, up → zoom in.
       this.vp.scaleY(Math.exp(dy * 0.006));
@@ -297,6 +405,7 @@ export class CandleGestures {
     if (this.pointers.size > 0) return;
     const wasTap =
       !this.moved && this.mode !== "pinch" && performance.now() - this.downAt.t < 300;
+    const tapMode = this.mode;
     this.mode = null;
     if (this.active()) this.canvas.style.cursor = "grab";
     if (!wasTap) return;
@@ -306,10 +415,20 @@ export class CandleGestures {
       now - this.lastTap.t < 320 &&
       Math.hypot(p.x - this.lastTap.x, p.y - this.lastTap.y) < 24
     ) {
+      // Double-tap: the first tap toggled the crosshair; undo that and recenter.
+      this.vp.hideCross();
       this.vp.recenter();
       this.lastTap = { t: 0, x: 0, y: 0 };
+      return;
+    }
+    this.lastTap = { t: now, x: p.x, y: p.y };
+    if (tapMode === "axis") return;
+    // Single tap on the plot toggles the crosshair.
+    if (this.vp.cross) {
+      this.vp.hideCross();
     } else {
-      this.lastTap = { t: now, x: p.x, y: p.y };
+      this.vp.showCross(p.x, p.y);
+      haptic("tap");
     }
   }
 

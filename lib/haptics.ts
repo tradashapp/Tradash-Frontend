@@ -15,10 +15,13 @@
 // whether a haptic actually played. So this is best-effort by design — it must
 // never throw or block the interaction it accompanies.
 
-export type HapticKind = "tap" | "open" | "close";
+export type HapticKind = "tap" | "tick" | "open" | "close";
 
 const PATTERNS: Record<HapticKind, number | number[]> = {
   tap: 8,
+  // The lightest pulse: detents while scrubbing the chart crosshair, which can
+  // fire many times a second, so it must stay barely-there.
+  tick: 3,
   open: [12, 20, 12],
   close: 20,
 };

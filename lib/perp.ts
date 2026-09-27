@@ -303,16 +303,27 @@ export function isLiquidated(pos: Position, currentPrice: number): boolean {
 
 // --- Trailing stop -----------------------------------------------------------
 //
-// A trailing stop sits in the PROFIT zone (between entry and mark) and only
-// ratchets in the profit direction — for a long it can only climb, for a short
-// only fall. It is CLAMPED to entry so it can never lock a loss: a trail always
-// closes in profit (worst case ~breakeven at entry). You can only arm it once
-// price is more than `trailPct` in your favor, otherwise the line would land at
-// or below entry (see canTrail).
+// A trailing stop sits in the PROFIT zone (between break-even and mark) and
+// only ratchets in the profit direction — for a long it can only climb, for a
+// short only fall. Its floor is the NET break-even (`trailReferencePrice`), so
+// it can never lock a loss AFTER fees: worst case it exits at ~zero net. You
+// can only arm it once price is more than `trailPct` past that floor, otherwise
+// the stop would land at or below it (see canTrail).
+//
+// Live, the trail is Bulk's native `trl`: it starts `trailPct` behind the price
+// it was armed at and only ratchets from there. So the arming gate IS the
+// floor — a trail armed with its first stop above break-even can never exit
+// below it.
 
 /**
- * The trail's reference level for a position, in the CHART's (MagicBlock)
- * price space — the space the live price ticks arrive in.
+ * The trail's floor for a position: the NET break-even (all fees, paid and
+ * exit, plus funding — see `netBreakEvenPriceBulk`) in the chart's price space.
+ * Holding the trail here rather than at entry is what makes "never locks a
+ * loss" true after fees; at entry a trail still closed down the fees.
+ *
+ * Demo charges no fees, so its break-even is entry and this falls back to it.
+ *
+ * It is in the CHART's price space — the space the live price ticks arrive in.
  *
  * WHY THIS EXISTS. The trail is driven by MagicBlock prices, but it used to
  * clamp against `position.entryPrice`, which Bulk quotes in its own feed's
@@ -332,7 +343,7 @@ export function trailReferencePrice(
   mode: "demo" | "live",
   pos: Position
 ): number {
-  return breakEvenPrice(mode, pos);
+  return netBreakEvenPrice(mode, pos) ?? breakEvenPrice(mode, pos);
 }
 
 /**

@@ -6,6 +6,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { CenterFocusIcon } from "@hugeicons/core-free-icons";
 import { chartViewport } from "@/lib/chart/viewportStore";
 import { haptic } from "@/lib/haptics";
+import { playSound } from "@/lib/sound";
 
 // Appears only once the candle chart has been panned / zoomed away from live,
 // and glides it back: newest candle at the right edge, price centered. The
@@ -24,6 +25,7 @@ export function ChartRecenterButton({ className }: { className?: string }) {
           type="button"
           aria-label="Re-center chart"
           onClick={() => {
+            playSound("tap");
             haptic("tap");
             chartViewport.recenter();
           }}

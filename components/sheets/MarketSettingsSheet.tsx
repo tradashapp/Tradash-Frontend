@@ -31,8 +31,8 @@ import type { MarketSymbol } from "@/types";
  * SIZE AND LEVERAGE are edited here. Leverage defaults to each market's OWN
  * cap (`leverageFor` falls back to the max), so a user who never opens the
  * slider trades at max; moving it pushes `updateUserSettings` to Bulk through
- * `useLeverage`. Trailing is fixed at the 0.1% default in the settings slice;
- * its section is kept below behind a `false` guard.
+ * `useLeverage`. Trailing distance is editable again (2026-09-27), defaulting
+ * to 0.1% (`defaultTrailPct` in the settings slice).
  *
  * WHERE THE VALUE GOES. The size written here goes straight to the settings
  * slice (`defaultPositionSize`) — the exact state `useTrade.open()` reads when
@@ -68,10 +68,12 @@ const usd4 = (n: number) =>
 // $50 minimum notional converts to a different margin at each market's leverage
 // (BTC 40× → $1.25, ETH 25× → $2, 10× → $5). See `minSizeFor` in lib/markets.
 
-// Trailing-distance bounds for the slider, in percent. Used only by the
-// disabled trailing section below; kept so that block still type-checks.
+// Trailing-distance bounds for the slider, in percent. Sent to Bulk as whole
+// basis points (`trailBps` in useTrade), so 0.1% steps are exact.
 const TRAIL_MIN_PCT = 0.1;
 const TRAIL_MAX_PCT = 10;
+// Quick picks, starting at the 0.1% default so it's one tap to get back to.
+const TRAIL_PRESETS_PCT = [0.1, 0.5, 1, 2];
 
 interface Props {
   open: boolean;
@@ -387,10 +389,10 @@ export function MarketSettingsSheet({
             )}
           </section>
 
-        {/* ---- Trailing (DISABLED) -----------------------------------------
-            Fixed at `defaultTrailPct` (0.1%) in the settings slice. Kept
-            compiling behind a `false` guard so it can come back unchanged. */}
-        {false && (
+        {/* ---- Trailing ----------------------------------------------------
+            Revived 2026-09-27. The distance the trailing stop keeps behind
+            price; `useTrade` reads `defaultTrailPct` when arming a trail (and
+            when resizing one after an add). Default 0.1%. */}
           <section className="glass-inset rounded-2xl p-4">
             <div className="mb-2 flex items-baseline justify-between">
               <span className="text-[11px] font-medium uppercase tracking-wide text-text-muted">
@@ -427,7 +429,7 @@ export function MarketSettingsSheet({
             />
 
             <div className="mt-2 flex items-center gap-2">
-              {[0.5, 1, 2, 5].map((p) => (
+              {TRAIL_PRESETS_PCT.map((p) => (
                 <button
                   key={p}
                   type="button"
@@ -447,7 +449,6 @@ export function MarketSettingsSheet({
               ))}
             </div>
           </section>
-        )}
 
         {/* ---- What the next order costs ----------------------------------- */}
         <section className="glass-inset flex flex-col gap-2 rounded-2xl p-4">

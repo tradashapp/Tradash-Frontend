@@ -1,3 +1,4 @@
+import { config } from "@/lib/config";
 import { isBulkPriced } from "@/lib/markets";
 import type { Balance, Direction, Position } from "@/types";
 
@@ -187,47 +188,64 @@ export function chartLiquidationPrice(
 }
 
 /**
- * NET break-even: the chart price at which closing right now nets ZERO after
- * the costs already charged to this position.
+ * Bulk's TAKER fee, in basis points of notional. Every Tradash order is a
+ * market order (open, close, and TP/SL/trailing exits), so every fill pays it.
+ *
+ * Bulk exposes no fee schedule over the public API, so this is a constant.
+ * Measured 2026-09-27 on mainnet public fills: 3.3 bps for several different
+ * takers ($23,595 notional → $7.786 fee). 3.5 is the rate the user gave and
+ * sits just above that, which errs the break-even line toward "slightly in
+ * profit" — never into a loss.
+ */
+export const BULK_TAKER_FEE_BPS = 3.5;
+
+/** Fee rate on one fill: Bulk's taker fee plus our builder fee, as a fraction. */
+export function fillFeeRate(): number {
+  return (BULK_TAKER_FEE_BPS + config.builder.feeBps) / 10_000;
+}
+
+/**
+ * NET break-even in BULK's price space: the price at which closing the whole
+ * position nets ZERO after ALL of its fees — the ones already paid AND the
+ * exit fee closing at that price would charge.
  *
  * The entry line answers "where does my PnL flip sign"; this answers "where do
- * I actually get out even". They differ by everything the position has already
- * paid — exchange fees on the fill, our builder fee, and accrued funding —
- * which Bulk reports as `realizedPnl` (negative once costs are charged).
+ * I actually get out even". Closing exactly at entry loses the fees, so a long
+ * must close ABOVE entry (a short below) to cover:
+ *   - costs so far: entry fill fees (Bulk taker + our builder fee) and funding,
+ *   - the exit fill's fees, charged on the EXIT notional (p·size).
  *
- * Solve for the price where gross PnL cancels those costs:
- *   realized + (p − entry)·size·dir = 0
- *     → p = entry − realized / (size·dir)
- * then translate into chart space with the shared shift. A long therefore sits
- * ABOVE its entry line (it must gain enough to cover what it paid) and a short
- * below — which is exactly the intuition the line is there to give.
+ *   (p − entry)·size·dir − costsSoFar − p·size·rate = 0
+ *     → p = (entry + dir·costsSoFar/size) / (1 − dir·rate)
  *
- * Returns null when there is nothing meaningful to draw: demo (no real fees),
- * no cost data yet, or a zero-size position. Callers omit the line entirely
- * rather than drawing it on top of the entry line, where it would read as a
- * rendering glitch.
- */
-/**
- * Net break-even in BULK's own price space (un-shifted).
+ * e.g. BTC long, entry $85,000, fees 8.5 bps per fill → B/E ≈ $85,144.6,
+ * where gross +$0.1446 on 0.001 BTC exactly pays $0.0723 in + $0.0723 out.
  *
- * For surfaces that quote Bulk's numbers directly — the positions panel shows
- * Entry and Liquidation straight from Bulk — so a break-even shown beside them
- * must be in the same space or the three would not line up. The chart uses
- * `netBreakEvenPrice`, which is this shifted into MagicBlock space.
+ * `costsSoFar` is Bulk's `realizedPnl` for the position (signed fees + funding,
+ * negative = paid), but never less than the entry fee at the full rate: it is
+ * unconfirmed whether Bulk counts our builder fee in there, and a fresh
+ * position may not have reported costs yet. Taking the larger keeps the line
+ * at zero or just above — never a level that closes at a loss.
+ *
+ * The positions panel quotes Bulk's own numbers, so it shows this directly.
+ * The chart uses `netBreakEvenPrice` (identical while the chart runs on Bulk).
+ * Null in demo, which charges no fees, and for a zero-size position.
  */
 export function netBreakEvenPriceBulk(
   mode: "demo" | "live",
   pos: Position
 ): number | null {
   if (mode === "demo") return null;
-  const realized = pos.realizedPnl;
-  if (realized == null || !Number.isFinite(realized) || realized === 0) {
-    return null;
-  }
-  if (!pos.size) return null;
+  if (!pos.size || !(pos.entryPrice > 0)) return null;
   const dir = pos.direction === "long" ? 1 : -1;
-  const price = pos.entryPrice - realized / (pos.size * dir);
-  return Number.isFinite(price) ? price : null;
+  const rate = fillFeeRate();
+  const reported =
+    pos.realizedPnl != null && Number.isFinite(pos.realizedPnl)
+      ? -pos.realizedPnl
+      : 0;
+  const costsSoFar = Math.max(reported, pos.entryPrice * pos.size * rate);
+  const price = (pos.entryPrice + (dir * costsSoFar) / pos.size) / (1 - dir * rate);
+  return Number.isFinite(price) && price > 0 ? price : null;
 }
 
 export function netBreakEvenPrice(

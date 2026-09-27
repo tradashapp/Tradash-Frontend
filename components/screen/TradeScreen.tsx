@@ -138,8 +138,9 @@ export function TradeScreen({ initialMarket }: Props) {
         // it off by the spread between the two feeds — and moved it as that
         // spread changed. See chartLiquidationPrice.
         liquidationPrice: chartLiquidationPrice(trade.mode, trade.position),
-        // Where closing nets zero AFTER fees + funding. Null (and so not drawn)
-        // in demo or before any cost has been charged.
+        // Where closing nets zero after ALL fees — paid so far plus the exit
+        // fee — and funding. See netBreakEvenPriceBulk. Null (not drawn) in
+        // demo, which charges no fees.
         breakEvenPrice:
           netBreakEvenPrice(trade.mode, trade.position) ?? undefined,
         pnl: trade.position.unrealizedPnl,

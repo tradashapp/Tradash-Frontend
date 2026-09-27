@@ -34,9 +34,8 @@ import type { MarketSymbol } from "@/types";
  * moves it); the fee is a consequence of both — it answers "what does this
  * order actually cost" without opening anything.
  *
- * Trailing is no longer shown: it is fixed at 0.1% and, unlike leverage, it
- * changes nothing about the order being described here. Its row is kept behind
- * a `false` guard, matching the disabled section in MarketSettingsSheet.
+ * The fourth row is TRAILING: the stop distance a trail arms at, editable in
+ * the settings sheet again since 2026-09-27 (default 0.1%).
  */
 
 // Drag band insets (px from top / bottom of the viewport). The dock is docked to
@@ -164,7 +163,7 @@ export function PositionDock({ symbol, onOpen }: Props) {
         type="button"
         onClick={activate}
         aria-label={`${symbol} order settings`}
-        // 2 columns (icon, value) × 3 rows (size, leverage, fee).
+        // 2 columns (icon, value) × 4 rows (size, leverage, fee, trailing).
         className="glass-inset grid grid-cols-[auto_auto] items-center gap-x-2 gap-y-1.5 rounded-r-2xl py-2.5 pl-2 pr-3 shadow-lg transition-transform active:scale-95"
       >
         <Cell
@@ -190,15 +189,12 @@ export function PositionDock({ symbol, onOpen }: Props) {
           value={usd2(feeUsd)}
           label="Fee"
         />
-        {/* Trailing row — hidden alongside its control in MarketSettingsSheet
-            (fixed at 0.1%). Kept behind a `false` guard, as there. */}
-        {false && (
-          <Cell
-            icon={ArrowMoveDownRightIcon}
-            value={`${trailPct.toFixed(2)}%`}
-            label="Trailing"
-          />
-        )}
+        {/* Trailing distance — set in the settings sheet. */}
+        <Cell
+          icon={ArrowMoveDownRightIcon}
+          value={`${trailPct.toFixed(2)}%`}
+          label="Trailing"
+        />
       </button>
     </motion.div>
   );

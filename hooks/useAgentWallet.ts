@@ -21,6 +21,7 @@ import {
 } from "@/lib/bulk/builderStore";
 import { generateAgentKeypair, makeAgentSigner, type AgentSigner } from "@/lib/bulk/signing";
 import { fetchAccount } from "@/lib/bulk/client";
+import { setFeeArrangementOwner } from "@/lib/bulk/feeArrangement";
 import {
   fundAccount,
   authorizeAgentWallet,
@@ -128,6 +129,12 @@ export function useAgentWallet() {
         });
     }
   }, [privyId, masterAddress, authMethod, user?.linkedAccounts, dispatch]);
+
+  // The builder fee this user's orders carry is decided by the backend (fee
+  // codes); prefetch it at login so the first order doesn't wait on it.
+  useEffect(() => {
+    setFeeArrangementOwner(privyId);
+  }, [privyId]);
 
   // Adopt the X profile picture as the user's avatar — on an X login as well as
   // a later link from the profile panel, which is why this sits here (running

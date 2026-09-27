@@ -290,6 +290,32 @@ export interface SavedAddress {
   lastUsedAt: string | null;
 }
 
+/**
+ * The user's Tradash builder-fee arrangement, decided by the backend. Only the
+ * builder fee — Bulk's venue fee is set by Bulk and never appears here.
+ */
+export interface FeeArrangement {
+  recipient: string | null;
+  capFeeBps: number;
+  defaultFeeBps: number;
+  /** What this user's opening orders carry (0 = no builder fee). */
+  effectiveFeeBps: number;
+  source: "default" | "code";
+  code: string | null;
+  assignedAt: string | null;
+  expiresAt: string | null;
+}
+
+/** A failed order, reported so the admin Operations page can see it. */
+export interface OrderFailureReport {
+  symbol?: string | null;
+  side?: "long" | "short" | null;
+  orderType?: string | null;
+  /** Coarse class: rejected, bad_signature, builder_not_approved, timeout, error. */
+  reason: string;
+  message?: string | null;
+}
+
 export const api = {
   /**
    * Get-or-create + sync the user by Privy DID after login.
@@ -529,6 +555,34 @@ export const api = {
     req<{ found: number; movements: Movement[] }>("/movements/scan", {
       method: "POST",
     }),
+
+  /** The builder fee this user's orders must carry. Never cached by the browser. */
+  feeArrangement: (privyId: string): Promise<FeeArrangement> =>
+    req<FeeArrangement>(`/users/${encodeURIComponent(privyId)}/fee-arrangement`),
+
+  /**
+   * Redeem a fee code. Resolves to the new arrangement, or rejects with the
+   * server's human-readable reason (invalid code, already holding one…).
+   */
+  redeemFeeCode: async (privyId: string, code: string): Promise<FeeArrangement> => {
+    const auth = await authHeader();
+    const res = await fetch(`${BASE}/users/${encodeURIComponent(privyId)}/fee-code`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...auth },
+      body: JSON.stringify({ code }),
+    });
+    const body = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(body?.message ?? `Couldn't apply the code (${res.status})`);
+    return body as FeeArrangement;
+  },
+
+  /** Fire-and-forget: a lost report must never affect the user's trade flow. */
+  reportOrderFailure: (privyId: string, report: OrderFailureReport): void => {
+    void req(`/users/${encodeURIComponent(privyId)}/order-failures`, {
+      method: "POST",
+      body: JSON.stringify({ ...report, message: report.message?.slice(0, 500) ?? null }),
+    }).catch(() => undefined);
+  },
 
   fetchAddressBook: (): Promise<SavedAddress[]> =>
     req<SavedAddress[]>("/address-book"),

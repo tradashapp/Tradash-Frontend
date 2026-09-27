@@ -1,19 +1,14 @@
-import { config } from "@/lib/config";
 import { lotSizeForBulkSymbol } from "@/lib/markets";
 import { submitSigned } from "./client";
+import { resolveBuilderCode } from "./feeArrangement";
 import type { AgentSigner } from "./signing";
-import type { BuilderCode, OrderResponse } from "./types";
+import type { OrderResponse } from "./types";
 
 // Build + submit market orders signed by the agent key (on behalf of the
 // master). Uses the keychain's VERBOSE order format (symbol/isBuy/size/price/
 // orderType), which it compiles to the compact { m: {...} } action + envelope.
-// Our builder code rides on every order we route (revenue).
-
-function builderCode(): BuilderCode | undefined {
-  const { recipient, feeBps } = config.builder;
-  if (!recipient || !feeBps) return undefined; // omit — null is rejected
-  return { to: recipient, fee: feeBps };
-}
+// Our builder code rides on every opening order we route (revenue), at the
+// per-user rate the backend serves (see feeArrangement.ts).
 
 /**
  * Does this error mean "the master never approved our builder code"?
@@ -180,7 +175,7 @@ export async function openMarket(
       `Order size ${size} is below the minimum increment (${lot}) for ${bulkSymbol}.`
     );
   }
-  const bc = builderCode();
+  const bc = await resolveBuilderCode();
   const order = {
     type: "order",
     symbol: bulkSymbol,

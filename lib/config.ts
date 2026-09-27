@@ -22,6 +22,9 @@ function required(name: string, value: string | undefined): string {
  */
 export type BulkNetwork = "devnet" | "testnet" | "mainnet";
 
+/** Live price feed behind the chart — see `config.chartFeed`. */
+export type ChartFeed = "bulk" | "magicblock";
+
 /**
  * Normalise the public origin used for `metadataBase` (and share links).
  *
@@ -84,6 +87,16 @@ export const config = {
     recipient: process.env.NEXT_PUBLIC_BUILDER_RECIPIENT ?? "",
     feeBps: Number(process.env.NEXT_PUBLIC_BUILDER_FEE_BPS ?? "0"),
   },
+
+  // Which feed drives the chart (and every chart-space price: PnL interpolation,
+  // entry/liq lines, TP/SL, trailing). "bulk" = Bulk's own ticker markPrice, so
+  // the chart shares one price space with every Bulk quote and no line needs
+  // shifting. "magicblock" = the MagicBlock oracle, kept wired so we can switch
+  // back by flipping NEXT_PUBLIC_CHART_FEED — no code changes. Markets with no
+  // MagicBlock feed (priceSource "bulk", e.g. PUMP) stay on Bulk either way.
+  chartFeed: (process.env.NEXT_PUBLIC_CHART_FEED === "magicblock"
+    ? "magicblock"
+    : "bulk") as ChartFeed,
 
   magicblock: {
     // PRICE FEEDS ONLY — read-only, never signs and never touches funds.

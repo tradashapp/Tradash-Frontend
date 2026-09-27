@@ -1,8 +1,11 @@
+import { config, type ChartFeed } from "@/lib/config";
 import type { MarketCategory, MarketInfo, MarketSymbol } from "@/types";
 
 // Markets come from two sources, both verified 2026-08-17:
 //   1. Bulk's exchangeInfo (status "TRADING") — what we can actually trade on.
-//   2. A live price feed — MagicBlock's oracle program by default.
+//   2. A live price feed. Since 2026-09-27 every chart runs off Bulk's own
+//      ticker (`config.chartFeed`, default "bulk"); the MagicBlock fields below
+//      stay so NEXT_PUBLIC_CHART_FEED=magicblock can switch back.
 //
 // A market Bulk lists but MagicBlock has no LIVE feed for can still be added
 // with `priceSource: "bulk"`: its chart then runs off Bulk's own ticker stream
@@ -393,11 +396,21 @@ export function inCategory(
 }
 
 /**
+ * The feed this market's chart actually runs off: the app-wide
+ * `config.chartFeed`, except that a market with no MagicBlock feed
+ * (`priceSource: "bulk"`) is always on Bulk.
+ */
+export function chartFeedFor(symbol: MarketSymbol): ChartFeed {
+  if (MARKETS[symbol]?.priceSource === "bulk") return "bulk";
+  return config.chartFeed;
+}
+
+/**
  * True if this market's chart is priced off Bulk's own ticker rather than the
  * MagicBlock oracle — i.e. the chart and Bulk's quotes share one price space.
  */
 export function isBulkPriced(symbol: MarketSymbol): boolean {
-  return MARKETS[symbol]?.priceSource === "bulk";
+  return chartFeedFor(symbol) === "bulk";
 }
 
 /** Type guard: is this string one of our supported markets? */

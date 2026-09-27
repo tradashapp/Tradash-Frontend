@@ -1,4 +1,4 @@
-import { MARKETS } from "@/lib/markets";
+import { MARKETS, chartFeedFor } from "@/lib/markets";
 import type { MarketSymbol } from "@/types";
 import { subscribeToBulkPrice } from "./bulkTicker";
 import {
@@ -11,7 +11,7 @@ export type { PriceCallback, Unsubscribe };
 
 /**
  * Subscribe to a market's live chart price, from whichever feed that market is
- * priced off (`priceSource` in lib/markets.ts). Every price consumer goes
+ * priced off (`chartFeedFor` in lib/markets.ts). Every price consumer goes
  * through here, so a market can move feeds without any caller changing.
  */
 export function subscribeToPrice(
@@ -19,8 +19,8 @@ export function subscribeToPrice(
   onPrice: PriceCallback
 ): Unsubscribe {
   const market = MARKETS[symbol];
-  if (market.priceSource === "bulk") {
-    return subscribeToBulkPrice(market.bulkSymbol, onPrice);
+  if (market.priceSource !== "bulk" && chartFeedFor(symbol) === "magicblock") {
+    return subscribeToMagicBlockPrice(market.pythLazerId, market.exponent, onPrice);
   }
-  return subscribeToMagicBlockPrice(market.pythLazerId, market.exponent, onPrice);
+  return subscribeToBulkPrice(market.bulkSymbol, onPrice);
 }

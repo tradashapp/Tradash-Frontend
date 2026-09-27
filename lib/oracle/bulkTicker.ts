@@ -1,8 +1,9 @@
 import { config } from "@/lib/config";
 import type { PriceCallback, Unsubscribe } from "./magicblock";
 
-// Live price from Bulk's public `ticker` stream, for markets MagicBlock has no
-// oracle feed for (see `priceSource` on MarketInfo). Verified live 2026-09-24
+// Live price from Bulk's public `ticker` stream — the chart feed for every
+// market by default (`config.chartFeed`), and always for markets MagicBlock has
+// no oracle feed for (see `priceSource` on MarketInfo). Verified live 2026-09-24
 // on mainnet-ws1: `{method:"subscribe",subscription:[{type:"ticker",symbol}]}`
 // → `{type:"ticker", topic:"ticker.<SYM>", data:{ticker:{markPrice,...}}}`,
 // about 5 updates/sec. No signature needed.

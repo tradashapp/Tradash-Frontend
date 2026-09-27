@@ -40,6 +40,11 @@ export class PriceInterpolator {
     return this.value;
   }
 
+  /** The newest raw tick, un-eased — what a price READOUT should show. */
+  latest(): number | null {
+    return this.target;
+  }
+
   reset() {
     this.value = null;
     this.target = null;

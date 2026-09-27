@@ -5,6 +5,7 @@ import { updateSettings } from "@/store/slices/settingsSlice";
 import { setMode } from "@/store/slices/tradingModeSlice";
 import { ToggleSwitch } from "@/components/ui/ToggleSwitch";
 import { MenuSection } from "@/components/ui/MenuSection";
+import { FeeCodeSection } from "./FeeCodeSection";
 
 // Settings content, rendered inside the AccountSheet as a sub-view. Edits the
 // settings slice (persisted). No sheet chrome here — the host provides it.
@@ -39,6 +40,9 @@ export function SettingsPanel() {
           />
         </div>
       </MenuSection>
+
+      {/* Tradash builder fee + fee-code redemption (live accounts only). */}
+      {mode === "live" && <FeeCodeSection />}
 
       {/* Feedback on interaction. */}
       <MenuSection title="Feedback">

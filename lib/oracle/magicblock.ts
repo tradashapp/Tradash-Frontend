@@ -68,12 +68,14 @@ export function subscribeToMagicBlockPrice(
 ): Unsubscribe {
   const conn = getConnection();
   const address = feedAddress(pythLazerId);
+  let active = true;
 
-  // Seed with the current value (non-blocking).
+  // Seed with the current value (non-blocking) — unless the caller already
+  // unsubscribed, or a stale price lands on whatever market replaced it.
   conn
     .getAccountInfo(address, "confirmed")
     .then((info) => {
-      if (info?.data) {
+      if (active && info?.data) {
         const p = decodePrice(info.data, exponent);
         if (p != null) onPrice(p);
       }
@@ -92,6 +94,7 @@ export function subscribeToMagicBlockPrice(
   );
 
   return () => {
+    active = false;
     conn.removeAccountChangeListener(subId).catch(() => {});
   };
 }

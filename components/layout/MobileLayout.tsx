@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState } from "react";
 import { CanvasChart } from "@/components/chart/CanvasChart";
 import { ChartToolbar } from "@/components/chart/ChartToolbar";
+import { ChartRecenterButton } from "@/components/chart/ChartRecenterButton";
 import { useAppSelector } from "@/store/hooks";
 import { DotGrid, type DotGridHandle } from "@/components/background/DotGrid";
 import { MarketHeader } from "@/components/trade/MarketHeader";
@@ -114,7 +115,12 @@ export function MobileLayout({
         {/* Chart interval + chart type. Sits just above the trade buttons at
             their left, which is still the chart's bottom-left — the chart runs
             full-screen underneath the footer. */}
-        <ChartToolbar className="mb-3" />
+        <div className="mb-3 flex items-center justify-between">
+          <ChartToolbar />
+          {/* Re-center (candles only, once moved): the chart's bottom-right,
+              mirroring the toolbar above the DOWN button. */}
+          <ChartRecenterButton />
+        </div>
         <TradeControls
           position={trade.position}
           trailActive={trade.trailActive}

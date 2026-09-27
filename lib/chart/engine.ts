@@ -1,5 +1,6 @@
 import { PriceInterpolator } from "@/lib/oracle/interpolation";
 import { CandleSeries, type Candle } from "./candles";
+import { CandleGestures, CandleViewport } from "./candleViewport";
 import { CanvasOdometer } from "./odometer";
 import { PriceSeries } from "./priceSeries";
 import { formatPrice, priceDecimals } from "@/lib/format";
@@ -114,12 +115,10 @@ const LABEL_FADE_PX = 14;
 // plot) fades out, so history dissolves instead of being cut off.
 const LEFT_FADE_FRAC = 0.32;
 
-// Candlestick view: aim for about this many candles across the plot, with each
-// slot kept between these widths (px) so phones and wide desktops both read.
-const CANDLE_TARGET_COUNT = 48;
-const CANDLE_MIN_SPACING = 5;
-const CANDLE_MAX_SPACING = 14;
+// Candle body width as a share of its slot (spacing lives in CandleViewport).
 const CANDLE_BODY_FRAC = 0.64;
+// Scrolling within this many candles of the oldest loaded one asks for more.
+const OLDER_HISTORY_MARGIN = 20;
 // A view switch waits for the new view's data (candle history) before swapping,
 // so the old view never blinks to empty — but never longer than this.
 const VIEW_SWAP_TIMEOUT_MS = 2500;
@@ -193,6 +192,8 @@ export class ChartEngine {
   private lastPrice: number | null = null;
   private seeded = false;
   private onFrame?: (f: ChartFrame) => void;
+  private onViewportChange?: (offCenter: boolean) => void;
+  private onNeedOlder?: (intervalMs: number, beforeT: number) => void;
   private padding = { top: 28, bottom: 28 };
 
   // Eased scale state. `center` tracks the current price; `half` is half the
@@ -233,6 +234,13 @@ export class ChartEngine {
     since: number;
     rows: readonly Candle[] | null;
   } | null = null;
+  // Candle view pan / zoom / axis-scale, and the gestures that drive it.
+  private vp = new CandleViewport();
+  private gestures: CandleGestures;
+  private lastFormingT: number | null = null;
+  private offCenterShown = false;
+  // Oldest candle we've already asked `onNeedOlder` to extend past.
+  private olderRequestedFor: number | null = null;
   // Canvas opacity for the crossfade, and the value last written to the DOM.
   private opacity = 1;
   private shownOpacity = 1;
@@ -252,6 +260,10 @@ export class ChartEngine {
       theme?: Partial<ChartTheme>;
       capacity?: number;
       onFrame?: (f: ChartFrame) => void;
+      /** Candle view: the user moved away from following / came back. */
+      onViewportChange?: (offCenter: boolean) => void;
+      /** Candle view: scrolled near the oldest loaded candle; load older ones. */
+      onNeedOlder?: (intervalMs: number, beforeT: number) => void;
     } = {}
   ) {
     this.canvas = canvas;
@@ -261,6 +273,13 @@ export class ChartEngine {
     this.series = new PriceSeries(opts.capacity ?? 600);
     this.theme = { ...DEFAULT_THEME, ...opts.theme };
     this.onFrame = opts.onFrame;
+    this.onViewportChange = opts.onViewportChange;
+    this.onNeedOlder = opts.onNeedOlder;
+    this.gestures = new CandleGestures(
+      canvas,
+      this.vp,
+      () => this.view === "candles" && !this.driven && this.candles != null
+    );
     this.resize();
   }
 
@@ -375,8 +394,22 @@ export class ChartEngine {
     if (this.candles?.intervalMs === intervalMs) this.candles.merge(rows);
   }
 
+  /** Candle view: glide back to the newest candle with price centered. */
+  recenter() {
+    this.vp.recenter();
+  }
+
+  /** Detach input listeners (the render loop is stopped separately). */
+  destroy() {
+    this.stop();
+    this.gestures.dispose();
+  }
+
   /** Clear the window (e.g. on market switch) so the new feed starts fresh. */
   reset() {
+    this.vp.reset();
+    this.lastFormingT = null;
+    this.olderRequestedFor = null;
     // A candle view can't show the old market's candles for even a frame:
     // they're in another price space. Hide until the new history lands.
     if (this.view === "candles" || this.pending?.view === "candles") {
@@ -462,11 +495,17 @@ export class ChartEngine {
     // this is a property of the plot geometry, not of the feed, so background
     // layers keep scrolling even while the oracle is silent or reconnecting.
     // Candles only move on a rollover, so they report just that slide.
-    const scrollX =
-      this.view === "candles" && !this.driven
-        ? this.candleScroll
-        : this.plotWidth() / (this.series.capacity - 1);
+    const inCandles = this.view === "candles" && !this.driven;
+    const scrollX = inCandles
+      ? this.candleScroll + this.vp.takeScroll()
+      : this.plotWidth() / (this.series.capacity - 1);
     this.onFrame?.({ price, yNorm, velocity, scrollX });
+
+    const offCenter = inCandles && this.vp.offCenter;
+    if (offCenter !== this.offCenterShown) {
+      this.offCenterShown = offCenter;
+      this.onViewportChange?.(offCenter);
+    }
   }
 
   /**
@@ -484,6 +523,10 @@ export class ChartEngine {
           this.view = p.view;
           this.candleStep = 0;
           this.candleScroll = 0;
+          this.vp.reset();
+          this.lastFormingT = null;
+          this.olderRequestedFor = null;
+          this.gestures.setEnabled(p.view === "candles");
           if (p.view === "candles") {
             this.candles = new CandleSeries(p.intervalMs);
             this.candles.setHistory(p.rows ?? [], Date.now());
@@ -615,10 +658,10 @@ export class ChartEngine {
   }
 
   /**
-   * The candlestick view. Same frame as the line — price pinned at the middle,
-   * sliding ruler, position lines, pill — with candles in place of the line.
-   * The newest (forming) candle sits at the right edge beside the pill and
-   * grows with every tick; on each new interval the row glides one slot left.
+   * The candlestick view. Following (the default) it frames like the line —
+   * newest candle at the right edge, price pinned at the middle, sliding ruler.
+   * Once the user pans, zooms or scales (see CandleViewport) the view holds
+   * where they put it and the pill tracks the real price instead.
    */
   private drawCandleView(price: number, candles: CandleSeries): number {
     const { ctx, h } = this;
@@ -627,20 +670,21 @@ export class ChartEngine {
     const bottom = h - this.padding.bottom;
     const usableH = bottom - top;
     const pos = this.position;
-    this.center = price;
+    const vp = this.vp;
+    const spacing = vp.spacingFor(plotW);
+    const visible = plotW / spacing;
+    const forming = candles.forming!;
 
-    const spacing = Math.max(
-      CANDLE_MIN_SPACING,
-      Math.min(CANDLE_MAX_SPACING, plotW / CANDLE_TARGET_COUNT)
-    );
-    const visible = Math.ceil(plotW / spacing) + 1;
+    // A new candle opened: tell the viewport, so history stays put if that's
+    // what the user is looking at.
+    if (this.lastFormingT != null && forming.t > this.lastFormingT) vp.onRollover();
+    this.lastFormingT = forming.t;
 
-    // Ruler step: fitted once to the candles on screen (so a 1d chart isn't
-    // measured in $5 steps), then fixed — it slides, it never re-zooms. Until
-    // history arrives it's provisional (stored negative) and re-fitted each
-    // frame until there is some.
+    // Following-mode ruler step: fitted once to the candles on screen (so a 1d
+    // chart isn't measured in $5 steps), then fixed — it slides, it never
+    // re-zooms. Provisional (stored negative) until history arrives.
     if (!(this.candleStep > 0)) {
-      const r = candles.bodyRange(visible);
+      const r = candles.bodyRange(Math.ceil(visible) + 1);
       const reach = r ? Math.max(price - r.min, r.max - price) : 0;
       const fit = niceStep(
         Math.max(reach * 2 * 1.15, price * RULER_STEP_FRAC * RULER_LABELS) /
@@ -648,10 +692,14 @@ export class ChartEngine {
       );
       this.candleStep = candles.closed.length > 0 ? fit : -fit;
     }
-    const step = Math.abs(this.candleStep);
-    const half = (step * RULER_LABELS) / 2;
+    const autoStep = Math.abs(this.candleStep);
+    vp.frame(plotW, usableH, price, (autoStep * RULER_LABELS) / 2, candles.closed.length + 1);
+    const { center, half } = vp.window();
+    this.center = center;
+    // Free: labels re-space with the zoom, ~15 on screen whatever the scale.
+    const step = vp.free ? niceStep((2 * half) / RULER_LABELS) : autoStep;
     this.labelDecimals = labelDecimalsFor(step, price);
-    const min = price - half;
+    const min = center - half;
     const span = half * 2 || 1;
     const yOf = (p: number) => bottom - ((p - min) / span) * usableH;
     const ly = yOf(price);
@@ -669,44 +717,47 @@ export class ChartEngine {
     }
 
     // Current-price line across the plot, into the pill.
-    ctx.save();
-    ctx.setLineDash([3, 3]);
-    ctx.strokeStyle = accent;
-    ctx.globalAlpha = 0.45;
-    ctx.beginPath();
-    ctx.moveTo(0, ly);
-    ctx.lineTo(plotW, ly);
-    ctx.stroke();
-    ctx.restore();
+    if (ly >= top && ly <= bottom) {
+      ctx.save();
+      ctx.setLineDash([3, 3]);
+      ctx.strokeStyle = accent;
+      ctx.globalAlpha = 0.45;
+      ctx.beginPath();
+      ctx.moveTo(0, ly);
+      ctx.lineTo(plotW, ly);
+      ctx.stroke();
+      ctx.restore();
+    }
 
-    // --- Candles, newest at the right ------------------------------------------
-    // Slot k counts back from the forming candle (k = 0). `slide` shifts the
-    // whole row right by up to one slot right after a rollover, easing to 0.
-    const offset = candles.slide * spacing;
-    this.candleScroll = Math.max(0, this.candleOffset - offset);
-    this.candleOffset = offset;
+    // --- Candles ---------------------------------------------------------------
+    // Slot k counts back from the forming candle (k = 0). While following, a
+    // rollover's `slide` eases the row one slot left instead of jumping.
+    const following = vp.offset <= 0.5 && !vp.recentering;
+    const slidePx = following ? candles.slide * spacing : 0;
+    this.candleScroll = Math.max(0, this.candleOffset - slidePx);
+    this.candleOffset = slidePx;
+    const xOfSlot = (k: number) => plotW - spacing * (0.5 + k - vp.offset) + slidePx;
     const bodyW = Math.max(1, Math.round(spacing * CANDLE_BODY_FRAC));
     const upBodies = new Path2D();
     const downBodies = new Path2D();
     const upWicks = new Path2D();
     const downWicks = new Path2D();
-    const add = (c: Candle, k: number) => {
-      const cx = plotW - spacing * (0.5 + k) + offset;
-      if (cx < -spacing) return false;
+    const add = (c: Candle, cx: number) => {
       const up = c.c >= c.o;
       const yo = yOf(c.o);
       const yc = yOf(c.c);
       const wicks = up ? upWicks : downWicks;
       wicks.moveTo(cx, yOf(c.h));
       wicks.lineTo(cx, yOf(c.l));
-      const bodyTop = Math.min(yo, yc);
       const bodyH = Math.max(1, Math.abs(yc - yo));
-      (up ? upBodies : downBodies).rect(cx - bodyW / 2, bodyTop, bodyW, bodyH);
-      return true;
+      (up ? upBodies : downBodies).rect(cx - bodyW / 2, Math.min(yo, yc), bodyW, bodyH);
     };
-    add(candles.forming!, 0);
-    for (let i = candles.closed.length - 1, k = 1; i >= 0; i--, k++) {
-      if (!add(candles.closed[i]!, k)) break;
+    // Only the slots that can be on screen — history can run to thousands.
+    const kFirst = Math.max(0, Math.floor(vp.offset - 1));
+    const kLast = Math.min(candles.closed.length, Math.ceil(vp.offset + visible + 1));
+    for (let k = kFirst; k <= kLast; k++) {
+      const c = k === 0 ? forming : candles.closed[candles.closed.length - k];
+      if (c) add(c, xOfSlot(k));
     }
     ctx.save();
     // The newest candle slides in from under the pill; keep it inside the plot.
@@ -724,8 +775,24 @@ export class ChartEngine {
     ctx.fill(downBodies);
     ctx.restore();
 
-    this.finishFrame(plotW, min, span, step, top, bottom, yOf, ly, price, accent, null);
-    return 1 - (ly - top) / usableH;
+    // Scrolled near the oldest loaded candle: ask for the ones before it (once
+    // per oldest candle, so an exhausted history doesn't re-ask every frame).
+    const oldest = candles.closed[0];
+    if (
+      oldest &&
+      vp.offset + visible > candles.closed.length - OLDER_HISTORY_MARGIN &&
+      this.olderRequestedFor !== oldest.t
+    ) {
+      this.olderRequestedFor = oldest.t;
+      this.onNeedOlder?.(candles.intervalMs, oldest.t);
+    }
+
+    // The pill follows the real price, stuck to the plot edge when it's out of
+    // view — while following it is simply the middle.
+    const pillH = pos ? 34 : 26;
+    const pillY = Math.max(top + pillH / 2, Math.min(bottom - pillH / 2, ly));
+    this.finishFrame(plotW, min, span, step, top, bottom, yOf, pillY, price, accent, null);
+    return 1 - (pillY - top) / usableH;
   }
 
   /** Vertical PnL gradient: strongest at the mark, fading toward entry. */

@@ -61,16 +61,18 @@ interface KlineRow {
 }
 
 /**
- * The newest `count` candles for a market, oldest first. Throws on a network
- * or HTTP failure so the caller can retry; malformed rows are dropped.
+ * The `count` candles ending at `endTime` (default: now), oldest first. Throws
+ * on a network or HTTP failure so the caller can retry; malformed rows are
+ * dropped. An empty result past retention is normal — history just ends.
  */
 export async function fetchCandles(
   bulkSymbol: string,
   interval: CandleInterval,
   count: number,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  endTime?: number
 ): Promise<Candle[]> {
-  const end = Date.now();
+  const end = endTime ?? Date.now();
   const start = end - count * INTERVAL_MS[interval];
   const res = await fetch(
     `${config.bulk.restUrl}/klines?symbol=${encodeURIComponent(bulkSymbol)}` +

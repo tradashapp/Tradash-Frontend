@@ -77,12 +77,21 @@ function disconnect() {
   socket?.close();
 }
 
-/** Seed a first value over REST so the chart doesn't wait for the first push. */
+/**
+ * Seed a first value over REST so the chart doesn't wait for the first push.
+ *
+ * Delivered only if the caller is STILL subscribed when it lands. Opening
+ * /trade/ETH briefly subscribes the default market first, and that market's
+ * seed used to arrive after the switch — dropping an ~$84k BTC price into the
+ * ETH chart, which swept the line and fixed the ruler's zoom on the wrong
+ * market.
+ */
 function seed(bulkSymbol: string, onPrice: PriceCallback) {
   fetch(`${config.bulk.restUrl}/ticker/${bulkSymbol}`, { cache: "no-store" })
     .then((r) => (r.ok ? r.json() : null))
     .then((t: { markPrice?: number } | null) => {
       const p = t?.markPrice;
+      if (!listeners.get(bulkSymbol)?.has(onPrice)) return;
       if (p != null && Number.isFinite(p) && p > 0) onPrice(p);
     })
     .catch(() => {

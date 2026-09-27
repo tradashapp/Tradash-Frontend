@@ -14,6 +14,7 @@ import {
   type CandleInterval,
 } from "@/lib/bulk/candles";
 import { MARKETS } from "@/lib/markets";
+import { chartViewport } from "@/lib/chart/viewportStore";
 import { useLivePrice } from "@/hooks/useLivePrice";
 import { useSplashDone } from "@/hooks/useSplashDone";
 import type { MarketSymbol } from "@/types";
@@ -66,6 +67,10 @@ function CanvasChartImpl({
   const engineRef = useRef<ChartEngine | null>(null);
   const onFrameRef = useRef(onFrame);
   onFrameRef.current = onFrame;
+  // Set by the candle effect below, which knows the market + interval to page.
+  const needOlderRef = useRef<((ms: number, beforeT: number) => void) | null>(
+    null
+  );
   // The splash covers the whole viewport while it's up, so any frame we draw
   // before it lifts is painted for nobody — but still costs a full 600-point
   // bezier trace + blurred stroke every 16ms, competing with Privy/Redux boot
@@ -81,6 +86,8 @@ function CanvasChartImpl({
 
     const engine = new ChartEngine(canvas, {
       onFrame: (f) => onFrameRef.current?.(f),
+      onViewportChange: (off) => chartViewport.setOffCenter(off),
+      onNeedOlder: (ms, beforeT) => needOlderRef.current?.(ms, beforeT),
     });
     engineRef.current = engine;
 
@@ -90,7 +97,7 @@ function CanvasChartImpl({
 
     return () => {
       ro.disconnect();
-      engine.stop();
+      engine.destroy();
       engineRef.current = null;
     };
   }, []);
@@ -153,6 +160,19 @@ function CanvasChartImpl({
     const ac = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
 
+    // Scrolling back into history pages in the candles before the oldest one.
+    // An empty page means retention ran out; the engine won't re-ask for the
+    // same oldest candle, so that simply ends the scroll.
+    needOlderRef.current = (reqMs, beforeT) => {
+      if (reqMs !== ms) return;
+      fetchCandles(bulkSymbol, interval, HISTORY_COUNT, ac.signal, beforeT - 1)
+        .then((rows) => engine.mergeCandles(ms, rows))
+        .catch(() => {
+          /* best-effort; history just stops here */
+        });
+    };
+    chartViewport.setRecenterHandler(() => engine.recenter());
+
     const reconcileAtNextClose = () => {
       const now = Date.now();
       const nextClose = Math.floor(now / ms) * ms + ms;
@@ -189,6 +209,8 @@ function CanvasChartImpl({
       ac.abort();
       clearTimeout(timer);
       document.removeEventListener("visibilitychange", onVisible);
+      needOlderRef.current = null;
+      chartViewport.setRecenterHandler(null);
     };
   }, [candleView, interval, symbol]);
 

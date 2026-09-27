@@ -21,8 +21,11 @@ export interface Candle {
   c: number;
 }
 
-/** Most closed candles kept — well past the widest chart's visible count. */
-const MAX_CANDLES = 400;
+/**
+ * Most closed candles kept. Scrolling back loads older pages into the same
+ * series; this caps memory (and each merge's sort) on a long scroll.
+ */
+const MAX_CANDLES = 3000;
 
 export class CandleSeries {
   readonly intervalMs: number;

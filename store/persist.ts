@@ -76,7 +76,11 @@ export function wireSettingsPersistence(store: AppStore) {
       merged.positionSizeTouched = parsed.positionSizeTouched === true;
       // Chart prefs arrived later; anything unrecognised (an interval Bulk
       // stopped serving) falls back to the default rather than a dead fetch.
-      if (parsed.chartView !== "line" && parsed.chartView !== "candles") {
+      merged.chartViewTouched = parsed.chartViewTouched === true;
+      if (
+        !merged.chartViewTouched ||
+        (parsed.chartView !== "line" && parsed.chartView !== "candles")
+      ) {
         merged.chartView = defaultSettings.chartView;
       }
       if (!isCandleInterval(parsed.chartInterval)) {

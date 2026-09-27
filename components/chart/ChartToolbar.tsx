@@ -51,14 +51,23 @@ export function ChartToolbar({ className }: Props) {
   const pickInterval = (next: CandleInterval) => {
     haptic("tap");
     setOpen(false);
-    dispatch(updateSettings({ chartInterval: next, chartView: "candles" }));
+    dispatch(
+      updateSettings({
+        chartInterval: next,
+        chartView: "candles",
+        chartViewTouched: true,
+      })
+    );
   };
 
   const toggleView = () => {
     haptic("tap");
     setOpen(false);
     dispatch(
-      updateSettings({ chartView: view === "candles" ? "line" : "candles" })
+      updateSettings({
+        chartView: view === "candles" ? "line" : "candles",
+        chartViewTouched: true,
+      })
     );
   };
 

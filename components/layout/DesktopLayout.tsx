@@ -10,6 +10,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { CanvasChart } from "@/components/chart/CanvasChart";
 import { ChartToolbar } from "@/components/chart/ChartToolbar";
+import { ChartRecenterButton } from "@/components/chart/ChartRecenterButton";
 import { useAppSelector } from "@/store/hooks";
 import { DotGrid, type DotGridHandle } from "@/components/background/DotGrid";
 import { MarketHeader } from "@/components/trade/MarketHeader";
@@ -105,8 +106,18 @@ export function DesktopLayout({
             market settings sheet. */}
         <PositionDock symbol={symbol} onOpen={() => setSettingsOpen(true)} />
 
-        {/* Chart interval + chart type, bottom-left of the chart. */}
-        <ChartToolbar className="absolute bottom-4 left-4 z-20" />
+        {/* Chart interval + chart type, bottom-left of the chart. Wrapped: the
+            toolbar is itself `relative` (it anchors its menu), which would win
+            over an `absolute` passed in and drop it into the flow under the
+            market pill. */}
+        <div className="absolute bottom-4 left-4 z-20">
+          <ChartToolbar />
+        </div>
+        {/* Re-center (candles only, once moved) — bottom-right, just left of
+            the price scale so it never covers the labels. */}
+        <div className="absolute bottom-4 right-[108px] z-20">
+          <ChartRecenterButton />
+        </div>
       </section>
 
       {/* Right panel */}

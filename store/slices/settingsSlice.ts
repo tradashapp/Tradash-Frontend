@@ -38,6 +38,11 @@ export interface SettingsState {
   defaultTrailPct: number;
   /** Chart type on the trade screen: live tick line or candles. */
   chartView: ChartView;
+  /**
+   * Whether `chartView` was picked BY HAND. Until it is, the default applies
+   * on every load — so changing the default reaches everyone who never chose.
+   */
+  chartViewTouched: boolean;
   /** Candle interval for the candle view (Bulk klines interval). */
   chartInterval: CandleInterval;
   /** Markets the user starred in the market switcher, in the order added. */
@@ -80,7 +85,8 @@ const initialState: SettingsState = {
   // 0.1% trailing distance. No longer editable in the settings sheet (that
   // section is commented out, not deleted) — every order trails at this.
   defaultTrailPct: 0.001,
-  chartView: "candles",
+  chartView: "line",
+  chartViewTouched: false,
   chartInterval: DEFAULT_CANDLE_INTERVAL,
   favouriteMarkets: [],
   theme: "dark",

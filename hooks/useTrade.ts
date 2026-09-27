@@ -31,6 +31,8 @@ import {
   stopProfitTracking,
 } from "@/lib/sound";
 import { haptic } from "@/lib/haptics";
+import { api } from "@/lib/api";
+import { feeArrangementOwner } from "@/lib/bulk/feeArrangement";
 import { useToast } from "@/components/toast/ToastProvider";
 import {
   openMarket,
@@ -318,6 +320,26 @@ export function useTrade(
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Order failed";
         dispatch(setOrderError(msg));
+        // Orders go straight to Bulk, so the backend never sees them fail;
+        // report it (fire-and-forget) for the admin Operations page.
+        const reporter = feeArrangementOwner();
+        if (reporter) {
+          api.reportOrderFailure(reporter, {
+            symbol: activeSymbol,
+            side: direction,
+            orderType: "market_open",
+            reason: isBuilderNotApprovedError(e)
+              ? "builder_not_approved"
+              : isBadSignatureError(e)
+                ? "bad_signature"
+                : /timeout|timed out|abort/i.test(msg)
+                  ? "timeout"
+                  : /^Bulk order error/i.test(msg)
+                    ? "rejected"
+                    : "error",
+            message: msg,
+          });
+        }
         // Our builder code isn't approved on this account — every order will be
         // rejected until it is. Correct the cached state and tell the user what
         // to actually DO, rather than surfacing Bulk's raw pubkey message.

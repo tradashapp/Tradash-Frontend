@@ -2,6 +2,8 @@
 
 import { useCallback, useRef, useState } from "react";
 import { CanvasChart } from "@/components/chart/CanvasChart";
+import { ChartToolbar } from "@/components/chart/ChartToolbar";
+import { useAppSelector } from "@/store/hooks";
 import { DotGrid, type DotGridHandle } from "@/components/background/DotGrid";
 import { MarketHeader } from "@/components/trade/MarketHeader";
 import { BalancePill } from "@/components/trade/BalancePill";
@@ -57,6 +59,8 @@ export function MobileLayout({
   const handleFrame = useCallback((f: ChartFrame) => {
     gridRef.current?.react(f);
   }, []);
+  const chartView = useAppSelector((s) => s.settings.chartView);
+  const chartInterval = useAppSelector((s) => s.settings.chartInterval);
 
   const openAdjust = useCallback((item: LivePosition, mode: AdjustMode) => {
     setPositionsOpen(false);
@@ -73,6 +77,8 @@ export function MobileLayout({
           symbol={symbol}
           position={chartPosition}
           onFrame={handleFrame}
+          view={chartView}
+          interval={chartInterval}
         />
       </div>
 
@@ -105,6 +111,10 @@ export function MobileLayout({
           browser (inset 0) still gets a flat 12px so the buttons don't sit flush
           against the bottom edge of the window. */}
       <footer className="relative z-20 px-4">
+        {/* Chart interval + chart type. Sits just above the trade buttons at
+            their left, which is still the chart's bottom-left — the chart runs
+            full-screen underneath the footer. */}
+        <ChartToolbar className="mb-3" />
         <TradeControls
           position={trade.position}
           trailActive={trade.trailActive}

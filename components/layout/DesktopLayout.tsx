@@ -9,6 +9,8 @@ import {
   Analytics01Icon,
 } from "@hugeicons/core-free-icons";
 import { CanvasChart } from "@/components/chart/CanvasChart";
+import { ChartToolbar } from "@/components/chart/ChartToolbar";
+import { useAppSelector } from "@/store/hooks";
 import { DotGrid, type DotGridHandle } from "@/components/background/DotGrid";
 import { MarketHeader } from "@/components/trade/MarketHeader";
 import { BalancePill } from "@/components/trade/BalancePill";
@@ -62,6 +64,8 @@ export function DesktopLayout({
   const handleFrame = useCallback((f: ChartFrame) => {
     gridRef.current?.react(f); 
   }, []); 
+  const chartView = useAppSelector((s) => s.settings.chartView);
+  const chartInterval = useAppSelector((s) => s.settings.chartInterval);
 
   return (
     <main className="grid h-dvh w-full grid-cols-[220px_1fr_320px] overflow-hidden">
@@ -87,6 +91,8 @@ export function DesktopLayout({
             symbol={symbol}
             position={chartPosition}
             onFrame={handleFrame}
+            view={chartView}
+            interval={chartInterval}
           />
         </div>
         <div className="relative z-20 p-4">
@@ -98,6 +104,9 @@ export function DesktopLayout({
             so it is just as relevant on a flat account. Tapping opens the
             market settings sheet. */}
         <PositionDock symbol={symbol} onOpen={() => setSettingsOpen(true)} />
+
+        {/* Chart interval + chart type, bottom-left of the chart. */}
+        <ChartToolbar className="absolute bottom-4 left-4 z-20" />
       </section>
 
       {/* Right panel */}

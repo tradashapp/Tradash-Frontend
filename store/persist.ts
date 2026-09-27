@@ -12,6 +12,7 @@ import {
   type TradingMode,
 } from "./slices/tradingModeSlice";
 import { clampLeverage, isMarketSymbol } from "@/lib/markets";
+import { isCandleInterval } from "@/lib/bulk/candles";
 import type { MarketSymbol } from "@/types";
 import type { CompletedTrade, TradeEpisode } from "@/types";
 
@@ -73,6 +74,14 @@ export function wireSettingsPersistence(store: AppStore) {
       // per-market default applies, rather than stranding the old flat $100
       // on a $10 account where every order would be capped anyway.
       merged.positionSizeTouched = parsed.positionSizeTouched === true;
+      // Chart prefs arrived later; anything unrecognised (an interval Bulk
+      // stopped serving) falls back to the default rather than a dead fetch.
+      if (parsed.chartView !== "line" && parsed.chartView !== "candles") {
+        merged.chartView = defaultSettings.chartView;
+      }
+      if (!isCandleInterval(parsed.chartInterval)) {
+        merged.chartInterval = defaultSettings.chartInterval;
+      }
       store.dispatch(hydrateSettings(merged));
     }
   } catch {

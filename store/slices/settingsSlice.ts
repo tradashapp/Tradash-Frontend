@@ -1,5 +1,10 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 import type { MarketSymbol } from "@/types";
+import type { ChartView } from "@/lib/chart/engine";
+import {
+  DEFAULT_CANDLE_INTERVAL,
+  type CandleInterval,
+} from "@/lib/bulk/candles";
 
 // Defaults applied to every new trade + UI preferences. Persisted to
 // localStorage (see store/persist.ts) so they survive reloads.
@@ -31,6 +36,10 @@ export interface SettingsState {
   stopLossPct: number | null;
   /** Trailing-stop distance behind price, as a fraction (e.g. 0.01 = 1%). */
   defaultTrailPct: number;
+  /** Chart type on the trade screen: live tick line or candles. */
+  chartView: ChartView;
+  /** Candle interval for the candle view (Bulk klines interval). */
+  chartInterval: CandleInterval;
   /** Markets the user starred in the market switcher, in the order added. */
   favouriteMarkets: MarketSymbol[];
   theme: "dark" | "light";
@@ -71,6 +80,8 @@ const initialState: SettingsState = {
   // 0.1% trailing distance. No longer editable in the settings sheet (that
   // section is commented out, not deleted) — every order trails at this.
   defaultTrailPct: 0.001,
+  chartView: "candles",
+  chartInterval: DEFAULT_CANDLE_INTERVAL,
   favouriteMarkets: [],
   theme: "dark",
   soundEnabled: true,

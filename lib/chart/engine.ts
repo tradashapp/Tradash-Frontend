@@ -1,4 +1,5 @@
 import { PriceInterpolator } from "@/lib/oracle/interpolation";
+import { CandleSeries, type Candle } from "./candles";
 import { CanvasOdometer } from "./odometer";
 import { PriceSeries } from "./priceSeries";
 import { formatPrice, priceDecimals } from "@/lib/format";
@@ -113,6 +114,19 @@ const LABEL_FADE_PX = 14;
 // plot) fades out, so history dissolves instead of being cut off.
 const LEFT_FADE_FRAC = 0.32;
 
+// Candlestick view: aim for about this many candles across the plot, with each
+// slot kept between these widths (px) so phones and wide desktops both read.
+const CANDLE_TARGET_COUNT = 48;
+const CANDLE_MIN_SPACING = 5;
+const CANDLE_MAX_SPACING = 14;
+const CANDLE_BODY_FRAC = 0.64;
+// A view switch waits for the new view's data (candle history) before swapping,
+// so the old view never blinks to empty — but never longer than this.
+const VIEW_SWAP_TIMEOUT_MS = 2500;
+
+/** What the live chart draws: the tick line, or candles at an interval. */
+export type ChartView = "line" | "candles";
+
 // Full Tradash logo (white on transparent), drawn faintly behind the plot.
 const WATERMARK_SRC = "/images/logos/tradash-full.png";
 const WATERMARK_ALPHA = 0.07;
@@ -130,6 +144,18 @@ function watermark(): HTMLImageElement | null {
   return watermarkImg.complete && watermarkImg.naturalWidth > 0
     ? watermarkImg
     : null;
+}
+
+/**
+ * Decimals a scale label needs: the price's usual format, or more when the step
+ * is finer (PUMP's $0.0000005 step vs its 6-decimal price), so neighbouring
+ * labels never read the same.
+ */
+function labelDecimalsFor(step: number, price: number): number {
+  return Math.max(
+    priceDecimals(price),
+    Math.max(0, -Math.floor(Math.log10(step) + 1e-9))
+  );
 }
 
 /** Round a raw price step to a 1 / 2 / 5 × 10^n "nice" step. */
@@ -188,6 +214,28 @@ export class ChartEngine {
 
   // Active position overlay (null while flat).
   private position: PositionOverlay | null = null;
+
+  // --- Line / candles view ----------------------------------------------------
+  private view: ChartView = "line";
+  private candles: CandleSeries | null = null;
+  // The candle view's ruler step: fitted to the loaded history once, then fixed
+  // (same sliding-ruler rule as the line). 0 = not fitted yet.
+  private candleStep = 0;
+  // Leftward px the candles moved this frame (rollover slide), for onFrame, and
+  // the slide offset it's measured from.
+  private candleScroll = 0;
+  private candleOffset = 0;
+  // A requested view change, held until its data arrives (`rows`) so the swap
+  // is one clean crossfade rather than old view → empty → new view.
+  private pending: {
+    view: ChartView;
+    intervalMs: number;
+    since: number;
+    rows: readonly Candle[] | null;
+  } | null = null;
+  // Canvas opacity for the crossfade, and the value last written to the DOM.
+  private opacity = 1;
+  private shownOpacity = 1;
 
   /**
    * Driven mode: the caller supplies samples explicitly instead of the engine
@@ -285,8 +333,68 @@ export class ChartEngine {
     this.seeded = true;
   }
 
+  /**
+   * Switch between the tick line and candles (at `intervalMs`). The line swaps
+   * in straight away; candles wait for `setCandleHistory` (or a timeout), then
+   * the canvas fades out and back in on the new view.
+   */
+  setView(view: ChartView, intervalMs: number) {
+    const p = this.pending;
+    if (p && p.view === view && (view === "line" || p.intervalMs === intervalMs)) {
+      return;
+    }
+    if (
+      !p &&
+      view === this.view &&
+      (view === "line" || this.candles?.intervalMs === intervalMs)
+    ) {
+      return;
+    }
+    this.pending = {
+      view,
+      intervalMs,
+      since: performance.now(),
+      rows: view === "line" ? [] : null,
+    };
+  }
+
+  /** History for a candle view — completes a pending switch, else reloads. */
+  setCandleHistory(intervalMs: number, rows: readonly Candle[]) {
+    const p = this.pending;
+    if (p && p.view === "candles" && p.intervalMs === intervalMs) {
+      p.rows = rows;
+    } else if (this.candles?.intervalMs === intervalMs) {
+      // A reload of the SAME view (e.g. the tab came back): keep the ruler's
+      // zoom — only a fresh view or market is fitted.
+      this.candles.setHistory(rows, Date.now());
+    }
+  }
+
+  /** Reconcile freshly fetched rows into the live candle view. */
+  mergeCandles(intervalMs: number, rows: readonly Candle[]) {
+    if (this.candles?.intervalMs === intervalMs) this.candles.merge(rows);
+  }
+
   /** Clear the window (e.g. on market switch) so the new feed starts fresh. */
   reset() {
+    // A candle view can't show the old market's candles for even a frame:
+    // they're in another price space. Hide until the new history lands.
+    if (this.view === "candles" || this.pending?.view === "candles") {
+      const intervalMs =
+        this.pending?.view === "candles"
+          ? this.pending.intervalMs
+          : this.candles?.intervalMs ?? 60_000;
+      this.candles = null;
+      this.view = "candles";
+      this.pending = {
+        view: "candles",
+        intervalMs,
+        since: performance.now(),
+        rows: null,
+      };
+      this.opacity = 0;
+    }
+    this.candleStep = 0;
     this.interp.reset();
     this.series.clear();
     this.lastPrice = null;
@@ -343,13 +451,56 @@ export class ChartEngine {
       price != null && this.lastPrice != null ? price - this.lastPrice : 0;
     if (!this.driven) this.lastPrice = price;
 
+    this.stepView(now);
+    if (!this.driven && this.candles && price != null) {
+      this.candles.update(this.interp.latest() ?? price, price, Date.now());
+    }
+
     const yNorm = this.draw(price);
-    // Samples fill the plot width evenly, so a single new sample shifts the
-    // window left by one sample's worth of pixels. Reported unconditionally:
+    // Line: samples fill the plot width evenly, so a single new sample shifts
+    // the window left by one sample's worth of pixels. Reported unconditionally:
     // this is a property of the plot geometry, not of the feed, so background
     // layers keep scrolling even while the oracle is silent or reconnecting.
-    const scrollX = this.plotWidth() / (this.series.capacity - 1);
+    // Candles only move on a rollover, so they report just that slide.
+    const scrollX =
+      this.view === "candles" && !this.driven
+        ? this.candleScroll
+        : this.plotWidth() / (this.series.capacity - 1);
     this.onFrame?.({ price, yNorm, velocity, scrollX });
+  }
+
+  /**
+   * Run a pending view switch as a crossfade: once its data is in (or the
+   * timeout passes), fade the canvas out, swap, and fade back in.
+   */
+  private stepView(now: number) {
+    const p = this.pending;
+    if (p) {
+      const ready = p.rows != null || now - p.since > VIEW_SWAP_TIMEOUT_MS;
+      if (ready) {
+        this.opacity += (0 - this.opacity) * 0.35;
+        if (this.opacity < 0.04) {
+          this.opacity = 0;
+          this.view = p.view;
+          this.candleStep = 0;
+          this.candleScroll = 0;
+          if (p.view === "candles") {
+            this.candles = new CandleSeries(p.intervalMs);
+            this.candles.setHistory(p.rows ?? [], Date.now());
+          } else {
+            this.candles = null;
+          }
+          this.pending = null;
+        }
+      }
+    } else if (this.opacity < 1) {
+      this.opacity += (1 - this.opacity) * 0.2;
+      if (this.opacity > 0.99) this.opacity = 1;
+    }
+    if (Math.abs(this.opacity - this.shownOpacity) > 0.005) {
+      this.shownOpacity = this.opacity;
+      this.canvas.style.opacity = this.opacity === 1 ? "" : this.opacity.toFixed(3);
+    }
   }
 
   /**
@@ -359,6 +510,15 @@ export class ChartEngine {
   private draw(price: number | null): number {
     const { ctx, w, h } = this;
     ctx.clearRect(0, 0, w, h);
+
+    if (this.view === "candles" && !this.driven) {
+      const candles = this.candles;
+      if (!candles?.forming || price == null) {
+        this.drawWatermark(this.plotWidth());
+        return 0.5;
+      }
+      return this.drawCandleView(price, candles);
+    }
 
     // Reused buffer — must not be retained past this frame.
     const samples = this.series.view();
@@ -389,15 +549,13 @@ export class ChartEngine {
       // they become edge markers (see drawLineOrEdge).
       if (!(this.tickStep > 0)) {
         this.tickStep = niceStep(price * RULER_STEP_FRAC);
-        this.labelDecimals = Math.max(
-          priceDecimals(price),
-          Math.max(0, -Math.floor(Math.log10(this.tickStep) + 1e-9))
-        );
       }
       step = this.tickStep;
       half = (step * RULER_LABELS) / 2;
+      this.labelDecimals = labelDecimalsFor(step, price);
     } else {
       ({ half, step } = this.fitScale(price, range, usableH));
+      this.labelDecimals = null;
     }
 
     const min = this.center - half;
@@ -432,62 +590,9 @@ export class ChartEngine {
       band.lineTo(plotW, entryY);
       band.lineTo(0, entryY);
       band.closePath();
-      const gTop = Math.min(ly, entryY);
-      const gBot = Math.max(ly, entryY);
-      const grad = ctx.createLinearGradient(0, gTop, 0, gBot);
-      const fillCol = inProfit
-        ? "rgba(114, 233, 18, 0.22)"
-        : "rgba(230, 67, 45, 0.22)";
-      const faded = inProfit
-        ? "rgba(114, 233, 18, 0.02)"
-        : "rgba(230, 67, 45, 0.02)";
-      // Fade away from the mark line toward the entry line.
-      grad.addColorStop(0, ly <= entryY ? fillCol : faded);
-      grad.addColorStop(1, ly <= entryY ? faded : fillCol);
-      ctx.fillStyle = grad;
+      ctx.fillStyle = this.pnlBandFill(ly, entryY, inProfit);
       ctx.fill(band);
-
-      // Entry / Liq / Trail lines. Each draws in place when on-screen, or as a
-      // clamped edge marker (caret + price) at the top/bottom when it has
-      // scrolled out of view — so the chart never squeezes to hold them.
-      this.drawLineOrEdge(
-        entryY, top, bottom, plotW, "Entry",
-        pos.entryPrice, this.theme.entryLine, "#08090c", [4, 4], 1, false
-      );
-      // Net break-even — where closing actually gets out even once fees and
-      // funding are covered. Drawn BEFORE Liq so that if the two ever coincide
-      // the liquidation warning stays on top; it is the more urgent one.
-      if (pos.breakEvenPrice != null) {
-        this.drawLineOrEdge(
-          yOf(pos.breakEvenPrice), top, bottom, plotW, "B/E",
-          pos.breakEvenPrice, this.theme.breakEvenLine, "#08090c", [1, 3], 1, false
-        );
-      }
-      // Automatic exits. Drawn before Liq for the same reason B/E is: if a stop
-      // sits near the liquidation price, the liquidation warning must stay the
-      // one on top.
-      if (pos.takeProfitPrice != null) {
-        this.drawLineOrEdge(
-          yOf(pos.takeProfitPrice), top, bottom, plotW, "TP",
-          pos.takeProfitPrice, this.theme.tpLine, "#08090c", [5, 3], 1.5, false
-        );
-      }
-      if (pos.stopLossPrice != null) {
-        this.drawLineOrEdge(
-          yOf(pos.stopLossPrice), top, bottom, plotW, "SL",
-          pos.stopLossPrice, this.theme.slLine, "#08090c", [5, 3], 1.5, false
-        );
-      }
-      this.drawLineOrEdge(
-        yOf(pos.liquidationPrice), top, bottom, plotW, "Liq",
-        pos.liquidationPrice, this.theme.liqLine, "#08090c", [2, 3], 1, false
-      );
-      if (pos.trailStopPrice != null) {
-        this.drawLineOrEdge(
-          yOf(pos.trailStopPrice), top, bottom, plotW, "Trail",
-          pos.trailStopPrice, accent, "#08090c", [6, 3], 1.5, true
-        );
-      }
+      this.drawPositionLines(pos, yOf, top, bottom, plotW, accent);
     }
 
     // --- Smooth price (mark) line ---------------------------------------------
@@ -505,10 +610,213 @@ export class ChartEngine {
     ctx.restore();
     ctx.stroke(linePath);
 
-    // --- Fade the plot out toward the left edge --------------------------------
-    // Erase with a gradient rather than fading each stroke, so the line, the
-    // PnL band, gridlines and reference lines all dissolve together. The gutter
-    // (labels, tags, pill) is right of the fade and untouched.
+    this.finishFrame(plotW, min, span, step, top, bottom, yOf, ly, price, accent, lx);
+    return 1 - (ly - top) / usableH;
+  }
+
+  /**
+   * The candlestick view. Same frame as the line — price pinned at the middle,
+   * sliding ruler, position lines, pill — with candles in place of the line.
+   * The newest (forming) candle sits at the right edge beside the pill and
+   * grows with every tick; on each new interval the row glides one slot left.
+   */
+  private drawCandleView(price: number, candles: CandleSeries): number {
+    const { ctx, h } = this;
+    const plotW = this.plotWidth();
+    const top = this.padding.top;
+    const bottom = h - this.padding.bottom;
+    const usableH = bottom - top;
+    const pos = this.position;
+    this.center = price;
+
+    const spacing = Math.max(
+      CANDLE_MIN_SPACING,
+      Math.min(CANDLE_MAX_SPACING, plotW / CANDLE_TARGET_COUNT)
+    );
+    const visible = Math.ceil(plotW / spacing) + 1;
+
+    // Ruler step: fitted once to the candles on screen (so a 1d chart isn't
+    // measured in $5 steps), then fixed — it slides, it never re-zooms. Until
+    // history arrives it's provisional (stored negative) and re-fitted each
+    // frame until there is some.
+    if (!(this.candleStep > 0)) {
+      const r = candles.bodyRange(visible);
+      const reach = r ? Math.max(price - r.min, r.max - price) : 0;
+      const fit = niceStep(
+        Math.max(reach * 2 * 1.15, price * RULER_STEP_FRAC * RULER_LABELS) /
+          RULER_LABELS
+      );
+      this.candleStep = candles.closed.length > 0 ? fit : -fit;
+    }
+    const step = Math.abs(this.candleStep);
+    const half = (step * RULER_LABELS) / 2;
+    this.labelDecimals = labelDecimalsFor(step, price);
+    const min = price - half;
+    const span = half * 2 || 1;
+    const yOf = (p: number) => bottom - ((p - min) / span) * usableH;
+    const ly = yOf(price);
+
+    const inProfit = !pos || pos.pnl >= 0;
+    const accent = inProfit ? this.theme.up : this.theme.down;
+
+    this.drawGrid(min, span, step, top, bottom, yOf, plotW);
+
+    if (pos) {
+      const entryY = yOf(pos.entryPrice);
+      ctx.fillStyle = this.pnlBandFill(ly, entryY, inProfit);
+      ctx.fillRect(0, Math.min(ly, entryY), plotW, Math.abs(entryY - ly));
+      this.drawPositionLines(pos, yOf, top, bottom, plotW, accent);
+    }
+
+    // Current-price line across the plot, into the pill.
+    ctx.save();
+    ctx.setLineDash([3, 3]);
+    ctx.strokeStyle = accent;
+    ctx.globalAlpha = 0.45;
+    ctx.beginPath();
+    ctx.moveTo(0, ly);
+    ctx.lineTo(plotW, ly);
+    ctx.stroke();
+    ctx.restore();
+
+    // --- Candles, newest at the right ------------------------------------------
+    // Slot k counts back from the forming candle (k = 0). `slide` shifts the
+    // whole row right by up to one slot right after a rollover, easing to 0.
+    const offset = candles.slide * spacing;
+    this.candleScroll = Math.max(0, this.candleOffset - offset);
+    this.candleOffset = offset;
+    const bodyW = Math.max(1, Math.round(spacing * CANDLE_BODY_FRAC));
+    const upBodies = new Path2D();
+    const downBodies = new Path2D();
+    const upWicks = new Path2D();
+    const downWicks = new Path2D();
+    const add = (c: Candle, k: number) => {
+      const cx = plotW - spacing * (0.5 + k) + offset;
+      if (cx < -spacing) return false;
+      const up = c.c >= c.o;
+      const yo = yOf(c.o);
+      const yc = yOf(c.c);
+      const wicks = up ? upWicks : downWicks;
+      wicks.moveTo(cx, yOf(c.h));
+      wicks.lineTo(cx, yOf(c.l));
+      const bodyTop = Math.min(yo, yc);
+      const bodyH = Math.max(1, Math.abs(yc - yo));
+      (up ? upBodies : downBodies).rect(cx - bodyW / 2, bodyTop, bodyW, bodyH);
+      return true;
+    };
+    add(candles.forming!, 0);
+    for (let i = candles.closed.length - 1, k = 1; i >= 0; i--, k++) {
+      if (!add(candles.closed[i]!, k)) break;
+    }
+    ctx.save();
+    // The newest candle slides in from under the pill; keep it inside the plot.
+    ctx.beginPath();
+    ctx.rect(0, 0, plotW, h);
+    ctx.clip();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = this.theme.up;
+    ctx.stroke(upWicks);
+    ctx.fillStyle = this.theme.up;
+    ctx.fill(upBodies);
+    ctx.strokeStyle = this.theme.down;
+    ctx.stroke(downWicks);
+    ctx.fillStyle = this.theme.down;
+    ctx.fill(downBodies);
+    ctx.restore();
+
+    this.finishFrame(plotW, min, span, step, top, bottom, yOf, ly, price, accent, null);
+    return 1 - (ly - top) / usableH;
+  }
+
+  /** Vertical PnL gradient: strongest at the mark, fading toward entry. */
+  private pnlBandFill(ly: number, entryY: number, inProfit: boolean): CanvasGradient {
+    const grad = this.ctx.createLinearGradient(
+      0,
+      Math.min(ly, entryY),
+      0,
+      Math.max(ly, entryY)
+    );
+    const fillCol = inProfit ? "rgba(114, 233, 18, 0.22)" : "rgba(230, 67, 45, 0.22)";
+    const faded = inProfit ? "rgba(114, 233, 18, 0.02)" : "rgba(230, 67, 45, 0.02)";
+    grad.addColorStop(0, ly <= entryY ? fillCol : faded);
+    grad.addColorStop(1, ly <= entryY ? faded : fillCol);
+    return grad;
+  }
+
+  /**
+   * Entry / B/E / TP / SL / Liq / Trail. Each draws in place when on-screen, or
+   * as a clamped edge marker (caret + price) at the top/bottom when it has
+   * scrolled out of view — so the chart never squeezes to hold them.
+   */
+  private drawPositionLines(
+    pos: PositionOverlay,
+    yOf: (p: number) => number,
+    top: number,
+    bottom: number,
+    plotW: number,
+    accent: string
+  ) {
+    this.drawLineOrEdge(
+      yOf(pos.entryPrice), top, bottom, plotW, "Entry",
+      pos.entryPrice, this.theme.entryLine, "#08090c", [4, 4], 1, false
+    );
+    // Net break-even — where closing actually gets out even once fees and
+    // funding are covered. Drawn BEFORE Liq so that if the two ever coincide
+    // the liquidation warning stays on top; it is the more urgent one.
+    if (pos.breakEvenPrice != null) {
+      this.drawLineOrEdge(
+        yOf(pos.breakEvenPrice), top, bottom, plotW, "B/E",
+        pos.breakEvenPrice, this.theme.breakEvenLine, "#08090c", [1, 3], 1, false
+      );
+    }
+    // Automatic exits. Drawn before Liq for the same reason B/E is: if a stop
+    // sits near the liquidation price, the liquidation warning must stay the
+    // one on top.
+    if (pos.takeProfitPrice != null) {
+      this.drawLineOrEdge(
+        yOf(pos.takeProfitPrice), top, bottom, plotW, "TP",
+        pos.takeProfitPrice, this.theme.tpLine, "#08090c", [5, 3], 1.5, false
+      );
+    }
+    if (pos.stopLossPrice != null) {
+      this.drawLineOrEdge(
+        yOf(pos.stopLossPrice), top, bottom, plotW, "SL",
+        pos.stopLossPrice, this.theme.slLine, "#08090c", [5, 3], 1.5, false
+      );
+    }
+    this.drawLineOrEdge(
+      yOf(pos.liquidationPrice), top, bottom, plotW, "Liq",
+      pos.liquidationPrice, this.theme.liqLine, "#08090c", [2, 3], 1, false
+    );
+    if (pos.trailStopPrice != null) {
+      this.drawLineOrEdge(
+        yOf(pos.trailStopPrice), top, bottom, plotW, "Trail",
+        pos.trailStopPrice, accent, "#08090c", [6, 3], 1.5, true
+      );
+    }
+  }
+
+  /**
+   * Shared tail of every view: fade the plot toward the left, lay the
+   * watermark behind it, then the price scale and the pinned pill on top.
+   */
+  private finishFrame(
+    plotW: number,
+    min: number,
+    span: number,
+    step: number,
+    top: number,
+    bottom: number,
+    yOf: (p: number) => number,
+    ly: number,
+    price: number,
+    accent: string,
+    lx: number | null
+  ) {
+    const { ctx, h } = this;
+    // Erase with a gradient rather than fading each stroke, so the line (or
+    // candles), the PnL band, gridlines and reference lines all dissolve
+    // together. The gutter (labels, tags, pill) is right of the fade.
     const fadeW = plotW * LEFT_FADE_FRAC;
     ctx.save();
     ctx.globalCompositeOperation = "destination-out";
@@ -523,12 +831,10 @@ export class ChartEngine {
     // Behind everything drawn so far, and after the fade so it stays whole.
     this.drawWatermark(plotW);
 
-    // --- Right price scale + pinned current-price pill (PnL when in a trade) ---
+    const pos = this.position;
     const pillH = pos ? 34 : 26;
     this.drawScale(min, span, step, top, bottom, yOf, ly, pillH);
     this.drawCurrentMarker(lx, ly, plotW, price, accent, pillH, pos?.pnl);
-
-    return 1 - (ly - top) / usableH;
   }
 
   /**
@@ -853,7 +1159,7 @@ export class ChartEngine {
    * is the real price and settles instead of creeping.
    */
   private drawCurrentMarker(
-    lx: number,
+    lx: number | null,
     ly: number,
     plotW: number,
     price: number,
@@ -863,22 +1169,24 @@ export class ChartEngine {
   ) {
     const { ctx, w } = this;
 
-    // Dashed leader from the line's leading point to the scale.
-    ctx.save();
-    ctx.setLineDash([3, 3]);
-    ctx.strokeStyle = accent;
-    ctx.globalAlpha = 0.5;
-    ctx.beginPath();
-    ctx.moveTo(lx, ly);
-    ctx.lineTo(plotW, ly);
-    ctx.stroke();
-    ctx.restore();
+    // Line view: dashed leader from the line's leading point to the scale,
+    // and the leading dot. (Candles draw their own full-width price line.)
+    if (lx != null) {
+      ctx.save();
+      ctx.setLineDash([3, 3]);
+      ctx.strokeStyle = accent;
+      ctx.globalAlpha = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(lx, ly);
+      ctx.lineTo(plotW, ly);
+      ctx.stroke();
+      ctx.restore();
 
-    // Leading dot.
-    ctx.beginPath();
-    ctx.arc(lx, ly, 3.5, 0, Math.PI * 2);
-    ctx.fillStyle = accent;
-    ctx.fill();
+      ctx.beginPath();
+      ctx.arc(lx, ly, 3.5, 0, Math.PI * 2);
+      ctx.fillStyle = accent;
+      ctx.fill();
+    }
 
     const readout = this.driven ? price : this.interp.latest() ?? price;
     this.priceOdo.set(this.fmtPrice(readout), readout);

@@ -302,13 +302,14 @@ function PositionRow({
                 value={`${profit ? "+" : "−"}${Math.abs(roiPct).toFixed(2)}%`}
                 color={profit ? "up" : "down"}
               />
-              <Detail label="Entry" value={`$${formatPrice(pos.entryPrice)}`} />
+              {/* Bulk's VWAP across every fill, so it moves when you add. */}
+              <Detail label="Avg entry" value={`$${formatPrice(pos.entryPrice)}`} />
               <Detail
                 label="Current"
                 value={markPrice != null ? `$${formatPrice(markPrice)}` : "—"}
               />
               {/* Where closing gets out even once fees + funding are covered.
-                  Sits next to Entry deliberately: the gap between the two IS
+                  Sits next to Avg entry deliberately: the gap between the two IS
                   what the position has cost so far. */}
               {item.netBreakEven != null && (
                 <Detail

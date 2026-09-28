@@ -164,10 +164,13 @@ export function validateTrigger({
     const beyond = long
       ? triggerPrice <= liquidationPrice
       : triggerPrice >= liquidationPrice;
+    // Bulk's liquidation starts by CANCELLING every resting order on the
+    // account (docs: Liquidations → Step 1), so a stop past this line is not
+    // late — it is deleted before price ever reaches it.
     if (beyond) {
-      return long
-        ? "Stop loss must be above your liquidation price."
-        : "Stop loss must be below your liquidation price.";
+      return `Stop loss must be ${
+        long ? "above" : "below"
+      } your liquidation price — liquidation cancels it first. Use less size or leverage to widen the gap.`;
     }
   }
 

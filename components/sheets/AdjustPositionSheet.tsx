@@ -6,7 +6,7 @@ import { Loading03Icon } from "@hugeicons/core-free-icons";
 import { Sheet } from "@/components/ui/Sheet";
 import { useAppSelector } from "@/store/hooks";
 import { MARGIN_HEADROOM } from "@/hooks/useTrade";
-import { liquidationPrice } from "@/lib/perp";
+import { crossLiquidationAfterAdd, liquidationPrice } from "@/lib/perp";
 import { formatPrice } from "@/lib/format";
 import { playSound } from "@/lib/sound";
 import { haptic } from "@/lib/haptics";
@@ -169,7 +169,13 @@ export function AdjustPositionSheet({
         (pos.entryPrice * pos.size + markPrice * addSize) / newSize;
       return {
         entry: newEntry,
-        liq: liquidationPrice(pos.direction, newEntry, pos.leverage),
+        // Demo is isolated, so its formula is exact. Live is Bulk CROSS margin,
+        // where the isolated formula has nothing to do with Bulk's number —
+        // project from Bulk's own loss budget instead (approximate).
+        liq:
+          tradingMode === "live"
+            ? crossLiquidationAfterAdd(pos, addSize, markPrice)
+            : liquidationPrice(pos.direction, newEntry, pos.leverage),
         margin: pos.marginUsed + amount,
         realized: null as number | null,
       };
@@ -181,7 +187,7 @@ export function AdjustPositionSheet({
       margin: Math.max(pos.marginUsed - amount, 0),
       realized: pos.unrealizedPnl * fraction,
     };
-  }, [isAdd, amount, markPrice, pos]);
+  }, [isAdd, amount, markPrice, pos, tradingMode]);
 
   if (!pos) {
     return (
@@ -338,16 +344,16 @@ export function AdjustPositionSheet({
               />
               {isAdd && (
                 <Row
-                  label="Entry"
+                  label="Avg entry"
                   from={`$${formatPrice(pos.entryPrice)}`}
                   to={`$${formatPrice(preview.entry)}`}
                 />
               )}
-              {isAdd && (
+              {isAdd && preview.liq != null && (
                 <Row
                   label="Liquidation"
                   from={`$${formatPrice(pos.liquidationPrice)}`}
-                  to={`$${formatPrice(preview.liq)}`}
+                  to={`${tradingMode === "live" ? "≈ " : ""}$${formatPrice(preview.liq)}`}
                   tone="down"
                 />
               )}

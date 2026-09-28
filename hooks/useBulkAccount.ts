@@ -92,56 +92,62 @@ export function useBulkAccount(
         .catch(() => {});
     }
 
-    // Seed snapshot (unsigned). null = account has never traded (flat).
-    fetchAccount(walletAddress)
-      .then((acct) => {
-        if (!acct) {
-          dispatch(setBalance({ equity: 0, available: 0, marginUsed: 0 }));
-          dispatch(clearAllPositions());
-          lastOpen.current = {};
-          return;
-        }
-        // Bulk renamed these (totalBalance→totalMargin, availableBalance→
-        // availableMargin), so read them through the normalizer rather than by
-        // a single hard-coded spelling.
-        const m = readMargin(acct.margin);
-        dispatch(
-          setBalance({
-            equity: m.equity ?? 0,
-            available: m.available ?? 0,
-            marginUsed: m.marginUsed ?? 0,
-            unrealizedPnl: m.unrealizedPnl ?? 0,
-          })
-        );
-        // NOTE: dust rows (a sub-lot residue left by a close that filled a hair
-        // short) are dropped by `snapshotToPosition`, so they never seed
-        // `lastOpen` and never render. That is deliberate — they are unclosable
-        // — but it also means a position that shrank to dust while we were NOT
-        // connected produces no open→absent transition here, and so no history
-        // row here. The backend's Bulk fills sync records it instead (it treats
-        // sub-lot residue as flat, the same rule), so this is only a diagnostic.
-        for (const raw of acct.positions) {
-          const sym = bulkToSym[raw.symbol];
-          if (!sym || raw.size === 0) continue;
-          if (isDustSize(raw.size, MARKETS[sym].lotSize)) {
-            console.warn(
-              `[tradash] ${raw.symbol} is stranded dust (size ${raw.size}); ` +
-                `its close was never recorded to history and cannot be ` +
-                `reconstructed from /account — the backend fills sync records it.`
-            );
+    let disposed = false;
+    // Seed snapshot (unsigned). null = account has never traded (flat). Also
+    // re-run after an add/reduce fills — see onPositionDelta.
+    const seed = () =>
+      fetchAccount(walletAddress)
+        .then((acct) => {
+          if (disposed) return;
+          if (!acct) {
+            dispatch(setBalance({ equity: 0, available: 0, marginUsed: 0 }));
+            dispatch(clearAllPositions());
+            lastOpen.current = {};
+            return;
           }
-        }
-        const open = acct.positions
-          .filter((p) => p.size !== 0)
-          .map((p) => snapshotToPosition(p))
-          .filter((p): p is Position => p !== null)
-          .map((p) => enrich(store, dispatch, p, lastOpen.current[p.symbol]));
-        const map: Partial<Record<MarketSymbol, Position>> = {};
-        for (const p of open) map[p.symbol] = p;
-        lastOpen.current = map;
-        dispatch(reconcilePositions(open));
-      })
-      .catch(() => {});
+          // Bulk renamed these (totalBalance→totalMargin, availableBalance→
+          // availableMargin), so read them through the normalizer rather than by
+          // a single hard-coded spelling.
+          const m = readMargin(acct.margin);
+          dispatch(
+            setBalance({
+              equity: m.equity ?? 0,
+              available: m.available ?? 0,
+              marginUsed: m.marginUsed ?? 0,
+              unrealizedPnl: m.unrealizedPnl ?? 0,
+            })
+          );
+          // NOTE: dust rows (a sub-lot residue left by a close that filled a hair
+          // short) are dropped by `snapshotToPosition`, so they never seed
+          // `lastOpen` and never render. That is deliberate — they are unclosable
+          // — but it also means a position that shrank to dust while we were NOT
+          // connected produces no open→absent transition here, and so no history
+          // row here. The backend's Bulk fills sync records it instead (it treats
+          // sub-lot residue as flat, the same rule), so this is only a diagnostic.
+          for (const raw of acct.positions) {
+            const sym = bulkToSym[raw.symbol];
+            if (!sym || raw.size === 0) continue;
+            if (isDustSize(raw.size, MARKETS[sym].lotSize)) {
+              console.warn(
+                `[tradash] ${raw.symbol} is stranded dust (size ${raw.size}); ` +
+                  `its close was never recorded to history and cannot be ` +
+                  `reconstructed from /account — the backend fills sync records it.`
+              );
+            }
+          }
+          const open = acct.positions
+            .filter((p) => p.size !== 0)
+            .map((p) => snapshotToPosition(p))
+            .filter((p): p is Position => p !== null)
+            .map((p) => enrich(store, dispatch, p, lastOpen.current[p.symbol]));
+          const map: Partial<Record<MarketSymbol, Position>> = {};
+          for (const p of open) map[p.symbol] = p;
+          lastOpen.current = map;
+          dispatch(reconcilePositions(open));
+        })
+        .catch(() => {});
+    seed();
+    let resyncTimer: ReturnType<typeof setTimeout> | null = null;
 
     const unsub = subscribeAccount(walletAddress, {
       // A snapshot is authoritative and replaces the balance; a delta is
@@ -196,6 +202,12 @@ export function useBulkAccount(
             // history (WS is the source of truth for the real filled size/PnL).
             toastAdjust(toast, prev, next);
             recordAdjustFor(store, dispatch, privyId, prev, next);
+            // Re-read the position from REST once the fill has settled, so the
+            // AVERAGE entry (Bulk's VWAP), liquidation and break-even lines all
+            // come from Bulk's full snapshot rather than trusting this single
+            // delta to carry every re-averaged field.
+            if (resyncTimer) clearTimeout(resyncTimer);
+            resyncTimer = setTimeout(seed, 750);
           }
           lastOpen.current[symbol] = next;
           dispatch(setPosition({ symbol, position: next }));
@@ -203,7 +215,11 @@ export function useBulkAccount(
       },
     });
 
-    return unsub;
+    return () => {
+      disposed = true;
+      if (resyncTimer) clearTimeout(resyncTimer);
+      unsub();
+    };
   }, [walletAddress, privyId, dispatch, store, toast]);
 }
 

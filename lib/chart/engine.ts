@@ -879,7 +879,9 @@ export class ChartEngine {
     accent: string
   ) {
     this.drawLineOrEdge(
-      yOf(pos.entryPrice), top, bottom, plotW, "Entry",
+      // "A.Entry": the AVERAGE entry — Bulk's VWAP across every fill, so it
+      // shifts when the position is added to.
+      yOf(pos.entryPrice), top, bottom, plotW, "A.Entry",
       pos.entryPrice, this.theme.entryLine, "#08090c", [4, 4], 1, false
     );
     // Net break-even — where closing actually gets out even once fees and

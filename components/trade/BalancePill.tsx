@@ -3,7 +3,7 @@
 import { usePrivy } from "@privy-io/react-auth";
 import { useAppSelector } from "@/store/hooks";
 import { formatUsd } from "@/lib/format";
-import { demoPnlAt, livePnlAt } from "@/lib/perp";
+import { demoPnlAt, liveAccountValue, livePnlAt } from "@/lib/perp";
 import { Odometer } from "@/components/ui/Odometer";
 import { ProfileAvatar } from "@/components/ui/ProfileAvatar";
 import { SkeletonText } from "@/components/ui/Skeleton";
@@ -34,9 +34,9 @@ export function BalancePill({ onOpen }: Props) {
   const prices = useAppSelector((s) => s.price.prices);
 
   // Balance floats smoothly with the SUM of all open positions' PnL (one per
-  // market). Demo: demoBalance + Σ MagicBlock-derived PnL. Live: Bulk equity
-  // already bakes in each position's anchored PnL, so strip those anchors to get
-  // the realized base, then add each interpolated live PnL.
+  // market). Demo: demoBalance + Σ MagicBlock-derived PnL. Live: Bulk equity is
+  // collateral only, so each interpolated live PnL goes straight on top — see
+  // liveAccountValue.
   let balance: number | null;
   if (mode === "demo") {
     let sum = 0;
@@ -45,14 +45,11 @@ export function BalancePill({ onOpen }: Props) {
     }
     balance = demoBalance + sum;
   } else if (liveBalance != null) {
-    let anchored = 0;
     let live = 0;
     for (const p of Object.values(livePositions)) {
-      if (!p) continue;
-      anchored += p.pnlAnchor ?? p.unrealizedPnl;
-      live += livePnlAt(p, prices[p.symbol]);
+      if (p) live += livePnlAt(p, prices[p.symbol]);
     }
-    balance = liveBalance.equity - anchored + live;
+    balance = liveAccountValue(liveBalance.equity, live);
   } else {
     balance = null;
   }

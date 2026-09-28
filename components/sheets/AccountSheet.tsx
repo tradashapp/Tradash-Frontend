@@ -31,6 +31,7 @@ import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { resetDemo } from "@/store/slices/tradingModeSlice";
 import { updateSettings } from "@/store/slices/settingsSlice";
 import { formatUsd } from "@/lib/format";
+import { liveAccountValue } from "@/lib/perp";
 import { MenuSection } from "@/components/ui/MenuSection";
 import { Sheet } from "@/components/ui/Sheet";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
@@ -128,7 +129,6 @@ export function AccountSheet({
   const mode = useAppSelector((s) => s.tradingMode.mode);
   const demoBalance = useAppSelector((s) => s.tradingMode.demo.balance);
   const liveEquity = useAppSelector((s) => s.user.balance?.equity);
-  const bulkUnrealized = useAppSelector((s) => s.user.balance?.unrealizedPnl);
   const agentAuthorized = useAppSelector((s) => s.trading.agentAuthorized);
   const builderApproved = useAppSelector((s) => s.trading.builderApproved);
   const collateral = useCollateral(agent.masterAddress, agent.masterSign);
@@ -219,7 +219,6 @@ export function AccountSheet({
                 mode={mode}
                 demoBalance={demoBalance}
                 liveEquity={liveEquity}
-                bulkUnrealized={bulkUnrealized}
                 totalPnl={totalPnl}
                 realizedInRange={realizedInRange}
                 pnlRange={pnlRange}
@@ -304,7 +303,6 @@ function Menu({
   mode,
   demoBalance,
   liveEquity,
-  bulkUnrealized,
   totalPnl,
   realizedInRange,
   pnlRange,
@@ -332,8 +330,6 @@ function Menu({
   mode: "demo" | "live";
   demoBalance: number;
   liveEquity: number | undefined;
-  /** Bulk's own unrealized PnL, already inside `liveEquity`. */
-  bulkUnrealized: number | undefined;
   /** Our live (MagicBlock-interpolated) unrealized PnL across all positions. */
   totalPnl: number;
   /** PnL realized inside the selected window, from the trade log. */
@@ -369,17 +365,14 @@ function Menu({
   // so the balance card stays compact for users who just want the number.
   const [chartOpen, setChartOpen] = useState(false);
 
-  // Live trading balance = realized collateral + our MagicBlock-derived
-  // unrealized PnL. Bulk already bakes ITS OWN unrealized figure into `equity`,
-  // so we strip that out before adding ours back — otherwise open positions
-  // would be counted twice.
-  const realizedBase =
-    liveEquity != null ? liveEquity - (bulkUnrealized ?? 0) : null;
+  // Live trading balance = Bulk collateral + our live unrealized PnL. Bulk's
+  // equity is collateral only (open PnL is NOT inside it), so the two simply
+  // add — see liveAccountValue. Same composition as the balance pill.
   const tradingBalance =
     mode === "demo"
       ? demoBalance
-      : realizedBase != null
-        ? realizedBase + totalPnl
+      : liveEquity != null
+        ? liveAccountValue(liveEquity, totalPnl)
         : null;
 
   // Total = funding wallet + trading. In demo there's no wallet, so it's just
@@ -561,12 +554,6 @@ function Menu({
         <ActionButton
           icon={Upload04Icon}
           label="Withdraw"
-          // External withdrawals (wallet → outside address) are paused while
-          // the collateral credit model is settled. WithdrawPanel and
-          // useWithdrawal are left wired up, so re-enabling is just dropping
-          // these two props. Internal Trading↔Wallet transfers still work.
-          disabled
-          badge="Soon"
           onClick={onWithdraw}
         />
         <ActionButton

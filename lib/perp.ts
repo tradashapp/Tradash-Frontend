@@ -85,6 +85,24 @@ export function livePnlAt(pos: Position, mbNow: number | undefined): number {
   return anchor + (mbNow - pos.priceAnchorMb) * pos.size * dir;
 }
 
+/**
+ * LIVE account value: Bulk collateral plus the open positions' live PnL.
+ *
+ * Bulk's `totalMargin` is COLLATERAL ONLY — deposits plus settled PnL, minus
+ * fees and funding. It does NOT include open positions' unrealized PnL (the
+ * docs' own example reads `totalBalance: 100000.0` beside
+ * `unrealizedPnl: 567.8`). So open PnL is simply added on top.
+ *
+ * This used to be `equity − pnlAnchor + livePnl`, which assumed Bulk had baked
+ * the anchored PnL into equity. It only looked right while the anchor was ~0,
+ * i.e. in the session that opened the trade. After a reload (or an add, which
+ * re-anchors) the anchor was the full open PnL, and the balance snapped back to
+ * the pre-trade collateral and then tracked only the PnL made since.
+ */
+export function liveAccountValue(equity: number, openPnl: number): number {
+  return equity + openPnl;
+}
+
 /** Display PnL for either mode. */
 export function displayPnlFor(
   mode: "demo" | "live",
@@ -269,6 +287,37 @@ export function liquidationPrice(
   if (leverage <= 0) return 0;
   const move = entryPrice / leverage;
   return direction === "long" ? entryPrice - move : entryPrice + move;
+}
+
+/**
+ * LIVE liquidation after adding `addSize` at `fillPrice` — an ESTIMATE of
+ * where Bulk will report it, for the add preview.
+ *
+ * Bulk runs cross margin, so its liquidation price is not `entry ± entry/lev`
+ * (that is the demo's isolated model): it is where the ACCOUNT's loss budget
+ * runs out. That budget is read straight off Bulk's current numbers —
+ * |entry − liq| × size — and is shared by the bigger position after the add,
+ * less the add's entry fee. The added size also raises maintenance margin,
+ * which Bulk does not expose per unit, so the real line lands a little CLOSER
+ * to entry than this. Callers should present it as approximate.
+ *
+ * Returns null when Bulk has not reported a usable liquidation price.
+ */
+export function crossLiquidationAfterAdd(
+  pos: Position,
+  addSize: number,
+  fillPrice: number
+): number | null {
+  if (!(pos.liquidationPrice > 0) || !(pos.size > 0)) return null;
+  const dir = pos.direction === "long" ? 1 : -1;
+  const newSize = pos.size + addSize;
+  const newEntry = (pos.entryPrice * pos.size + fillPrice * addSize) / newSize;
+  const lossBudget =
+    Math.abs(pos.entryPrice - pos.liquidationPrice) * pos.size -
+    fillPrice * addSize * fillFeeRate();
+  if (lossBudget <= 0) return newEntry;
+  const liq = newEntry - (dir * lossBudget) / newSize;
+  return Number.isFinite(liq) && liq > 0 ? liq : null;
 }
 
 /** Build a fresh position from an entry (used by the demo simulator). */

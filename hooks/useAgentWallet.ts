@@ -22,6 +22,7 @@ import {
 import { generateAgentKeypair, makeAgentSigner, type AgentSigner } from "@/lib/bulk/signing";
 import { fetchAccount } from "@/lib/bulk/client";
 import { setFeeArrangementOwner } from "@/lib/bulk/feeArrangement";
+import { clearPendingReferral, pendingReferral } from "@/lib/referral";
 import {
   fundAccount,
   authorizeAgentWallet,
@@ -114,6 +115,10 @@ export function useAgentWallet() {
       // Retried on failure: this CREATES the backend user row, and without it
       // the user has no record to attach trades to — they'd trade normally and
       // never appear in history or on the leaderboard.
+      // A code from a ?ref= link rides along; the backend applies it only to
+      // a new account. Cleared once handed to the outbox, which retries the
+      // sync (code included) until it lands.
+      const referralCode = pendingReferral();
       void api
         .syncUser({
           privyId,
@@ -126,6 +131,10 @@ export function useAgentWallet() {
           // from the first trade. The backend never lets this overwrite a
           // handle the user has since chosen for themselves.
           username: suggestedUsername(user),
+          ...(referralCode ? { referralCode } : {}),
+        })
+        .then(() => {
+          if (referralCode) clearPendingReferral();
         });
     }
   }, [privyId, masterAddress, authMethod, user?.linkedAccounts, dispatch]);

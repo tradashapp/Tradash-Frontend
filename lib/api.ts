@@ -306,6 +306,42 @@ export interface FeeArrangement {
   expiresAt: string | null;
 }
 
+/**
+ * The user's referral section. Percentages are of the Tradash builder fee
+ * (never Bulk's exchange fee) and are set by the backend, not the client.
+ */
+export interface ReferralSummary {
+  enabled: boolean;
+  rebatePct: number;
+  rewardPct: number;
+  /** The standard Tradash fee the percentages apply to. */
+  builderFeeBps: number;
+  code: string | null;
+  codeActive: boolean;
+  referredBy: { username: string | null; avatarUrl: string | null } | null;
+  canApplyCode: boolean;
+  stats: {
+    referrals: number;
+    activeReferrals: number;
+    volume: number;
+    earned: number;
+    saved: number;
+  };
+  referees: {
+    username: string | null;
+    avatarUrl: string | null;
+    joinedAt: string;
+    volume: number;
+    earned: number;
+    active: boolean;
+  }[];
+}
+
+/** Who a shared code belongs to. */
+export type ReferralLookup =
+  | { valid: false }
+  | { valid: true; code: string; username: string | null; avatarUrl: string | null; rebatePct: number };
+
 /** A failed order, reported so the admin Operations page can see it. */
 export interface OrderFailureReport {
   symbol?: string | null;
@@ -575,6 +611,26 @@ export const api = {
     if (!res.ok) throw new Error(body?.message ?? `Couldn't apply the code (${res.status})`);
     return body as FeeArrangement;
   },
+
+  fetchReferral: (privyId: string): Promise<ReferralSummary> =>
+    req<ReferralSummary>(`/users/${encodeURIComponent(privyId)}/referral`),
+
+  /** Enter a referral code. Rejects with the server's human-readable reason. */
+  applyReferralCode: async (privyId: string, code: string): Promise<ReferralSummary> => {
+    const auth = await authHeader();
+    const res = await fetch(`${BASE}/users/${encodeURIComponent(privyId)}/referral`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...auth },
+      body: JSON.stringify({ code }),
+    });
+    const body = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(body?.message ?? `Couldn't apply the code (${res.status})`);
+    return body as ReferralSummary;
+  },
+
+  /** Public: the owner of a shared code, for the "invited by" line. */
+  lookupReferral: (code: string): Promise<ReferralLookup> =>
+    req<ReferralLookup>(`/referrals/${encodeURIComponent(code)}`),
 
   /** Fire-and-forget: a lost report must never affect the user's trade flow. */
   reportOrderFailure: (privyId: string, report: OrderFailureReport): void => {

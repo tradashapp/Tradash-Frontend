@@ -8,6 +8,7 @@ import { wireSettingsPersistence } from "@/store/persist";
 import { ToastProvider } from "@/components/toast/ToastProvider";
 import { config } from "@/lib/config";
 import { startOutbox } from "@/lib/outbox";
+import { captureReferralFromUrl } from "@/lib/referral";
 import { AuthTokenBridge } from "@/components/auth/AuthTokenBridge";
 
 // Single client-side provider tree: Redux (with settings persistence wired
@@ -41,6 +42,12 @@ export function Providers({ children }: { children: ReactNode }) {
   // then again on `online` / tab-focus (wired inside startOutbox).
   useEffect(() => {
     startOutbox();
+  }, []);
+
+  // Remember a ?ref= code from whichever page the visitor landed on, before
+  // the landing gate redirects and the query string is gone.
+  useEffect(() => {
+    captureReferralFromUrl();
   }, []);
 
   const tree = (

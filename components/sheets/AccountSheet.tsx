@@ -26,6 +26,7 @@ import {
   TelegramIcon,
   Cancel01Icon,
   SparklesIcon,
+  GiftIcon,
 } from "@hugeicons/core-free-icons";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { resetDemo } from "@/store/slices/tradingModeSlice";
@@ -44,6 +45,7 @@ import { WithdrawPanel } from "./panels/WithdrawPanel";
 import { MoneyHistoryPanel } from "./panels/MoneyHistoryPanel";
 import { AdvancedPanel } from "./panels/AdvancedPanel";
 import { AuraPanel } from "./panels/AuraPanel";
+import { ReferralPanel, useReferralDetail } from "./panels/ReferralPanel";
 import { useWithdrawal } from "@/hooks/useWithdrawal";
 import type { CompletedTrade, TradeEpisode } from "@/types";
 import { playSound } from "@/lib/sound";
@@ -69,7 +71,8 @@ type View =
   | "withdraw"
   | "money"
   | "advanced"
-  | "aura";
+  | "aura"
+  | "referrals";
 
 interface Props {
   open: boolean;
@@ -101,6 +104,7 @@ const TITLES: Record<View, string> = {
   money: "Account history",
   advanced: "Advanced",
   aura: "Bulk Aura",
+  referrals: "Referrals",
 };
 
 // Central account hub. A single sheet with sub-views (menu → settings/history)
@@ -235,6 +239,7 @@ export function AccountSheet({
                 onHistory={() => go("history")}
                 onAdvanced={() => go("advanced")}
                 onAura={() => go("aura")}
+                onReferrals={() => go("referrals")}
                 onTransfer={(dir) => {
                   setTransferDir(dir);
                   go("transfer");
@@ -250,6 +255,7 @@ export function AccountSheet({
             {view === "settings" && <SettingsPanel />}
             {view === "advanced" && <AdvancedPanel agent={agent} />}
             {view === "aura" && <AuraPanel wallet={agent.masterAddress} />}
+            {view === "referrals" && <ReferralPanel />}
             {view === "settingsMenu" && <SettingsMenuPanel />}
             {view === "history" && (
               <HistoryPanel
@@ -319,6 +325,7 @@ function Menu({
   onHistory,
   onAdvanced,
   onAura,
+  onReferrals,
   onTransfer,
   onWithdraw,
   onMoneyHistory,
@@ -350,6 +357,7 @@ function Menu({
   onAdvanced: () => void;
   /** Bulk Aura points for the signed-in wallet. */
   onAura: () => void;
+  onReferrals: () => void;
   onTransfer: (dir: "in" | "out") => void;
   /** Open the external-withdrawal panel (wallet → outside address). */
   onWithdraw: () => void;
@@ -361,6 +369,8 @@ function Menu({
   /** Opens the receive-address panel — NOT the Privy card on-ramp. */
   onDeposit: () => void;
 }) {
+  const referralDetail = useReferralDetail();
+
   // Whether the P&L chart under the balance is expanded. Collapsed by default
   // so the balance card stays compact for users who just want the number.
   const [chartOpen, setChartOpen] = useState(false);
@@ -576,6 +586,15 @@ function Menu({
           label="Leaderboard"
           onClick={onLeaderboard}
         />
+        {/* Referrals are per account, so they need a signed-in user. */}
+        {authenticated && (
+          <NavRow
+            icon={GiftIcon}
+            label="Referrals"
+            detail={referralDetail}
+            onClick={onReferrals}
+          />
+        )}
         {/* Aura is keyed by wallet, so it needs a signed-in account. */}
         {authenticated && agent.masterAddress && (
           <NavRow icon={SparklesIcon} label="Bulk Aura" onClick={onAura} />

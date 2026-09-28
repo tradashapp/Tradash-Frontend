@@ -1,4 +1,4 @@
-import { config } from "@/lib/config";
+import { currentBuilderFeeBps } from "@/lib/bulk/feeArrangement";
 import { isBulkPriced } from "@/lib/markets";
 import type { Balance, Direction, Position } from "@/types";
 
@@ -217,9 +217,12 @@ export function chartLiquidationPrice(
  */
 export const BULK_TAKER_FEE_BPS = 3.5;
 
-/** Fee rate on one fill: Bulk's taker fee plus our builder fee, as a fraction. */
+/**
+ * Fee rate on one fill: Bulk's taker fee plus THIS user's Tradash fee (the
+ * server-issued rate, so a fee code's discount counts), as a fraction.
+ */
 export function fillFeeRate(): number {
-  return (BULK_TAKER_FEE_BPS + config.builder.feeBps) / 10_000;
+  return (BULK_TAKER_FEE_BPS + currentBuilderFeeBps()) / 10_000;
 }
 
 /**

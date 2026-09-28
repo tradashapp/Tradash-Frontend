@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { updateSettings } from "@/store/slices/settingsSlice";
 import { Sheet } from "@/components/ui/Sheet";
@@ -11,8 +11,9 @@ import {
   maxLeverageFor,
   minSizeFor,
 } from "@/lib/markets";
-import { config } from "@/lib/config";
 import { MARGIN_HEADROOM } from "@/hooks/useTrade";
+import { bpsAsPct, useTradingFees } from "@/hooks/useTradingFees";
+import { InfoTip } from "@/components/ui/InfoTip";
 import { haptic } from "@/lib/haptics";
 import { playSound } from "@/lib/sound";
 import type { useLeverage } from "@/hooks/useLeverage";
@@ -130,10 +131,11 @@ export function MarketSettingsSheet({
   // risk holds still while the position grows.
   const notional = effectiveSize * lev;
 
-  // Builder fee, charged on notional. Read from config (Bulk caps it at 1–15
-  // bps) rather than hard-coded, so the number shown is the one actually sent.
-  const feeBps = config.builder.feeBps;
-  const feeUsd = (notional * feeBps) / 10_000;
+  // Fees to OPEN, charged on notional: Bulk's exchange fee + this user's
+  // Tradash fee (the server-issued rate, so a fee code's discount shows).
+  const fees = useTradingFees();
+  const bulkUsd = (notional * fees.bulkBps) / 10_000;
+  const tradashUsd = (notional * fees.tradashBps) / 10_000;
 
   // An unknown or empty balance must not collapse the slider to nothing — fall
   // back to the current size so the control still works while the feed catches
@@ -187,9 +189,13 @@ export function MarketSettingsSheet({
         {/* ---- Size ------------------------------------------------------- */}
         <section className="glass-inset rounded-2xl p-4">
           <div className="mb-2 flex items-baseline justify-between">
-            <span className="text-[11px] font-medium uppercase tracking-wide text-text-muted">
-              Size
-            </span>
+            <SectionTitle title="Size">
+              The margin each trade puts up from your trading balance. Trade
+              size is this × leverage. Minimum{" "}
+              <span className="tabular text-text">{usd4(minSize)}</span> on{" "}
+              {MARKETS[symbol].symbol}: Bulk needs orders worth at least $
+              {MIN_NOTIONAL_USD}.
+            </SectionTitle>
             <span className="text-[11px] text-text-muted">
               {available == null ? (
                 "Balance unavailable"
@@ -276,15 +282,6 @@ export function MarketSettingsSheet({
             })}
           </div>
 
-          {/* Why the floor is where it is. Without this the minimum reads as an
-              arbitrary number that moves between markets. */}
-          {/* <p className="mt-2 text-[11px] leading-snug text-text-muted">
-            Minimum{" "}
-            <span className="tabular text-text">{usd4(minSize)}</span> on{" "}
-            {MARKETS[symbol].symbol} — orders must be worth at least $
-            {MIN_NOTIONAL_USD} at {lev}×.
-          </p> */}
-
           {/* Only offered once the size has actually been pinned by hand, and
               only when it differs from what the default would be — otherwise
               it is a button that visibly does nothing. */}
@@ -314,9 +311,11 @@ export function MarketSettingsSheet({
             so a lower leverage can never leave a size Bulk would reject. */}
           <section className="glass-inset rounded-2xl p-4">
             <div className="mb-2 flex items-baseline justify-between">
-              <span className="text-[11px] font-medium uppercase tracking-wide text-text-muted">
-                Leverage
-              </span>
+              <SectionTitle title="Leverage">
+                Multiplies your trade size, and your gains and losses with it.
+                The higher it is, the smaller the move against you that
+                liquidates the trade. Saved for {MARKETS[symbol].symbol} only.
+              </SectionTitle>
               <span className="tabular text-[11px] text-text-muted">
                 max {max}×
               </span>
@@ -395,9 +394,12 @@ export function MarketSettingsSheet({
             when resizing one after an add). Default 0.1%. */}
           <section className="glass-inset rounded-2xl p-4">
             <div className="mb-2 flex items-baseline justify-between">
-              <span className="text-[11px] font-medium uppercase tracking-wide text-text-muted">
-                Trailing stop
-              </span>
+              <SectionTitle title="Trailing stop">
+                When you turn on Trail for a trade in profit, a stop follows
+                price as it moves your way and stays this far behind its best
+                level. If price pulls back this much, the trade closes and keeps
+                the profit locked in so far.
+              </SectionTitle>
               <span className="tabular text-[11px] text-text-muted">
                 behind price
               </span>
@@ -452,9 +454,40 @@ export function MarketSettingsSheet({
 
         {/* ---- What the next order costs ----------------------------------- */}
         <section className="glass-inset flex flex-col gap-2 rounded-2xl p-4">
-          <SummaryRow label="Trade size" value={usd2(notional)} />
-          <SummaryRow label="Margin at risk" value={usd2(effectiveSize)} />
-          <SummaryRow label={`Fee (${feeBps}bps)`} value={usd2(feeUsd)} muted />
+          <SummaryRow
+            label="Trade size"
+            value={usd2(notional)}
+            tip={<>Size × leverage: the position this order opens.</>}
+          />
+          <SummaryRow
+            label="Margin at risk"
+            value={usd2(effectiveSize)}
+            tip={<>The collateral this trade uses from your trading balance.</>}
+          />
+          <SummaryRow
+            label="Fees"
+            value={fees.demo ? "Free" : usd2(bulkUsd + tradashUsd)}
+            muted
+            tip={
+              fees.demo ? (
+                <>Demo trades are free. Live trades pay Bulk&apos;s exchange fee plus the Tradash fee.</>
+              ) : (
+                <>
+                  Paid when the trade opens, on trade size:
+                  <FeeLine label="Bulk exchange" bps={fees.bulkBps} usd={bulkUsd} />
+                  <FeeLine
+                    label={fees.code ? `Tradash (code ${fees.code})` : "Tradash"}
+                    bps={fees.tradashBps}
+                    usd={tradashUsd}
+                  />
+                  <FeeLine label="Total" bps={fees.totalBps} usd={bulkUsd + tradashUsd} strong />
+                  <span className="mt-1.5 block">
+                    Closing pays Bulk&apos;s fee again, with no Tradash fee.
+                  </span>
+                </>
+              )
+            }
+          />
           {trimmed && (
             <p className="mt-1 text-[11px] leading-snug text-text-muted">
               Capped at {usd2(effectiveSize)} — your size of {usd2(size)} is
@@ -467,18 +500,48 @@ export function MarketSettingsSheet({
   );
 }
 
+/** A section's uppercase label, with its explanation behind a "?". */
+function SectionTitle({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <span className="flex items-center gap-1 text-[11px] font-medium uppercase tracking-wide text-text-muted">
+      {title}
+      <InfoTip size={13} label={`About ${title.toLowerCase()}`}>
+        <span className="normal-case tracking-normal">{children}</span>
+      </InfoTip>
+    </span>
+  );
+}
+
+/** One line of the fee breakdown inside the fee tip. */
+function FeeLine({ label, bps, usd, strong = false }: { label: string; bps: number; usd: number; strong?: boolean }) {
+  return (
+    <span className={`mt-1 flex justify-between gap-3 ${strong ? "font-semibold text-text" : ""}`}>
+      <span>{label}</span>
+      <span className="tabular">
+        {bpsAsPct(bps)} · {usd4(usd)}
+      </span>
+    </span>
+  );
+}
+
 function SummaryRow({
   label,
   value,
   muted = false,
+  tip,
 }: {
   label: string;
   value: string;
   muted?: boolean;
+  /** Explanation behind a "?" next to the label. */
+  tip?: ReactNode;
 }) {
   return (
     <div className="flex items-baseline justify-between">
-      <span className="text-xs text-text-muted">{label}</span>
+      <span className="flex items-center gap-1 text-xs text-text-muted">
+        {label}
+        {tip && <InfoTip size={12} label={`About ${label.toLowerCase()}`}>{tip}</InfoTip>}
+      </span>
       <span
         className={`tabular text-sm font-semibold ${
           muted ? "text-text-muted" : "text-text"

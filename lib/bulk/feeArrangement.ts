@@ -23,8 +23,39 @@ const FRESH_MS = 5 * 60_000;
 const FETCH_TIMEOUT_MS = 1500;
 
 let owner: string | null = null;
-let cached: { privyId: string; feeBps: number; at: number } | null = null;
+let cached: {
+  privyId: string;
+  feeBps: number;
+  /** The fee code behind a discounted rate, for display. */
+  code: string | null;
+  at: number;
+} | null = null;
 let inflight: Promise<number | null> | null = null;
+
+// Screens that show the fee (market settings, the dock, the break-even line)
+// re-render when the arrangement arrives or changes (a code redeemed).
+const listeners = new Set<() => void>();
+const notify = () => listeners.forEach((l) => l());
+
+export function subscribeFeeArrangement(l: () => void): () => void {
+  listeners.add(l);
+  return () => listeners.delete(l);
+}
+
+/**
+ * The Tradash fee (bps) this user's opening orders carry, as last read from
+ * the backend; the configured rate until then (and when signed out).
+ * Synchronous, for display — orders still go through `resolveBuilderCode`.
+ */
+export function currentBuilderFeeBps(): number {
+  if (cached && owner === cached.privyId) return cached.feeBps;
+  return config.builder.recipient ? config.builder.feeBps : 0;
+}
+
+/** The fee code behind the current rate, if one is applied. */
+export function currentFeeCode(): string | null {
+  return cached && owner === cached.privyId ? cached.code : null;
+}
 
 /** Called once the Privy user is known (and with null on logout). */
 export function setFeeArrangementOwner(privyId: string | null): void {
@@ -32,6 +63,7 @@ export function setFeeArrangementOwner(privyId: string | null): void {
   owner = privyId;
   cached = null;
   inflight = null;
+  notify();
   if (privyId) void refreshFeeArrangement();
 }
 
@@ -52,7 +84,10 @@ export function refreshFeeArrangement(): Promise<number | null> {
     .feeArrangement(privyId)
     .then((a: FeeArrangement) => {
       const feeBps = clampToCap(a.effectiveFeeBps);
-      if (owner === privyId) cached = { privyId, feeBps, at: Date.now() };
+      if (owner === privyId) {
+        cached = { privyId, feeBps, code: a.source === "code" ? a.code : null, at: Date.now() };
+        notify();
+      }
       return feeBps;
     })
     .catch(() => null)

@@ -11,7 +11,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { useAppSelector } from "@/store/hooks";
 import { leverageFor } from "@/lib/markets";
-import { config } from "@/lib/config";
+import { useTradingFees } from "@/hooks/useTradingFees";
 import { playSound } from "@/lib/sound";
 import { haptic } from "@/lib/haptics";
 import type { MarketSymbol } from "@/types";
@@ -81,17 +81,18 @@ export function PositionDock({ symbol, onOpen }: Props) {
   const size = settings.defaultPositionSize;
   const trailPct = settings.defaultTrailPct * 100;
 
-  // The builder fee is charged on NOTIONAL, not on margin — so it is derived
-  // the same way MarketSettingsSheet derives it (size × leverage × bps), from
-  // the same config value that is actually sent on the order. Showing a fee off
-  // the margin would understate it by the leverage multiple: on BTC at 40×,
-  // 5bps of a $1.2625 margin reads as $0.0006 when the real charge is $0.025.
+  // Fees are charged on NOTIONAL, not on margin — so they are derived the same
+  // way MarketSettingsSheet derives them (size × leverage × bps): Bulk's
+  // exchange fee plus THIS user's Tradash fee (a fee code's discounted rate,
+  // not the general one). Showing a fee off the margin would understate it by
+  // the leverage multiple. The sheet's "?" carries the breakdown.
   //
   // This is the CONFIGURED size, not the headroom-trimmed one the sheet shows.
   // The dock is a compact readout of the settings, and the trim only applies
   // when the size exceeds free margin — the sheet is where that caveat is
   // spelled out, with the room to say it.
-  const feeUsd = (size * lev * config.builder.feeBps) / 10_000;
+  const fees = useTradingFees();
+  const feeUsd = (size * lev * fees.totalBps) / 10_000;
 
   // One-time "peek" nudge so the tab is noticed, then it rests flush.
   const [peeked, setPeeked] = useState(false);
@@ -183,11 +184,11 @@ export function PositionDock({ symbol, onOpen }: Props) {
           value={`${lev}×`}
           label="Leverage"
         />
-        {/* Fee on NOTIONAL, not margin — `feeUsd` above. */}
+        {/* Fees (Bulk + Tradash) on NOTIONAL, not margin — `feeUsd` above. */}
         <Cell
           icon={CoinsDollarIcon}
           value={usd2(feeUsd)}
-          label="Fee"
+          label="Fees"
         />
         {/* Trailing distance — set in the settings sheet. */}
         <Cell

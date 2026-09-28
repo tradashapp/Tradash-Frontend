@@ -13,6 +13,7 @@ import {
 import { useAppSelector } from "@/store/hooks";
 import { MARKETS } from "@/lib/markets";
 import { referralLink } from "@/lib/config";
+import { useReferral } from "@/hooks/useReferral";
 import { roi as roiOf } from "@/lib/perp";
 import {
   CARD_W,
@@ -83,7 +84,11 @@ function ShareCardInner({
   const symbol: MarketSymbol =
     subject.kind === "position" ? subject.position.symbol : subject.trade.symbol;
   const isOpen = subject.kind === "position";
-  const referralUrl = useMemo(() => referralLink(), []);
+  // The card's link and QR carry the sharer's referral code while the program
+  // is on; the bare domain otherwise (logged out, paused, or still loading).
+  const { data: referral } = useReferral();
+  const refCode = referral?.enabled && referral.codeActive ? referral.code : null;
+  const referralUrl = useMemo(() => referralLink(refCode), [refCode]);
 
   // Live mark price (only meaningful for an open position). Selecting the symbol's
   // primitive keeps redraws cheap and truthful.

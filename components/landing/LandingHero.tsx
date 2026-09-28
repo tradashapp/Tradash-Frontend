@@ -14,6 +14,9 @@ import { DemoToast } from "./DemoToast";
 import { InstallSheet } from "@/components/sheets/InstallSheet";
 import { useDemoTrade } from "@/hooks/useDemoTrade";
 import { initSound, playSound, unlockSound } from "@/lib/sound";
+import { api, type ReferralLookup } from "@/lib/api";
+import { captureReferralFromUrl } from "@/lib/referral";
+import { Avatar } from "@/components/leaderboard/Avatar";
 import type { ChartFrame } from "@/lib/chart/engine";
 
 // One-screen hero: grid background, transparent header, headline, Get Started
@@ -41,6 +44,24 @@ export function LandingHero() {
   }, []);
 
   const demo = useDemoTrade(visible);
+
+  // Arrived through someone's referral link: say who invited them and what it's
+  // worth. Only for a code the backend confirms is live.
+  const [invite, setInvite] = useState<Extract<ReferralLookup, { valid: true }> | null>(null);
+  useEffect(() => {
+    const code = captureReferralFromUrl();
+    if (!code) return;
+    let alive = true;
+    api
+      .lookupReferral(code)
+      .then((r) => {
+        if (alive && r.valid) setInvite(r);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   // The page's own background grid drifts gently on its own — it isn't wired to
   // the demo chart (that grid lives inside the phone), so it gets a slow idle
@@ -87,6 +108,20 @@ export function LandingHero() {
       {/* Hero column. Header/footer are fixed, so the padding here reserves
           their space and the phone centres in what's left. */}
       <div className="relative z-10 flex h-full flex-col items-center overflow-y-auto px-5 pb-24 pt-24 sm:pb-28 sm:pt-28">
+        {invite && (
+          <motion.div
+            {...fade(0)}
+            className="glass-inset mb-5 inline-flex max-w-full items-center gap-2 rounded-full py-1.5 pl-1.5 pr-3.5 text-xs"
+          >
+            <Avatar src={invite.avatarUrl} name={invite.username} className="h-6 w-6 text-[10px]" />
+            <span className="truncate">
+              {invite.username ? `@${invite.username} invited you` : "You're invited"}
+              <span className="text-text-muted"> · </span>
+              <span className="font-semibold text-up">Save {invite.rebatePct.toLocaleString(undefined, { maximumFractionDigits: 2 })}% on fees</span>
+            </span>
+          </motion.div>
+        )}
+
         <motion.h1
           {...fade(0.05)}
           className="text-center text-[2rem] font-bold leading-[1.08] tracking-tight sm:text-5xl lg:text-6xl"

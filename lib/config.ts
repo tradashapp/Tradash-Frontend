@@ -131,8 +131,8 @@ export const config = {
 
   apiUrl: process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000",
 
-  // Public site origin — used to build shareable PnL-card referral links
-  // (domain/?ref=<username>) AND as `metadataBase`, which is what turns the
+  // Public site origin — used to build referral links (domain/?ref=<code>)
+  // AND as `metadataBase`, which is what turns the
   // OG/Twitter image routes into the absolute URLs crawlers fetch.
   //
   // The fallback MUST be the real, canonical, non-redirecting origin. It used
@@ -258,10 +258,10 @@ export function siteOrigin(): string {
   return config.appUrl;
 }
 
-/** Referral link for a PnL share card. No usernames yet → bare domain. */
-export function referralLink(username?: string | null): string {
+/** A referral link for a code (see lib/referral.ts); the bare domain without one. */
+export function referralLink(code?: string | null): string {
   const origin = siteOrigin().replace(/\/$/, "");
-  return username ? `${origin}/?ref=${encodeURIComponent(username)}` : origin;
+  return code ? `${origin}/?ref=${encodeURIComponent(code)}` : origin;
 }
 
 export { required };

@@ -45,47 +45,196 @@ let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
 const buffers = new Map<SoundName, AudioBuffer>();
 let enabledGetter: () => boolean = () => true;
+// Called after the context is replaced, so lib/music can rebuild its nodes on
+// the new one. AudioBuffers are not tied to a context, so decoded clips carry
+// over untouched.
+const resetListeners = new Set<() => void>();
+let lastRebuild = 0;
+// Set once any context has actually played. A context that never started just
+// hasn't had a real gesture yet (a scroll's touchend doesn't count); only one
+// that ran and then won't come back is wedged and worth replacing.
+let everRan = false;
 
-/** Preload + decode every clip and wire the enabled-check. Client only. */
-export function initSound(isEnabled: () => boolean) {
-  enabledGetter = isEnabled;
-  if (typeof window === "undefined") return;
+// --- iOS -----------------------------------------------------------------------
+// Three separate WebKit behaviours made audio on iPhone work "the first time,
+// then randomly or never" while Android was fine:
+//
+// 1. Only touchend / click / keydown count as a gesture for starting audio. The
+//    old unlock listened on pointerdown, which iOS ignores, so audio only woke
+//    up when a tap happened to land on a button that resumed it in its onClick.
+// 2. Backgrounding, locking the screen, a call or Siri move the context to
+//    "interrupted", not "suspended". Every resume was gated on "suspended", so
+//    after the first trip to the background nothing ever resumed it again.
+// 3. Web Audio defaults to the "ambient" session category, which the ring/silent
+//    switch mutes. Most iPhones live on silent, so it looked broken outright.
+//
+// Worse, an iOS PWA can come back from the background with a context whose
+// resume() never completes. The only cure is a fresh context, so a gesture that
+// fails to revive the old one within RESUME_TIMEOUT_MS replaces it.
+const GESTURES = ["touchend", "click", "keydown", "pointerup", "mousedown"] as const;
+const RESUME_TIMEOUT_MS = 400;
+const REBUILD_COOLDOWN_MS = 1500;
 
-  const Ctor =
+function isRunning(c: AudioContext) {
+  return c.state === "running";
+}
+
+function audioCtor(): typeof AudioContext | undefined {
+  return (
     window.AudioContext ??
     (window as unknown as { webkitAudioContext?: typeof AudioContext })
-      .webkitAudioContext;
-  if (!Ctor || ctx) return;
+      .webkitAudioContext
+  );
+}
 
+function createContext(): boolean {
+  const Ctor = audioCtor();
+  if (!Ctor) return false;
   try {
     // "interactive" asks the platform for the smallest output buffer it can
     // give us, trading power for responsiveness — correct for UI feedback.
     ctx = new Ctor({ latencyHint: "interactive" });
   } catch {
-    return; // No Web Audio (very old browser) — the app is silent, never broken.
+    return false; // No Web Audio (very old browser) — the app is silent, never broken.
   }
-
+  const c = ctx;
+  c.onstatechange = () => {
+    if (isRunning(c)) everRan = true;
+  };
+  if (isRunning(c)) everRan = true;
   master = ctx.createGain();
   master.gain.value = 1;
   master.connect(ctx.destination);
+  return true;
+}
+
+// Play one silent frame inside the gesture. Resume alone is enough on current
+// iOS, but older WebKit only unlocks a context that starts a source while the
+// gesture is still on the stack.
+function primeInGesture(c: AudioContext) {
+  try {
+    const src = c.createBufferSource();
+    src.buffer = c.createBuffer(1, 1, c.sampleRate);
+    src.connect(c.destination);
+    src.start(0);
+    src.onended = () => src.disconnect();
+  } catch {
+    /* best-effort */
+  }
+}
+
+function rebuildContext() {
+  const old = ctx;
+  if (!createContext()) return;
+  lastRebuild = Date.now();
+  if (old && old.state !== "closed") void old.close().catch(() => {});
+  if (ctx && !isRunning(ctx)) void ctx.resume().catch(() => {});
+  resetListeners.forEach((fn) => fn());
+}
+
+function onGesture() {
+  if (!ctx) return;
+  const c = ctx;
+  if (c.state === "closed") {
+    rebuildContext();
+    if (ctx) primeInGesture(ctx);
+    return;
+  }
+  if (isRunning(c)) return;
+  primeInGesture(c);
+  void c.resume().catch(() => {});
+  setTimeout(() => {
+    if (
+      ctx === c &&
+      everRan &&
+      !isRunning(c) &&
+      document.visibilityState === "visible" &&
+      Date.now() - lastRebuild > REBUILD_COOLDOWN_MS
+    ) {
+      rebuildContext();
+    }
+  }, RESUME_TIMEOUT_MS);
+}
+
+/** Preload + decode every clip and wire the enabled-check. Client only. */
+export function initSound(isEnabled: () => boolean) {
+  enabledGetter = isEnabled;
+  if (typeof window === "undefined" || ctx) return;
+
+  // iOS 16.4+: the "playback" category plays through the silent switch, the
+  // same as a video or a music app. It must be set before audio starts.
+  const session = (navigator as Navigator & { audioSession?: { type: string } })
+    .audioSession;
+  if (session) {
+    try {
+      session.type = "playback";
+    } catch {
+      /* unsupported value — keep the default */
+    }
+  }
+
+  if (!createContext()) return;
+
+  // Capture phase on window: runs before React's handlers, so a button's own
+  // sound plays on a context that is already resuming. Left attached for the
+  // page's life (never { once }) because iOS re-interrupts the context every
+  // time the app is backgrounded.
+  for (const type of GESTURES) {
+    window.addEventListener(type, onGesture, { capture: true, passive: true });
+  }
+  // Not a gesture, so iOS may refuse, but desktop browsers resume here.
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") resumeAudio();
+  });
 
   // Decode ahead of time so the first tap is as fast as the thousandth.
   (Object.keys(FILES) as SoundName[]).forEach(async (name) => {
     try {
       const res = await fetch(FILES[name]);
-      const raw = await res.arrayBuffer();
-      buffers.set(name, await ctx!.decodeAudioData(raw));
+      const buf = await decodeClip(await res.arrayBuffer());
+      if (buf) buffers.set(name, buf);
     } catch {
       /* a missing clip must never break the interaction it accompanies */
     }
   });
 }
 
-// Browsers start an AudioContext suspended until a user gesture. Resuming is
-// silent and idempotent, so unlike the old element-priming trick there is
-// nothing here that can leak an audible smear on first touch.
+/**
+ * Decode on whichever context is current. If that context was replaced (and
+ * closed) mid-decode, WebKit rejects, so retry once on the new one. The copy is
+ * needed because a decode attempt detaches its ArrayBuffer.
+ */
+export async function decodeClip(raw: ArrayBuffer): Promise<AudioBuffer | null> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const c = ctx;
+    if (!c) return null;
+    try {
+      return await c.decodeAudioData(raw.slice(0));
+    } catch {
+      if (ctx === c) return null; // a genuinely bad clip, not a swapped context
+    }
+  }
+  return null;
+}
+
+/** Resume a suspended OR interrupted context. Idempotent and silent. */
+export function resumeAudio() {
+  if (ctx && ctx.state !== "running" && ctx.state !== "closed") {
+    void ctx.resume().catch(() => {});
+  }
+}
+
+// Kept for the buttons that resume in their own onClick. The window-level
+// gesture listeners do the real work now; this also covers a gesture that
+// stopped propagation before reaching them.
 export function unlockSound() {
-  if (ctx?.state === "suspended") void ctx.resume();
+  onGesture();
+}
+
+/** Subscribe to context replacement. Returns an unsubscribe. */
+export function onAudioReset(fn: () => void): () => void {
+  resetListeners.add(fn);
+  return () => resetListeners.delete(fn);
 }
 
 export function playSound(name: SoundName) {
@@ -95,7 +244,7 @@ export function playSound(name: SoundName) {
 
   // A tap can be the very gesture that unlocks audio; resume inline so that
   // first tap is heard rather than swallowed.
-  if (ctx.state === "suspended") void ctx.resume();
+  resumeAudio();
 
   try {
     // Source nodes are single-use and self-releasing: a fresh one per play is
@@ -182,7 +331,7 @@ function playBuffer(name: SoundName, rate: number) {
   if (!enabledGetter() || !ctx || !master) return;
   const buf = buffers.get(name);
   if (!buf) return;
-  if (ctx.state === "suspended") void ctx.resume();
+  resumeAudio();
   try {
     const src = ctx.createBufferSource();
     src.buffer = buf;
@@ -214,7 +363,7 @@ interface Note {
 // oscillator from clicking on and off.
 function tone(notes: Note[]) {
   if (!enabledGetter() || !ctx || !master) return;
-  if (ctx.state === "suspended") void ctx.resume();
+  resumeAudio();
   try {
     const now = ctx.currentTime;
     for (const n of notes) {

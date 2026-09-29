@@ -12,8 +12,8 @@ import { playMusic, stopMusic } from "@/lib/music";
 // trade screen) stops it.
 //
 // A persisted "on" can't actually sound until the first gesture — browsers
-// start the context suspended. The track is scheduled anyway, and useFeedback's
-// pointerdown unlock resumes the context, so it starts on the first tap.
+// start the context suspended. The track is scheduled anyway, and lib/sound's
+// gesture listeners resume the context, so it starts on the first tap.
 export function useMusic() {
   const enabled = useAppSelector((s) => s.settings.musicEnabled);
   const track = useAppSelector((s) => s.settings.musicTrack);

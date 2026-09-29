@@ -15,7 +15,7 @@
 //   arcade / turbo — Juhani Junkala, "5 Chiptunes (Action)", Level 1 / Level 3
 //   neon           — "Synthwave House Loop" (114 bpm)
 
-import { audioOutput } from "@/lib/sound";
+import { audioOutput, decodeClip, onAudioReset, resumeAudio } from "@/lib/sound";
 
 export interface MusicTrack {
   id: string;
@@ -63,13 +63,25 @@ let loading: { id: string; promise: Promise<AudioBuffer | null> } | null = null;
 // every await re-checks this — a stop or switch during a fetch must win.
 let wanted: string | null = null;
 
-async function load(ctx: AudioContext, track: MusicTrack): Promise<AudioBuffer | null> {
+// iOS can hand back a context that never resumes, and lib/sound replaces it.
+// Every node here belonged to the dead one, so drop them and restart the wanted
+// track on the new context (the decoded buffer carries over).
+if (typeof window !== "undefined") {
+  onAudioReset(() => {
+    current = null;
+    filter = null;
+    if (wanted) void playMusic(wanted);
+  });
+}
+
+async function load(track: MusicTrack): Promise<AudioBuffer | null> {
   if (decoded?.id === track.id) return decoded.buf;
   if (loading?.id === track.id) return loading.promise;
   const promise = (async () => {
     try {
       const res = await fetch(track.src);
-      const buf = await ctx.decodeAudioData(await res.arrayBuffer());
+      const buf = await decodeClip(await res.arrayBuffer());
+      if (!buf) return null;
       // Replace, don't accumulate: one decoded track at a time.
       decoded = { id: track.id, buf };
       return buf;
@@ -117,12 +129,15 @@ export async function playMusic(trackId: string) {
   const io = audioOutput();
   const track = MUSIC_TRACKS.find((t) => t.id === trackId);
   if (!io || !track) return;
-  const { ctx, out } = io;
   if (current?.id === trackId) return;
-  if (ctx.state === "suspended") void ctx.resume();
+  resumeAudio();
 
-  const buf = await load(ctx, track);
+  const buf = await load(track);
   if (!buf || wanted !== trackId || current?.id === trackId) return;
+  // Re-read after the await: the context may have been replaced during the load.
+  const live = audioOutput();
+  if (!live) return;
+  const { ctx, out } = live;
 
   fadeOutCurrent(ctx);
 

@@ -24,12 +24,7 @@ import {
   clearPendingChartEntry,
 } from "@/store/slices/tradingSlice";
 import { recordClose } from "@/lib/history";
-import {
-  playSound,
-  playCloseOutcome,
-  beginProfitTracking,
-  stopProfitTracking,
-} from "@/lib/sound";
+import { playSound, playCloseOutcome } from "@/lib/sound";
 import { haptic } from "@/lib/haptics";
 import { api } from "@/lib/api";
 import { feeArrangementOwner } from "@/lib/bulk/feeArrangement";
@@ -51,9 +46,6 @@ import {
 } from "@/lib/bulk/protection";
 import { useProtection } from "@/hooks/useProtection";
 import type { Direction, MarketSymbol, Position } from "@/types";
-
-// A "significant" profit move ~= 5% of the margin at risk.
-const profitStepFor = (marginUsd: number) => Math.max(marginUsd * 0.05, 1);
 
 /**
  * Fraction of free margin an order may consume.
@@ -222,7 +214,6 @@ export function useTrade(
         dispatch(setDemoPosition({ symbol: activeSymbol, position: pos }));
         playSound("open");
         haptic("open");
-        beginProfitTracking(profitStepFor(pos.marginUsed));
         toast(`${direction === "long" ? "Long" : "Short"} ${activeSymbol} opened`, {
           type: "success",
           description: `${leverage}× · ${fmtUsd(
@@ -315,7 +306,6 @@ export function useTrade(
         dispatch(setOrderStatus("filled"));
         playSound("open");
         haptic("open");
-        beginProfitTracking(profitStepFor(settings.defaultPositionSize));
         // Success toast fires from useBulkAccount when the WS confirms the position.
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Order failed";
@@ -437,7 +427,6 @@ export function useTrade(
       dispatch(settleDemo({ symbol: position.symbol, pnl: position.unrealizedPnl }));
       playCloseOutcome(position.unrealizedPnl);
       haptic("close");
-      stopProfitTracking();
       toast(`Closed ${position.symbol}`, {
         type: position.unrealizedPnl >= 0 ? "success" : "info",
         description: `Realized ${fmtUsd(position.unrealizedPnl)}`,
@@ -486,7 +475,6 @@ export function useTrade(
       // to land now, on the tap.
       playCloseOutcome(closingPnl);
       haptic("close");
-      stopProfitTracking();
       // Success toast fires from useBulkAccount when the WS confirms flat.
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Close failed";
@@ -531,7 +519,6 @@ export function useTrade(
       }
       playCloseOutcome(basketPnl);
       haptic("close");
-      stopProfitTracking();
       toast(`Closed all ${open.length} positions`, { type: "success" });
       return;
     }
@@ -599,7 +586,6 @@ export function useTrade(
     dispatch(setOrderStatus("filled"));
     playCloseOutcome(basketPnl);
     haptic("close");
-    stopProfitTracking();
     toast(
       failed === 0
         ? `Closed all ${open.length} positions`

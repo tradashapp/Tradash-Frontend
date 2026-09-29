@@ -24,7 +24,7 @@ import { marketPath, marketMeta } from "@/lib/markets";
 import { useAgentWallet } from "@/hooks/useAgentWallet";
 import { useBulkAccount } from "@/hooks/useBulkAccount";
 import { useDemoPnl } from "@/hooks/useDemoPnl";
-import { useLiveProfitSound } from "@/hooks/useLiveProfitSound";
+import { useMomentumFeedback } from "@/hooks/useMomentumFeedback";
 import { useMusic } from "@/hooks/useMusic";
 import { useTradeRecorder } from "@/hooks/useTradeRecorder";
 import { useFeedback } from "@/hooks/useFeedback";
@@ -109,7 +109,7 @@ export function TradeScreen({ initialMarket }: Props) {
   useAllPrices(); // live price for ALL markets (switcher + multi-market PnL)
   useBulkAccount(agent.masterAddress, agent.privyId);
   useDemoPnl();
-  useLiveProfitSound();
+  useMomentumFeedback(); // per-move sounds, surge haptics, emoji callouts
   useMusic(); // after useFeedback, which creates the AudioContext it plays on
   useTradeRecorder(); // records real price paths for trade replay
   // Holds the order size at its per-market default (min, or 5% of available)

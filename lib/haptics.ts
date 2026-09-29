@@ -15,7 +15,16 @@
 // whether a haptic actually played. So this is best-effort by design — it must
 // never throw or block the interaction it accompanies.
 
-export type HapticKind = "tap" | "tick" | "open" | "close";
+export type HapticKind =
+  | "tap"
+  | "tick"
+  | "open"
+  | "close"
+  | "move"
+  | "surge"
+  | "mega"
+  | "slump"
+  | "warn";
 
 const PATTERNS: Record<HapticKind, number | number[]> = {
   tap: 8,
@@ -24,7 +33,26 @@ const PATTERNS: Record<HapticKind, number | number[]> = {
   tick: 3,
   open: [12, 20, 12],
   close: 20,
+  // Momentum feedback (useMomentumFeedback). A favorable step fires every
+  // second or so in a trend, so it sits just above a detent.
+  move: 6,
+  // The market ripping your way: a rolling triple, then the full surge.
+  surge: [25, 35, 25, 35, 45],
+  mega: [40, 30, 40, 30, 40, 30, 80],
+  // Against you: one dull thud, not a celebration in reverse.
+  slump: 35,
+  // Close to liquidation — two long pulses, distinct from every other kind.
+  warn: [80, 60, 80],
 };
+
+// Kinds strong enough to be worth several iOS switch ticks in a row. The iOS
+// path has no intensity control, so "strong" can only mean "more ticks".
+const IOS_PULSES: Partial<Record<HapticKind, number>> = {
+  surge: 3,
+  mega: 5,
+  warn: 2,
+};
+const IOS_PULSE_GAP_MS = 70;
 
 let enabledGetter: () => boolean = () => true;
 
@@ -95,11 +123,17 @@ export function haptic(kind: HapticKind) {
     /* fall through to the iOS path */
   }
 
-  // Path 2: iOS switch trick. One discrete tick — the API has no intensity or
-  // pattern control, so every kind feels the same here. Toggling the checkbox
-  // is a side effect we don't care about (nothing reads its value).
+  // Path 2: iOS switch trick. Discrete ticks only — the API has no intensity
+  // or pattern control, so strong kinds repeat the tick (IOS_PULSES) instead.
+  // Toggling the checkbox is a side effect we don't care about (nothing reads
+  // its value).
   try {
-    getSwitchLabel()?.click();
+    const label = getSwitchLabel();
+    label?.click();
+    const extra = (IOS_PULSES[kind] ?? 1) - 1;
+    for (let i = 1; i <= extra; i++) {
+      setTimeout(() => label?.click(), i * IOS_PULSE_GAP_MS);
+    }
   } catch {
     /* unsupported — give up silently */
   }

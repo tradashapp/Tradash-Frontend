@@ -82,6 +82,13 @@ export interface ChartFrame {
    * layers add it up to travel in lockstep with the price line.
    */
   scrollX: number;
+  /**
+   * The live line's leading tip in CSS px from the canvas's top-left — where
+   * the newest sample is drawn (line) or the price pill sits (candles). Lets
+   * overlays anchor to the head of the line without knowing the scale.
+   */
+  headX: number;
+  headY: number;
 }
 
 // Right-hand gutter reserved for the price scale. Wide enough for the widest
@@ -195,6 +202,9 @@ export class ChartEngine {
   private onViewportChange?: (offCenter: boolean) => void;
   private onNeedOlder?: (intervalMs: number, beforeT: number) => void;
   private padding = { top: 28, bottom: 28 };
+  // The line's leading tip, recorded by the draw paths for `ChartFrame`.
+  private headX = 0;
+  private headY = 0;
 
   // Eased scale state. `center` tracks the current price; `half` is half the
   // visible price span (so the window is center ± half). Both ease per frame.
@@ -499,7 +509,14 @@ export class ChartEngine {
     const scrollX = inCandles
       ? this.candleScroll + this.vp.takeScroll()
       : this.plotWidth() / (this.series.capacity - 1);
-    this.onFrame?.({ price, yNorm, velocity, scrollX });
+    this.onFrame?.({
+      price,
+      yNorm,
+      velocity,
+      scrollX,
+      headX: this.headX,
+      headY: this.headY,
+    });
 
     const offCenter = inCandles && this.vp.offCenter;
     if (offCenter !== this.offCenterShown) {
@@ -654,6 +671,8 @@ export class ChartEngine {
     ctx.stroke(linePath);
 
     this.finishFrame(plotW, min, span, step, top, bottom, yOf, ly, price, accent, lx);
+    this.headX = lx;
+    this.headY = ly;
     return 1 - (ly - top) / usableH;
   }
 
@@ -793,6 +812,8 @@ export class ChartEngine {
     const pillH = pos ? 34 : 26;
     const pillY = Math.max(top + pillH / 2, Math.min(bottom - pillH / 2, ly));
     this.finishFrame(plotW, min, span, step, top, bottom, yOf, pillY, price, accent, null);
+    this.headX = plotW;
+    this.headY = pillY;
 
     if (vp.cross) {
       // Snap the vertical line to the candle under it (when there is one).

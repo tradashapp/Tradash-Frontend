@@ -13,6 +13,10 @@ import { ChartToolbar } from "@/components/chart/ChartToolbar";
 import { ChartRecenterButton } from "@/components/chart/ChartRecenterButton";
 import { useAppSelector } from "@/store/hooks";
 import { DotGrid, type DotGridHandle } from "@/components/background/DotGrid";
+import {
+  ReactionLayer,
+  type ReactionLayerHandle,
+} from "@/components/chart/ReactionLayer";
 import { MusicToggle } from "@/components/trade/MusicToggle";
 import { MarketHeader } from "@/components/trade/MarketHeader";
 import { BalancePill } from "@/components/trade/BalancePill";
@@ -54,6 +58,7 @@ export function DesktopLayout({
   onShare,
 }: Props) {
   const gridRef = useRef<DotGridHandle | null>(null);
+  const reactionsRef = useRef<ReactionLayerHandle | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   // Which position the add/reduce sheet is editing. The right panel stays
   // visible behind it, so this is a plain overlay rather than a swap.
@@ -64,8 +69,9 @@ export function DesktopLayout({
   // Which position's TP/SL is being edited.
   const [tpsl, setTpsl] = useState<MarketSymbol | null>(null);
   const handleFrame = useCallback((f: ChartFrame) => {
-    gridRef.current?.react(f); 
-  }, []); 
+    gridRef.current?.react(f);
+    reactionsRef.current?.track(f);
+  }, []);
   const chartView = useAppSelector((s) => s.settings.chartView);
   const chartInterval = useAppSelector((s) => s.settings.chartInterval);
 
@@ -96,6 +102,10 @@ export function DesktopLayout({
             view={chartView}
             interval={chartInterval}
           />
+        </div>
+        {/* Momentum callouts + surge glow, riding the line's tip. */}
+        <div className="pointer-events-none absolute inset-0 z-[15]">
+          <ReactionLayer ref={reactionsRef} />
         </div>
         <div className="relative z-20 p-4">
           <MarketHeader symbol={symbol} onOpen={onOpenMarket} />

@@ -69,7 +69,14 @@ export function LandingHero() {
   useEffect(() => {
     if (reduceMotion) return;
     let raf = 0;
-    const idle: ChartFrame = { price: null, yNorm: 0.5, velocity: 0, scrollX: 0.35 };
+    const idle: ChartFrame = {
+      price: null,
+      yNorm: 0.5,
+      velocity: 0,
+      scrollX: 0.35,
+      headX: 0,
+      headY: 0,
+    };
     const tick = () => {
       gridRef.current?.react(idle);
       raf = requestAnimationFrame(tick);

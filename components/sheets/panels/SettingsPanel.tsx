@@ -57,6 +57,12 @@ export function SettingsPanel() {
           on={s.hapticsEnabled}
           onChange={(on) => dispatch(updateSettings({ hapticsEnabled: on }))}
         />
+        <ToggleRow
+          label="Trade reactions"
+          hint="Emoji callouts on the chart as your trade moves"
+          on={s.reactionsEnabled}
+          onChange={(on) => dispatch(updateSettings({ reactionsEnabled: on }))}
+        />
       </MenuSection>
 
       {/* Same switch as the music button on the trade screen, plus the track
@@ -98,16 +104,21 @@ export function SettingsPanel() {
 
 function ToggleRow({
   label,
+  hint,
   on,
   onChange,
 }: {
   label: string;
+  hint?: string;
   on: boolean;
   onChange: (on: boolean) => void;
 }) {
   return (
-    <div className="flex items-center justify-between px-4 py-3">
-      <span className="text-sm">{label}</span>
+    <div className="flex items-center justify-between gap-3 px-4 py-3">
+      <div className="leading-tight">
+        <div className="text-sm">{label}</div>
+        {hint && <div className="text-xs text-text-muted">{hint}</div>}
+      </div>
       <ToggleSwitch on={on} onChange={onChange} />
     </div>
   );

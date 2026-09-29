@@ -11,7 +11,7 @@ import {
 } from "@/lib/perp";
 import { patchDemoPosition, settleDemo } from "@/store/slices/tradingModeSlice";
 import { recordClose } from "@/lib/history";
-import { playCloseOutcome, tickProfit } from "@/lib/sound";
+import { playCloseOutcome } from "@/lib/sound";
 import { haptic } from "@/lib/haptics";
 import { useToast } from "@/components/toast/ToastProvider";
 import type { MarketSymbol } from "@/types";
@@ -24,8 +24,8 @@ const fmtUsd = (n: number) =>
 
 // While in demo mode, this loop maintains EVERY open demo position (one per
 // market): recompute PnL from that market's oracle price, auto-liquidate, and
-// run the trailing stop. Profit "tick" sound fires only for the ACTIVE market so
-// background markets don't create noise. Live positions get this from Bulk's WS.
+// run the trailing stop. Live positions get this from Bulk's WS. (Per-move
+// sound for the active market lives in useMomentumFeedback, for both modes.)
 export function useDemoPnl() {
   const dispatch = useAppDispatch();
   const store = useAppStore();
@@ -70,8 +70,6 @@ export function useDemoPnl() {
         position.entryPrice,
         price
       );
-
-      if (sym === activeSymbol) tickProfit(pnl);
 
       // Trailing stop: ratchet toward profit, auto-close on reversal into it.
       if (position.trailActive && position.trailStopPrice != null) {

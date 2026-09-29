@@ -58,6 +58,11 @@ export interface SettingsState {
   musicEnabled: boolean;
   /** Which of MUSIC_TRACKS (lib/music) plays. */
   musicTrack: string;
+  /**
+   * Emoji callouts over the chart while a position is open ("🎯 Perfect").
+   * Per-move sounds and haptics follow soundEnabled / hapticsEnabled instead.
+   */
+  reactionsEnabled: boolean;
   /** Whether the first-run "how it works" tutorial has been shown. */
   tutorialSeen: boolean;
   /**
@@ -102,6 +107,7 @@ const initialState: SettingsState = {
   hapticsEnabled: true,
   musicEnabled: false,
   musicTrack: DEFAULT_TRACK,
+  reactionsEnabled: true,
   tutorialSeen: false,
   feedbackBannerDismissed: false,
   avatar: "\u{1F680}", // rocket

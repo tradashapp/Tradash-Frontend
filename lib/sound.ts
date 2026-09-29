@@ -132,39 +132,110 @@ export function playCloseOutcome(pnl: number) {
   playSound(pnl >= 0 ? "win" : "loss");
 }
 
+// --- Momentum cues -----------------------------------------------------------
+// Driven by useMomentumFeedback from lib/momentum's events.
+
+// Major-pentatonic ladder, in semitones. Every rung is consonant with every
+// other, so however far a combo climbs the chimes never clash — each favorable
+// step plays the profit clip one rung higher, like coins in a platformer.
+const COMBO_LADDER = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24];
+
+/** One favorable move. `count` = consecutive favorable steps so far (1-based). */
+export function playComboStep(count: number) {
+  const rung = COMBO_LADDER[Math.min(count - 1, COMBO_LADDER.length - 1)] ?? 0;
+  playBuffer("profit", 2 ** (rung / 12));
+}
+
+/** A soft falling blip for an adverse move — acknowledges, never nags. */
+export function playAdverseStep() {
+  tone([{ type: "sine", from: 262, to: 196, at: 0, dur: 0.11, gain: 0.07 }]);
+}
+
+/** The market ripping in your direction: a fast rising arpeggio. */
+export function playSurge(mega: boolean) {
+  const notes = mega ? [523, 659, 784, 1047, 1319] : [523, 659, 784, 1047];
+  tone(
+    notes.map((f, i) => ({
+      type: "triangle" as const,
+      from: f,
+      to: f,
+      at: i * 0.045,
+      dur: 0.12,
+      gain: mega ? 0.16 : 0.13,
+    }))
+  );
+}
+
+/** The market ripping against you: one low falling sweep. */
+export function playSlump() {
+  tone([{ type: "sine", from: 330, to: 130, at: 0, dur: 0.28, gain: 0.14 }]);
+}
+
 /** The shared context + output, for lib/music. Null until initSound runs. */
 export function audioOutput(): { ctx: AudioContext; out: AudioNode } | null {
   return ctx && master ? { ctx, out: master } : null;
 }
 
-// --- Profit-move ticker ------------------------------------------------------
-// Plays "profit" on each significant step UP in PnL (never on loss moves).
-// Tracks the last milestone per position; reset when a position opens/closes.
-let profitAnchor: number | null = null;
-let profitStep = 1;
-
-/** Begin tracking profit moves for a new position (step = $ per profit tick). */
-export function beginProfitTracking(step: number) {
-  profitAnchor = 0;
-  profitStep = Math.max(step, 0.01);
-}
-
-export function stopProfitTracking() {
-  profitAnchor = null;
-}
-
-/** Feed the current PnL; plays "profit" when it climbs past the next step. */
-export function tickProfit(pnl: number) {
-  if (profitAnchor == null) return;
-  // Only react while in profit and moving further into profit.
-  if (pnl <= profitAnchor) {
-    // Ratchet the anchor down with losses so re-crossing up re-triggers, but
-    // never below zero (we only celebrate profit-direction moves).
-    if (pnl < profitAnchor) profitAnchor = Math.max(0, pnl);
-    return;
+// playSound with a pitch/speed multiplier. Kept separate so the plain path
+// above stays exactly as tuned.
+function playBuffer(name: SoundName, rate: number) {
+  if (!enabledGetter() || !ctx || !master) return;
+  const buf = buffers.get(name);
+  if (!buf) return;
+  if (ctx.state === "suspended") void ctx.resume();
+  try {
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.playbackRate.value = rate;
+    const gain = ctx.createGain();
+    gain.gain.value = VOLUME[name];
+    src.connect(gain).connect(master);
+    src.start(0);
+    src.onended = () => {
+      src.disconnect();
+      gain.disconnect();
+    };
+  } catch {
+    /* never let feedback throw into a trade path */
   }
-  if (pnl - profitAnchor >= profitStep) {
-    profitAnchor = pnl;
-    playSound("profit");
+}
+
+interface Note {
+  type: OscillatorType;
+  from: number; // Hz at the start
+  to: number; // Hz at the end (exponential glide)
+  at: number; // s offset from now
+  dur: number; // s
+  gain: number;
+}
+
+// Tiny oscillator voice for cues that don't warrant a sample file. Each note
+// gets a 5ms attack and an exponential decay, which is what keeps a raw
+// oscillator from clicking on and off.
+function tone(notes: Note[]) {
+  if (!enabledGetter() || !ctx || !master) return;
+  if (ctx.state === "suspended") void ctx.resume();
+  try {
+    const now = ctx.currentTime;
+    for (const n of notes) {
+      const t0 = now + n.at;
+      const osc = ctx.createOscillator();
+      osc.type = n.type;
+      osc.frequency.setValueAtTime(n.from, t0);
+      if (n.to !== n.from) osc.frequency.exponentialRampToValueAtTime(n.to, t0 + n.dur);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(n.gain, t0 + 0.005);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + n.dur);
+      osc.connect(g).connect(master);
+      osc.start(t0);
+      osc.stop(t0 + n.dur + 0.02);
+      osc.onended = () => {
+        osc.disconnect();
+        g.disconnect();
+      };
+    }
+  } catch {
+    /* best-effort */
   }
 }

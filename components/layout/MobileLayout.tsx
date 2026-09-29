@@ -6,6 +6,10 @@ import { ChartToolbar } from "@/components/chart/ChartToolbar";
 import { ChartRecenterButton } from "@/components/chart/ChartRecenterButton";
 import { useAppSelector } from "@/store/hooks";
 import { DotGrid, type DotGridHandle } from "@/components/background/DotGrid";
+import {
+  ReactionLayer,
+  type ReactionLayerHandle,
+} from "@/components/chart/ReactionLayer";
 import { MusicToggle } from "@/components/trade/MusicToggle";
 import { MarketHeader } from "@/components/trade/MarketHeader";
 import { BalancePill } from "@/components/trade/BalancePill";
@@ -47,6 +51,7 @@ export function MobileLayout({
   onShare,
 }: Props) {
   const gridRef = useRef<DotGridHandle | null>(null);
+  const reactionsRef = useRef<ReactionLayerHandle | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [positionsOpen, setPositionsOpen] = useState(false);
   // The position being adjusted. Held here rather than in the positions sheet
@@ -60,6 +65,7 @@ export function MobileLayout({
   const [tpsl, setTpsl] = useState<MarketSymbol | null>(null);
   const handleFrame = useCallback((f: ChartFrame) => {
     gridRef.current?.react(f);
+    reactionsRef.current?.track(f);
   }, []);
   const chartView = useAppSelector((s) => s.settings.chartView);
   const chartInterval = useAppSelector((s) => s.settings.chartInterval);
@@ -82,6 +88,11 @@ export function MobileLayout({
           view={chartView}
           interval={chartInterval}
         />
+      </div>
+      {/* Momentum callouts + surge glow, riding the line's tip. Above the
+          chart, below the header and controls, never hit-testable. */}
+      <div className="pointer-events-none absolute inset-0 z-[15]">
+        <ReactionLayer ref={reactionsRef} />
       </div>
 
       {/* Market dock — docked to the chart's left-center. ALWAYS shown: it

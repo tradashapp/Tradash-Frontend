@@ -132,6 +132,11 @@ export function playCloseOutcome(pnl: number) {
   playSound(pnl >= 0 ? "win" : "loss");
 }
 
+/** The shared context + output, for lib/music. Null until initSound runs. */
+export function audioOutput(): { ctx: AudioContext; out: AudioNode } | null {
+  return ctx && master ? { ctx, out: master } : null;
+}
+
 // --- Profit-move ticker ------------------------------------------------------
 // Plays "profit" on each significant step UP in PnL (never on loss moves).
 // Tracks the last milestone per position; reset when a position opens/closes.

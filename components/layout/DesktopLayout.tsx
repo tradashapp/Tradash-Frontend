@@ -13,6 +13,7 @@ import { ChartToolbar } from "@/components/chart/ChartToolbar";
 import { ChartRecenterButton } from "@/components/chart/ChartRecenterButton";
 import { useAppSelector } from "@/store/hooks";
 import { DotGrid, type DotGridHandle } from "@/components/background/DotGrid";
+import { MusicToggle } from "@/components/trade/MusicToggle";
 import { MarketHeader } from "@/components/trade/MarketHeader";
 import { BalancePill } from "@/components/trade/BalancePill";
 import { TradeControls } from "@/components/trade/TradeControls";
@@ -122,7 +123,8 @@ export function DesktopLayout({
 
       {/* Right panel */}
       <aside className="flex min-h-0 flex-col gap-3 overflow-hidden border-l border-white/5 p-4">
-        <div className="flex shrink-0 justify-end">
+        <div className="flex shrink-0 items-center justify-end gap-2">
+          <MusicToggle chipSide="left" />
           <BalancePill onOpen={onOpenAccount} />
         </div>
 

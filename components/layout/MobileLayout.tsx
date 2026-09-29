@@ -6,6 +6,7 @@ import { ChartToolbar } from "@/components/chart/ChartToolbar";
 import { ChartRecenterButton } from "@/components/chart/ChartRecenterButton";
 import { useAppSelector } from "@/store/hooks";
 import { DotGrid, type DotGridHandle } from "@/components/background/DotGrid";
+import { MusicToggle } from "@/components/trade/MusicToggle";
 import { MarketHeader } from "@/components/trade/MarketHeader";
 import { BalancePill } from "@/components/trade/BalancePill";
 import { TradeControls } from "@/components/trade/TradeControls";
@@ -116,7 +117,14 @@ export function MobileLayout({
             their left, which is still the chart's bottom-left — the chart runs
             full-screen underneath the footer. */}
         <div className="mb-3 flex items-center justify-between">
-          <ChartToolbar />
+          {/* Music sits with the chart controls rather than in the header:
+              beside the balance pill it would overflow a 375px-wide phone
+              once BTC's price fills the market pill. Here it is also
+              thumb-reachable. */}
+          <div className="flex items-center gap-2">
+            <ChartToolbar />
+            <MusicToggle />
+          </div>
           {/* Re-center (candles only, once moved): the chart's bottom-right,
               mirroring the toolbar above the DOWN button. */}
           <ChartRecenterButton />

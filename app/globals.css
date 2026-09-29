@@ -190,3 +190,33 @@ body:has(.tool-root) {
   border: 3px solid #08090c;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
 }
+
+/* Music toggle equalizer (components/trade/MusicToggle). Bars bounce while
+   music plays; under reduced motion they hold still at staggered heights. */
+.eq-bar {
+  height: 100%;
+  transform-origin: bottom;
+  animation: eq-bounce 0.9s ease-in-out infinite;
+}
+
+@keyframes eq-bounce {
+  0%,
+  100% {
+    transform: scaleY(0.3);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .eq-bar {
+    animation: none;
+  }
+  .eq-bar:nth-child(1) {
+    transform: scaleY(0.5);
+  }
+  .eq-bar:nth-child(3) {
+    transform: scaleY(0.7);
+  }
+}

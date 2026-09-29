@@ -5,6 +5,7 @@ import {
   DEFAULT_CANDLE_INTERVAL,
   type CandleInterval,
 } from "@/lib/bulk/candles";
+import { DEFAULT_TRACK } from "@/lib/music";
 
 // Defaults applied to every new trade + UI preferences. Persisted to
 // localStorage (see store/persist.ts) so they survive reloads.
@@ -50,6 +51,13 @@ export interface SettingsState {
   theme: "dark" | "light";
   soundEnabled: boolean;
   hapticsEnabled: boolean;
+  /**
+   * Background music on the trade screen. Off by default: music that starts
+   * on its own is an ambush, and browsers block it before a gesture anyway.
+   */
+  musicEnabled: boolean;
+  /** Which of MUSIC_TRACKS (lib/music) plays. */
+  musicTrack: string;
   /** Whether the first-run "how it works" tutorial has been shown. */
   tutorialSeen: boolean;
   /**
@@ -92,6 +100,8 @@ const initialState: SettingsState = {
   theme: "dark",
   soundEnabled: true,
   hapticsEnabled: true,
+  musicEnabled: false,
+  musicTrack: DEFAULT_TRACK,
   tutorialSeen: false,
   feedbackBannerDismissed: false,
   avatar: "\u{1F680}", // rocket

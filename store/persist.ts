@@ -13,6 +13,7 @@ import {
 } from "./slices/tradingModeSlice";
 import { clampLeverage, isMarketSymbol } from "@/lib/markets";
 import { isCandleInterval } from "@/lib/bulk/candles";
+import { isMusicTrack } from "@/lib/music";
 import type { MarketSymbol } from "@/types";
 import type { CompletedTrade, TradeEpisode } from "@/types";
 
@@ -85,6 +86,10 @@ export function wireSettingsPersistence(store: AppStore) {
       }
       if (!isCandleInterval(parsed.chartInterval)) {
         merged.chartInterval = defaultSettings.chartInterval;
+      }
+      // A track we stopped shipping would otherwise 404 on every play.
+      if (!isMusicTrack(parsed.musicTrack)) {
+        merged.musicTrack = defaultSettings.musicTrack;
       }
       store.dispatch(hydrateSettings(merged));
     }

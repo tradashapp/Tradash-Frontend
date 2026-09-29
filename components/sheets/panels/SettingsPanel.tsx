@@ -6,6 +6,7 @@ import { setMode } from "@/store/slices/tradingModeSlice";
 import { ToggleSwitch } from "@/components/ui/ToggleSwitch";
 import { MenuSection } from "@/components/ui/MenuSection";
 import { FeeCodeSection } from "./FeeCodeSection";
+import { MUSIC_TRACKS } from "@/lib/music";
 
 // Settings content, rendered inside the AccountSheet as a sub-view. Edits the
 // settings slice (persisted). No sheet chrome here — the host provides it.
@@ -56,6 +57,40 @@ export function SettingsPanel() {
           on={s.hapticsEnabled}
           onChange={(on) => dispatch(updateSettings({ hapticsEnabled: on }))}
         />
+      </MenuSection>
+
+      {/* Same switch as the music button on the trade screen, plus the track
+          picker (the button's chip only skips forward). */}
+      <MenuSection title="Music" className="mt-4">
+        <ToggleRow
+          label="Background music"
+          on={s.musicEnabled}
+          onChange={(on) => dispatch(updateSettings({ musicEnabled: on }))}
+        />
+        <div className="flex gap-2 px-4 pb-3.5 pt-1">
+          {MUSIC_TRACKS.map((t) => {
+            const active = t.id === s.musicTrack;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                aria-pressed={active}
+                onClick={() =>
+                  dispatch(updateSettings({ musicTrack: t.id, musicEnabled: true }))
+                }
+                className={`h-9 flex-1 rounded-xl text-[13px] font-semibold transition-colors active:scale-95 ${
+                  active && s.musicEnabled
+                    ? "bg-up text-bg"
+                    : active
+                      ? "bg-white/10 text-text"
+                      : "bg-white/5 text-text-muted"
+                }`}
+              >
+                {t.label}
+              </button>
+            );
+          })}
+        </div>
       </MenuSection>
     </div>
   );

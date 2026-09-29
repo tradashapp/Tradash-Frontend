@@ -25,6 +25,7 @@ import { useAgentWallet } from "@/hooks/useAgentWallet";
 import { useBulkAccount } from "@/hooks/useBulkAccount";
 import { useDemoPnl } from "@/hooks/useDemoPnl";
 import { useLiveProfitSound } from "@/hooks/useLiveProfitSound";
+import { useMusic } from "@/hooks/useMusic";
 import { useTradeRecorder } from "@/hooks/useTradeRecorder";
 import { useFeedback } from "@/hooks/useFeedback";
 import { useAllPrices } from "@/hooks/useAllPrices";
@@ -109,6 +110,7 @@ export function TradeScreen({ initialMarket }: Props) {
   useBulkAccount(agent.masterAddress, agent.privyId);
   useDemoPnl();
   useLiveProfitSound();
+  useMusic(); // after useFeedback, which creates the AudioContext it plays on
   useTradeRecorder(); // records real price paths for trade replay
   // Holds the order size at its per-market default (min, or 5% of available)
   // until the user picks one by hand. After useBulkAccount, so the first

@@ -95,8 +95,9 @@ export interface ChartFrame {
 // label (e.g. "$560,500.20") plus the pill, with breathing room from the edge.
 const AXIS_WIDTH = 96;
 // Ruler ("-" ticks) running down the far right edge, right of the labels. Major
-// ticks sit on each price label, minor ones subdivide the gap between them.
-const RULER_EDGE = 3; // gap between the ruler and the canvas edge
+// ticks sit on each price label, minor ones subdivide the gap between them. An
+// unlabelled mirror of it runs down the far left edge (see drawScale).
+const RULER_EDGE = 3; // gap between each ruler and its canvas edge
 const RULER_MAJOR = 6;
 const RULER_MINOR = 3;
 const RULER_SUBDIVISIONS = 5;
@@ -1280,11 +1281,16 @@ export class ChartEngine {
       const edge = Math.min(y - top, bottom - y) / LABEL_FADE_PX;
       const alpha = Math.min(1, edge);
 
-      // The ruler tick ("-") right of the label.
+      // The ruler tick ("-") right of the label, mirrored on the left edge.
+      // The left ruler is unlabelled and drawn from this same tick, so it
+      // slides and rescales in exact lockstep with the right one.
+      const len = major ? RULER_MAJOR : RULER_MINOR;
       ctx.globalAlpha = alpha * (major ? 0.9 : 0.45);
       ctx.beginPath();
-      ctx.moveTo(rulerX - (major ? RULER_MAJOR : RULER_MINOR), y);
+      ctx.moveTo(rulerX - len, y);
       ctx.lineTo(rulerX, y);
+      ctx.moveTo(RULER_EDGE, y);
+      ctx.lineTo(RULER_EDGE + len, y);
       ctx.stroke();
 
       if (!major) return;

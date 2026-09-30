@@ -353,6 +353,104 @@ export interface FeatureView {
   botsHalted: boolean;
 }
 
+// --- Grid bot (backend routes/grid.ts) ------------------------------------------
+export type GridBotStatus = "starting" | "running" | "stopping" | "stopped" | "error";
+
+export interface GridBotView {
+  id: string;
+  symbol: string;
+  network: "testnet" | "mainnet";
+  status: GridBotStatus;
+  capital: number;
+  createdAt: string;
+  startedAt: string | null;
+  stoppedAt: string | null;
+  stopReason: string | null;
+  lastError: string | null;
+  range: {
+    lower: number;
+    upper: number;
+    levels: number;
+    qty: number | null;
+    stopLower: number | null;
+    stopUpper: number | null;
+  };
+  mark: number | null;
+  metrics: {
+    equity: number | null;
+    startEquity: number | null;
+    netPnl: number | null;
+    unrealizedPnl: number | null;
+    /** Cashflows as Bulk reports them: negative = paid. */
+    fees: number | null;
+    funding: number | null;
+    maxDrawdown: number;
+    maxDrawdownPct: number;
+    position: number;
+    exposure: number | null;
+    openOrders: number | null;
+  };
+  equityCurve: Array<{ at: string; equity: number }>;
+  events: Array<{ at: string; level: "info" | "warn" | "error"; kind: string; message: string | null }>;
+}
+
+export interface GridStatus {
+  network: "testnet" | "mainnet";
+  enabled: boolean;
+  halted: boolean;
+  markets: string[];
+  maxCapital: number;
+  key: { pubkey: string; authorized: boolean } | null;
+  /** Transferable trading balance on the grid's network. */
+  balance: number | null;
+  active: GridBotView | null;
+  recent: GridBotView[];
+}
+
+export interface GridPreviewInput {
+  symbol: string;
+  capital: number;
+  range?: { lower: number; upper: number; intervals: number } | null;
+}
+
+export interface GridPreviewResult {
+  network: "testnet" | "mainnet";
+  price: number;
+  params: { lower: number; upper: number; intervals: number; spacing: string };
+  balance: number;
+  preview: {
+    ok: boolean;
+    errors: string[];
+    warnings: string[];
+    plan: { levels: number[]; qty: number; g0: number; stopLower: number; stopUpper: number } | null;
+    minCapital: number;
+    minOrderNotional: number;
+    spacingPctMin: number;
+    roundTripCostPct: number;
+    profitPerCycle: number;
+    profitPerCyclePct: number;
+    worstLossDown: number;
+    worstLossUp: number;
+    effectiveLeverage: number;
+    liqLong: number | null;
+    liqShort: number | null;
+    fundingPerDayAtMax: number;
+  };
+}
+
+/** POST that rejects with the server's human-readable message. */
+async function send<T>(path: string, body: unknown = {}): Promise<T> {
+  const auth = await authHeader();
+  const res = await fetch(`${BASE}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...auth },
+    body: JSON.stringify(body),
+  });
+  const json = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(json?.message ?? `Request failed (${res.status})`);
+  return json as T;
+}
+
 export type ReferralLookup =
   | { valid: false }
   | { valid: true; code: string; username: string | null; avatarUrl: string | null; rebatePct: number };
@@ -652,6 +750,19 @@ export const api = {
       method: "POST",
       body: "{}",
     }),
+
+  gridStatus: (privyId: string): Promise<GridStatus> =>
+    req<GridStatus>(`/users/${encodeURIComponent(privyId)}/grid`),
+  gridIssueKey: (privyId: string) =>
+    send<{ pubkey: string; authorized: boolean }>(`/users/${encodeURIComponent(privyId)}/grid/key`),
+  gridConfirmKey: (privyId: string) =>
+    send<{ pubkey: string; authorized: boolean }>(`/users/${encodeURIComponent(privyId)}/grid/key/confirm`),
+  gridPreview: (privyId: string, input: GridPreviewInput) =>
+    send<GridPreviewResult>(`/users/${encodeURIComponent(privyId)}/grid/preview`, input),
+  gridStart: (privyId: string, input: GridPreviewInput) =>
+    send<GridBotView>(`/users/${encodeURIComponent(privyId)}/grid/bots`, input),
+  gridStop: (privyId: string, botId: string) =>
+    send<GridBotView>(`/users/${encodeURIComponent(privyId)}/grid/bots/${botId}/stop`),
 
   /** Public: the owner of a shared code, for the "invited by" line. */
   lookupReferral: (code: string): Promise<ReferralLookup> =>

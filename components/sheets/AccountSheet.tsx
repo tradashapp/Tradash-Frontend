@@ -263,7 +263,7 @@ export function AccountSheet({
             {view === "advanced" && <AdvancedPanel agent={agent} />}
             {view === "aura" && <AuraPanel wallet={agent.masterAddress} />}
             {view === "referrals" && <ReferralPanel />}
-            {view === "grid" && <GridPanel />}
+            {view === "grid" && <GridPanel agent={agent} />}
             {view === "settingsMenu" && <SettingsMenuPanel />}
             {view === "history" && (
               <HistoryPanel

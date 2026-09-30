@@ -27,6 +27,7 @@ import {
   Cancel01Icon,
   SparklesIcon,
   GiftIcon,
+  GridViewIcon,
 } from "@hugeicons/core-free-icons";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { resetDemo } from "@/store/slices/tradingModeSlice";
@@ -46,6 +47,9 @@ import { MoneyHistoryPanel } from "./panels/MoneyHistoryPanel";
 import { AdvancedPanel } from "./panels/AdvancedPanel";
 import { AuraPanel } from "./panels/AuraPanel";
 import { ReferralPanel, useReferralDetail } from "./panels/ReferralPanel";
+import { GridPanel } from "./panels/GridPanel";
+import { useFeatures } from "@/hooks/useFeatures";
+import { useToast } from "@/components/toast/ToastProvider";
 import { useWithdrawal } from "@/hooks/useWithdrawal";
 import type { CompletedTrade, TradeEpisode } from "@/types";
 import { playSound } from "@/lib/sound";
@@ -72,7 +76,8 @@ type View =
   | "money"
   | "advanced"
   | "aura"
-  | "referrals";
+  | "referrals"
+  | "grid";
 
 interface Props {
   open: boolean;
@@ -105,6 +110,7 @@ const TITLES: Record<View, string> = {
   advanced: "Advanced",
   aura: "Bulk Aura",
   referrals: "Referrals",
+  grid: "Grid bot",
 };
 
 // Central account hub. A single sheet with sub-views (menu → settings/history)
@@ -240,6 +246,7 @@ export function AccountSheet({
                 onAdvanced={() => go("advanced")}
                 onAura={() => go("aura")}
                 onReferrals={() => go("referrals")}
+                onGrid={() => go("grid")}
                 onTransfer={(dir) => {
                   setTransferDir(dir);
                   go("transfer");
@@ -256,6 +263,7 @@ export function AccountSheet({
             {view === "advanced" && <AdvancedPanel agent={agent} />}
             {view === "aura" && <AuraPanel wallet={agent.masterAddress} />}
             {view === "referrals" && <ReferralPanel />}
+            {view === "grid" && <GridPanel />}
             {view === "settingsMenu" && <SettingsMenuPanel />}
             {view === "history" && (
               <HistoryPanel
@@ -326,6 +334,7 @@ function Menu({
   onAdvanced,
   onAura,
   onReferrals,
+  onGrid,
   onTransfer,
   onWithdraw,
   onMoneyHistory,
@@ -358,6 +367,8 @@ function Menu({
   /** Bulk Aura points for the signed-in wallet. */
   onAura: () => void;
   onReferrals: () => void;
+  /** Open the Grid bot panel (only offered to users the backend allows). */
+  onGrid: () => void;
   onTransfer: (dir: "in" | "out") => void;
   /** Open the external-withdrawal panel (wallet → outside address). */
   onWithdraw: () => void;
@@ -370,6 +381,27 @@ function Menu({
   onDeposit: () => void;
 }) {
   const referralDetail = useReferralDetail();
+  const { gridBot, applyGridBeta } = useFeatures();
+  const { toast } = useToast();
+  const [applying, setApplying] = useState(false);
+
+  // One tap applies; there is no form. Idempotent on the backend, so a double
+  // tap or a retry after a lost response is harmless.
+  const applyForGrid = async () => {
+    if (applying) return;
+    setApplying(true);
+    try {
+      await applyGridBeta();
+      toast("You're on the Grid beta list", {
+        type: "success",
+        description: "It'll appear in this menu once you're approved.",
+      });
+    } catch {
+      toast("Couldn't apply right now", { type: "error", description: "Try again in a moment." });
+    } finally {
+      setApplying(false);
+    }
+  };
 
   // Whether the P&L chart under the balance is expanded. Collapsed by default
   // so the balance card stays compact for users who just want the number.
@@ -598,6 +630,25 @@ function Menu({
         {/* Aura is keyed by wallet, so it needs a signed-in account. */}
         {authenticated && agent.masterAddress && (
           <NavRow icon={SparklesIcon} label="Bulk Aura" onClick={onAura} />
+        )}
+        {/* Grid bot. Approved (or public) → the Grid option. Private and never
+            applied → one-tap "Apply for Grid Beta". Applied → a quiet status.
+            Rejected or revoked → nothing. The backend re-checks access on
+            every grid route; this row is display only. */}
+        {authenticated && gridBot?.allowed && (
+          <NavRow icon={GridViewIcon} label="Grid bot" onClick={onGrid} />
+        )}
+        {authenticated && gridBot && !gridBot.allowed && gridBot.canApply && (
+          <NavRow
+            icon={GridViewIcon}
+            label="Apply for Grid Beta"
+            detail={applying ? "Applying…" : undefined}
+            disabled={applying}
+            onClick={applyForGrid}
+          />
+        )}
+        {authenticated && gridBot && !gridBot.allowed && gridBot.access === "pending" && (
+          <NavRow icon={GridViewIcon} label="Grid bot" detail="Beta · applied" disabled />
         )}
         <NavRow icon={Settings02Icon} label="Settings" onClick={onSettings} />
         {/* Advanced opens the Bulk permission panel (agent key + builder code).

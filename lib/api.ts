@@ -338,6 +338,21 @@ export interface ReferralSummary {
 }
 
 /** Who a shared code belongs to. */
+/**
+ * A gated feature as the backend resolves it for this user (the Grid bot).
+ * `allowed` is what matters; the backend enforces it on every grid route, so
+ * this only decides what the menu shows.
+ */
+export interface FeatureView {
+  visibility: "private" | "public";
+  access: "none" | "pending" | "approved" | "rejected" | "revoked";
+  allowed: boolean;
+  /** Show the one-tap "Apply for Grid Beta" row. */
+  canApply: boolean;
+  appliedAt: string | null;
+  botsHalted: boolean;
+}
+
 export type ReferralLookup =
   | { valid: false }
   | { valid: true; code: string; username: string | null; avatarUrl: string | null; rebatePct: number };
@@ -627,6 +642,16 @@ export const api = {
     if (!res.ok) throw new Error(body?.message ?? `Couldn't apply the code (${res.status})`);
     return body as ReferralSummary;
   },
+
+  fetchFeatures: (privyId: string): Promise<{ gridBot: FeatureView }> =>
+    req<{ gridBot: FeatureView }>(`/users/${encodeURIComponent(privyId)}/features`),
+
+  /** One-tap beta application. Idempotent: re-applying returns the same state. */
+  applyGridBeta: (privyId: string): Promise<{ gridBot: FeatureView }> =>
+    req<{ gridBot: FeatureView }>(`/users/${encodeURIComponent(privyId)}/features/grid-bot/apply`, {
+      method: "POST",
+      body: "{}",
+    }),
 
   /** Public: the owner of a shared code, for the "invited by" line. */
   lookupReferral: (code: string): Promise<ReferralLookup> =>

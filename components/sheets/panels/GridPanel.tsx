@@ -14,7 +14,7 @@ import {
 import { config } from "@/lib/config";
 import { MARKETS } from "@/lib/markets";
 import { formatPrice, formatUsd } from "@/lib/format";
-import { authorizeAgentWallet, isAgentAlreadyAuthorizedError } from "@/lib/bulk/onboarding";
+import { authorizeAgentWallet, claimFaucet, isAgentAlreadyAuthorizedError } from "@/lib/bulk/onboarding";
 import { useAppSelector } from "@/store/hooks";
 import { useFeatures } from "@/hooks/useFeatures";
 import { useToast } from "@/components/toast/ToastProvider";
@@ -143,7 +143,34 @@ function SetupView({
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [previewing, setPreviewing] = useState(false);
   const [starting, setStarting] = useState<string | null>(null);
+  const [funding, setFunding] = useState(false);
   const seq = useRef(0);
+
+  // Testnet and mainnet are separate Bulk accounts: a wallet funded on mainnet
+  // has NO testnet account (Bulk says ACCOUNT_NOT_FOUND) until the testnet
+  // faucet creates and funds it. Offer it right here instead of sending the
+  // user to find one-tap setup.
+  const needsTestFunds = status.network === "testnet" && status.balance !== null && status.balance < 1;
+  const getTestFunds = async () => {
+    if (!agent.masterAddress || funding) return;
+    playSound("tap");
+    haptic("tap");
+    setFunding(true);
+    try {
+      await claimFaucet(agent.masterAddress, agent.masterSign);
+      toast("Test USDC on its way", { type: "success", description: "Your testnet trading balance updates in a few seconds." });
+      await new Promise((r) => setTimeout(r, 2500));
+      await onStarted();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "";
+      toast("Couldn't get test funds", {
+        type: "error",
+        description: /limit|already|24/i.test(msg) ? "The faucet allows one claim per day." : msg || undefined,
+      });
+    } finally {
+      setFunding(false);
+    }
+  };
 
   const capital = Number(amount);
   const input: GridPreviewInput | null = useMemo(() => {
@@ -258,7 +285,9 @@ function SetupView({
       <div className="glass-inset rounded-2xl p-4">
         <div className="mb-1 flex items-center justify-between">
           <span className="text-xs text-text-muted">Amount (USDC)</span>
-          <span className="tabular text-[11px] text-text-muted">Trading: {formatUsd(balance)}</span>
+          <span className="tabular text-[11px] text-text-muted">
+            Trading: {status.balance === null ? "—" : formatUsd(balance)}
+          </span>
         </div>
         <div className="flex items-center gap-2">
           <span className="text-lg font-semibold text-text-muted">$</span>
@@ -282,6 +311,23 @@ function SetupView({
           )}
         </div>
       </div>
+
+      {needsTestFunds && (
+        <button
+          type="button"
+          onClick={getTestFunds}
+          disabled={funding || !agent.masterAddress}
+          className="glass-inset -mt-2 flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left disabled:opacity-45"
+        >
+          <span className="text-xs text-text-muted">
+            Your testnet account is empty.
+            <span className="block text-[10px] text-text-muted/70">Mainnet funds don&apos;t carry over to testnet.</span>
+          </span>
+          <span className="shrink-0 rounded-xl bg-up px-3 py-2 text-xs font-bold text-black">
+            {funding ? "Claiming…" : "Get test USDC"}
+          </span>
+        </button>
+      )}
 
       {/* Range */}
       <div className="glass-inset rounded-2xl p-4">

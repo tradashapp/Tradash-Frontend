@@ -55,6 +55,35 @@ const signed = (v: number | null | undefined) =>
 const pct = (v: number, digits = 1) => `${(v * 100).toFixed(digits)}%`;
 const base = (symbol: string) => symbol.replace(/-USD$/, "");
 
+/**
+ * The one wallet signature the bot needs: authorize its server-held key on
+ * Bulk, then have the backend see it there. Also how a key the user revoked
+ * on Bulk is enabled again (the backend reports it unauthorized, issueKey
+ * returns the same key, and authorizing it again works).
+ */
+async function enableBotKey(privyId: string, agent: ReturnType<typeof useAgentWallet>, step: (s: string) => void) {
+  if (!agent.masterAddress) throw new Error("Connect your wallet first.");
+  step("Creating the bot key…");
+  const key = await api.gridIssueKey(privyId);
+  if (key.authorized) return;
+  step("Approve in your wallet…");
+  try {
+    await authorizeAgentWallet(agent.masterAddress, key.pubkey, agent.masterSign);
+  } catch (e) {
+    if (!isAgentAlreadyAuthorizedError(e)) throw e;
+  }
+  step("Confirming with Bulk…");
+  for (let i = 0; ; i++) {
+    try {
+      await api.gridConfirmKey(privyId);
+      return;
+    } catch (e) {
+      if (i === 5) throw e;
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+  }
+}
+
 export function GridPanel({ agent }: { agent: ReturnType<typeof useAgentWallet> }) {
   const { user } = usePrivy();
   const privyId = user?.id ?? null;
@@ -107,7 +136,13 @@ export function GridPanel({ agent }: { agent: ReturnType<typeof useAgentWallet> 
         </p>
       )}
       {status.active ? (
-        <RunningView bot={status.active} privyId={privyId!} onChanged={load} />
+        <RunningView
+          bot={status.active}
+          privyId={privyId!}
+          agent={agent}
+          keyAuthorized={!!status.key?.authorized}
+          onChanged={load}
+        />
       ) : (
         <SetupView status={status} privyId={privyId!} agent={agent} onStarted={load} />
       )}
@@ -224,30 +259,7 @@ function SetupView({
     playSound("tap");
     haptic("tap");
     try {
-      if (needsKey) {
-        if (!agent.masterAddress) throw new Error("Connect your wallet first.");
-        setStarting("Creating the bot key…");
-        const key = await api.gridIssueKey(privyId);
-        if (!key.authorized) {
-          setStarting("Approve in your wallet…");
-          try {
-            await authorizeAgentWallet(agent.masterAddress, key.pubkey, agent.masterSign);
-          } catch (e) {
-            if (!isAgentAlreadyAuthorizedError(e)) throw e;
-          }
-          setStarting("Confirming with Bulk…");
-          let ok = false;
-          for (let i = 0; i < 6 && !ok; i++) {
-            try {
-              await api.gridConfirmKey(privyId);
-              ok = true;
-            } catch (e) {
-              if (i === 5) throw e;
-              await new Promise((r) => setTimeout(r, 1500));
-            }
-          }
-        }
-      }
+      if (needsKey) await enableBotKey(privyId, agent, setStarting);
       setStarting("Starting the bot…");
       await api.gridStart(privyId, input);
       toast("Grid bot starting", { type: "success", description: "It places its orders within a few seconds." });
@@ -414,25 +426,42 @@ function SetupView({
 
 // --- running -------------------------------------------------------------------------
 
-function RunningView({ bot, privyId, onChanged }: { bot: GridBotView; privyId: string; onChanged: () => Promise<void> }) {
+function RunningView({
+  bot,
+  privyId,
+  agent,
+  keyAuthorized,
+  onChanged,
+}: {
+  bot: GridBotView;
+  privyId: string;
+  agent: ReturnType<typeof useAgentWallet>;
+  keyAuthorized: boolean;
+  onChanged: () => Promise<void>;
+}) {
   const { toast } = useToast();
   const [confirm, setConfirm] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
   const m = bot.metrics;
   const s = STATUS[bot.status];
   const net = m.netPnl;
+  // The engine can only act with the bot key. If the user revoked it on Bulk
+  // the bot sits in error with its orders and range stop still resting —
+  // stopping it (and getting the funds back) needs the key enabled again.
+  const needsKey = !keyAuthorized && bot.status === "error";
 
   const stop = async () => {
     setConfirm(false);
-    setBusy(true);
+    setBusy("Stopping…");
     try {
+      if (needsKey) await enableBotKey(privyId, agent, setBusy);
       await api.gridStop(privyId, bot.id);
       toast("Stopping the bot", { type: "info", description: "Closing orders and returning funds." });
       await onChanged();
     } catch (e) {
       toast("Couldn't stop the bot", { type: "error", description: e instanceof Error ? e.message : undefined });
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   };
 
@@ -492,16 +521,20 @@ function RunningView({ bot, privyId, onChanged }: { bot: GridBotView; privyId: s
         <button
           type="button"
           onClick={() => setConfirm(true)}
-          disabled={busy}
+          disabled={!!busy}
           className="w-full rounded-2xl bg-down py-3.5 font-semibold text-white transition-transform active:scale-95 disabled:opacity-45"
         >
-          Stop bot
+          {busy ?? (needsKey ? "Re-enable bot key & stop" : "Stop bot")}
         </button>
       )}
       <ConfirmModal
         open={confirm}
         title="Stop the grid bot?"
-        body="Cancels its orders, closes any open position at market, and returns everything to your trading balance."
+        body={
+          needsKey
+            ? "Your wallet first re-enables the bot's key on Bulk (you revoked it there). Then the bot cancels its orders, closes any open position at market, and returns everything to your trading balance."
+            : "Cancels its orders, closes any open position at market, and returns everything to your trading balance."
+        }
         confirmLabel="Stop bot"
         destructive
         onConfirm={stop}

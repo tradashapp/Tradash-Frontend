@@ -392,6 +392,29 @@ export interface GridBotView {
   };
   equityCurve: Array<{ at: string; equity: number }>;
   events: Array<{ at: string; level: "info" | "warn" | "error"; kind: string; message: string | null }>;
+  /** This bot's fills on its sub-account (null until it has started). */
+  trades: {
+    fills: number;
+    makerFills: number;
+    volume: number;
+    /** Fills that reduced the position — one completed grid step each. */
+    closes: number;
+    realizedPnl: number;
+    fees: number;
+    /** Newest first, up to 50. */
+    trades: Array<{
+      at: string;
+      side: "buy" | "sell";
+      price: number;
+      size: number;
+      value: number;
+      maker: boolean;
+      fee: number;
+      realized: number;
+      position: number;
+      liquidation: boolean;
+    }>;
+  } | null;
 }
 
 export interface GridStatus {

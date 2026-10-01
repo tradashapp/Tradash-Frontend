@@ -466,7 +466,15 @@ function RunningView({ bot, privyId, onChanged }: { bot: GridBotView; privyId: s
         <Stat label="Funding" value={signed(m.funding)} />
         <Stat label="Max drawdown" value={`−${formatUsd(m.maxDrawdown)}`} sub={pct(m.maxDrawdownPct)} />
         <Stat label="Resting orders" value={m.openOrders != null ? String(m.openOrders) : "—"} />
+        <Stat label="Volume traded" value={bot.trades ? formatUsd(bot.trades.volume) : "—"} sub={bot.trades ? `${bot.trades.fills} fills` : undefined} />
+        <Stat
+          label="Completed grids"
+          value={bot.trades ? String(bot.trades.closes) : "—"}
+          sub={bot.trades ? `${signed(bot.trades.realizedPnl)} realized` : undefined}
+        />
       </div>
+
+      {bot.trades && bot.trades.trades.length > 0 && <Trades bot={bot} />}
 
       {bot.events.length > 0 && (
         <MenuSection title="Activity">
@@ -531,6 +539,47 @@ function RangeBar({ bot }: { bot: GridBotView }) {
   );
 }
 
+function Trades({ bot }: { bot: GridBotView }) {
+  const [all, setAll] = useState(false);
+  const rows = bot.trades!.trades;
+  const shown = all ? rows : rows.slice(0, 8);
+  return (
+    <MenuSection title="Trades">
+      <div className="flex flex-col px-4 py-2">
+        {shown.map((t, i) => (
+          <div key={`${t.at}-${i}`} className="flex items-center justify-between gap-3 border-b border-white/[0.04] py-2 last:border-0">
+            <span className="min-w-0">
+              <span className={`text-xs font-bold ${t.side === "buy" ? "text-up" : "text-down"}`}>
+                {t.side === "buy" ? "BUY" : "SELL"}
+              </span>
+              <span className="tabular ml-2 text-xs">
+                {t.size} @ {formatPrice(t.price)}
+              </span>
+              <span className="tabular block text-[10px] text-text-muted">
+                {new Date(t.at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                {" · "}
+                {formatUsd(t.value)}
+                {t.maker ? "" : " · taker"}
+                {t.liquidation ? " · liquidation" : ""}
+              </span>
+            </span>
+            {t.realized !== 0 && (
+              <span className={`tabular shrink-0 text-xs font-semibold ${t.realized >= 0 ? "text-up" : "text-down"}`}>
+                {signed(t.realized)}
+              </span>
+            )}
+          </div>
+        ))}
+        {rows.length > 8 && (
+          <button type="button" onClick={() => setAll((v) => !v)} className="py-2 text-center text-[11px] font-semibold text-text-muted">
+            {all ? "Show less" : `Show all ${rows.length}`}
+          </button>
+        )}
+      </div>
+    </MenuSection>
+  );
+}
+
 // --- results -----------------------------------------------------------------------------
 
 function Recent({ bots }: { bots: GridBotView[] }) {
@@ -542,6 +591,7 @@ function Recent({ bots }: { bots: GridBotView[] }) {
             {base(b.symbol)} grid
             <span className="block text-[11px] text-text-muted">
               {REASON[b.stopReason ?? ""] ?? "Stopped"} · {b.stoppedAt ? new Date(b.stoppedAt).toLocaleDateString() : ""}
+              {b.trades ? ` · ${formatUsd(b.trades.volume)} volume` : ""}
             </span>
           </span>
           <span className={`tabular font-semibold ${b.metrics.netPnl == null ? "" : b.metrics.netPnl >= 0 ? "text-up" : "text-down"}`}>

@@ -130,6 +130,12 @@ export function GridPanel({ agent }: { agent: ReturnType<typeof useAgentWallet> 
           Testnet — test funds only. Fees are estimated at mainnet rates.
         </p>
       )}
+      {status.network === "mainnet" && (
+        <p className="rounded-xl bg-white/[0.04] px-3 py-2 text-center text-[11px] text-text-muted">
+          Beta — real funds, up to {formatUsd(status.maxCapital)} per bot. A grid earns while price stays in its range and
+          closes at a loss when price breaks out.
+        </p>
+      )}
       {(status.halted || gridBot?.botsHalted) && (
         <p className="rounded-xl bg-down/10 px-3 py-2 text-center text-xs text-down">
           Grid bots are paused by Tradash right now.

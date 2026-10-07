@@ -2,8 +2,14 @@
 // await ensureKeychain() first. The default export runs WebAssembly.instantiate;
 // we cache the promise so it initializes exactly once.
 //
-// ⚠️ THE VERSION IS PINNED EXACTLY in package.json ("0.1.28", no caret), and
+// ⚠️ THE VERSION IS PINNED EXACTLY in package.json ("0.1.30", no caret), and
 // must stay that way.
+//
+// 0.1.29 did it AGAIN, but only for trigger orders: takeProfit / stop / trl
+// gained the "bulk-actions" prefix (version byte 04) plus two extra zero bytes,
+// while market/limit orders, cancels, trig, leverage and every onboarding
+// action stayed byte-identical. On 0.1.28 trades opened fine and every TP/SL /
+// trailing stop came back `bad signature` (2026-10-07).
 //
 // This package defines the SIGNING PREIMAGE, so a version bump can silently
 // invalidate every signature the app produces. 0.1.28 did exactly that: it

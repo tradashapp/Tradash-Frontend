@@ -38,7 +38,7 @@ export type MarketPriceFeed =
       pythLazerId: number;
       /** Price scaling exponent; USD price = rawI64 * 10^exponent. */
       exponent: number;
-    }
+    } 
   | { priceSource: "bulk" };
 
 export type MarketInfo = MarketFields & MarketPriceFeed;

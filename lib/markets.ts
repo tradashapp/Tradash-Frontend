@@ -106,7 +106,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
   NEAR: {
     symbol: "NEAR",
     bulkSymbol: "NEAR-USD",
-    label: "NEAR Protocol",
+    label: "Near",
     pythLazerId: 27,
     exponent: -8,
     maxLeverage: 10,

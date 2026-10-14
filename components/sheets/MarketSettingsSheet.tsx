@@ -6,7 +6,7 @@ import { updateSettings } from "@/store/slices/settingsSlice";
 import { Sheet } from "@/components/ui/Sheet";
 import {
   MARKETS,
-  MIN_NOTIONAL_USD,
+  minNotionalFor,
   defaultSizeFor,
   maxLeverageFor,
   minSizeFor,
@@ -66,8 +66,9 @@ const usd4 = (n: number) =>
   })}`;
 
 // The size floor is no longer a flat constant: it is PER MARKET, because Bulk's
-// $50 minimum notional converts to a different margin at each market's leverage
-// (BTC 40× → $1.25, ETH 25× → $2, 10× → $5). See `minSizeFor` in lib/markets.
+// per-market minimum notional converts to a different margin at each market's
+// leverage (BTC $1 / 40× → $0.025, ETH $50 / 25× → $2, ZEC $40 / 10× → $4).
+// See `minSizeFor` in lib/markets.
 
 // Trailing-distance bounds for the slider, in percent. Sent to Bulk as whole
 // basis points (`trailBps` in useTrade), so 0.1% steps are exact.
@@ -100,7 +101,7 @@ export function MarketSettingsSheet({
   const available =
     mode === "demo" ? demoBalance : liveBalance?.available ?? null;
 
-  // Leverage is also what turns Bulk's $50 notional floor into this market's
+  // Leverage is also what turns Bulk's notional floor into this market's
   // margin floor, and what the notional readout is derived from.
   const lev = leverage.leverageOf(symbol);
   // Frozen while this market has an open position — see `useLeverage.isLocked`.
@@ -194,7 +195,7 @@ export function MarketSettingsSheet({
               size is this × leverage. Minimum{" "}
               <span className="tabular text-text">{usd4(minSize)}</span> on{" "}
               {MARKETS[symbol].symbol}: Bulk needs orders worth at least $
-              {MIN_NOTIONAL_USD}.
+              {minNotionalFor(symbol)}.
             </SectionTitle>
             <span className="text-[11px] text-text-muted">
               {available == null ? (
@@ -306,7 +307,7 @@ export function MarketSettingsSheet({
             any market the user has not touched, so the slider opens at max.
 
             Lowering it raises this market's minimum size (`minSizeFor` divides
-            the $50 notional floor by leverage). `useDefaultSize` watches
+            the market's notional floor by leverage). `useDefaultSize` watches
             `leverageByMarket` and lifts `defaultPositionSize` to the new floor,
             so a lower leverage can never leave a size Bulk would reject. */}
           <section className="glass-inset rounded-2xl p-4">

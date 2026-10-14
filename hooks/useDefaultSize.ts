@@ -9,9 +9,10 @@ import { defaultSizeFor, minSizeFor } from "@/lib/markets";
  * Keeps `defaultPositionSize` at the right default for the active market.
  *
  * The default is the larger of:
- *   - the market's MINIMUM margin — Bulk rejects any order under $50 notional,
- *     so at BTC's 40× cap that floor is $1.25 of margin, at 25× it is $2, and
- *     at 10× it is $5 (plus a small pad, see `minSizeFor`); and
+ *   - the market's MINIMUM margin — Bulk rejects any order under the market's
+ *     minimum notional, so BTC's $1 at 40× is $0.025 of margin, ETH's $50 at
+ *     25× is $2, and ZEC's $40 at 10× is $4 (plus a small pad, see
+ *     `minSizeFor`); and
  *   - 5% of the balance available to trade.
  *
  * It is recomputed as the market changes and as the balance moves, because both

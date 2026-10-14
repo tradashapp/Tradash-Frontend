@@ -52,6 +52,12 @@ interface MarketFields {
   /** Max leverage Bulk allows on this market (from exchangeInfo). */
   maxLeverage: number;
   /**
+   * Smallest order NOTIONAL Bulk accepts on this market, in USD (exchangeInfo's
+   * `minNotional`). Differs per market — BTC $1, ZEC $40, most others $50 —
+   * so always read it through `minNotionalFor`.
+   */
+  minNotional: number;
+  /**
    * Smallest tradable size increment, from exchangeInfo's `lotSize`
    * (verified live 2026-09-16). Bulk stores sizes as fixed-point and REJECTS
    * any order whose size is not representable, with

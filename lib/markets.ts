@@ -19,7 +19,8 @@ import type { MarketCategory, MarketInfo, MarketSymbol } from "@/types";
 //
 // pythLazerId + exponent come from MagicBlock's oracle-template
 // (pyth_lazer_list.json): the feed PDA seed is the id as a string, and
-// USD price = rawI64 * 10^exponent. maxLeverage mirrors Bulk's exchangeInfo.
+// USD price = rawI64 * 10^exponent. maxLeverage and minNotional mirror Bulk's
+// exchangeInfo.
 export const MARKETS: Record<MarketSymbol, MarketInfo> = {
   BTC: {
     symbol: "BTC",
@@ -28,7 +29,8 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
     pythLazerId: 1,
     exponent: -8,
     maxLeverage: 40,
-    lotSize: 0.000001,
+    minNotional: 1,
+    lotSize: 0.00000001,
     logo: "/images/crypto/btc.png",
     categories: ["crypto"],
   },
@@ -39,6 +41,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
     pythLazerId: 2,
     exponent: -8,
     maxLeverage: 25,
+    minNotional: 50,
     lotSize: 0.0001,
     logo: "/images/crypto/eth.png",
     categories: ["crypto"],
@@ -50,6 +53,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
     pythLazerId: 6,
     exponent: -8,
     maxLeverage: 20,
+    minNotional: 50,
     lotSize: 0.0001,
     logo: "/images/crypto/sol.png",
     categories: ["crypto"],
@@ -61,6 +65,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
     pythLazerId: 14,
     exponent: -8,
     maxLeverage: 20,
+    minNotional: 50,
     lotSize: 0.000001,
     logo: "/images/crypto/xrp.png",
     categories: ["crypto"],
@@ -105,6 +110,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
     pythLazerId: 27,
     exponent: -8,
     maxLeverage: 10,
+    minNotional: 50,
     lotSize: 0.00000001,
     logo: "/images/crypto/near.png",
     categories: ["crypto"],
@@ -138,6 +144,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
     pythLazerId: 66,
     exponent: -8,
     maxLeverage: 10,
+    minNotional: 40,
     lotSize: 0.00000001,
     logo: "/images/crypto/zec.png",
     categories: ["crypto"],
@@ -182,6 +189,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
     pythLazerId: 110,
     exponent: -8,
     maxLeverage: 10,
+    minNotional: 50,
     lotSize: 0.00000001,
     logo: "/images/crypto/hype.png",
     categories: ["crypto"],
@@ -198,6 +206,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
     pythLazerId: 346,
     exponent: -3,
     maxLeverage: 20,
+    minNotional: 50,
     lotSize: 0.0001,
     logo: "/images/crypto/paxg.png",
     categories: ["commodities"],
@@ -208,6 +217,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
     label: "Pump.fun",
     priceSource: "bulk",
     maxLeverage: 10,
+    minNotional: 50,
     lotSize: 0.00000001,
     logo: "/images/crypto/pump.png",
     categories: ["crypto"],
@@ -218,6 +228,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
     label: "Lighter",
     priceSource: "bulk",
     maxLeverage: 10,
+    minNotional: 50,
     lotSize: 0.00000001,
     logo: "/images/crypto/lit.png",
     categories: ["crypto"],
@@ -228,6 +239,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
     label: "Monad",
     priceSource: "bulk",
     maxLeverage: 10,
+    minNotional: 50,
     lotSize: 0.00000001,
     logo: "/images/crypto/mon.png",
     categories: ["crypto"],
@@ -331,25 +343,33 @@ export function leverageFor(
 }
 
 // --- Order sizing ------------------------------------------------------------
-// Bulk rejects any order whose NOTIONAL is under $50. Notional is
+// Bulk rejects any order whose NOTIONAL is under the market's `minNotional`
+// ($50 on most markets, $40 on ZEC, $1 on BTC). Notional is
 // margin × leverage, so the smallest margin a market can trade at is
-// 50 / leverage — which differs per market because every market has its own
-// leverage ceiling (BTC 40× → $1.25, ETH 25× → $2, SOL 20× → $2.50, 10× → $5).
+// minNotional / leverage — which differs per market on both counts
+// (BTC $1 / 40× → $0.025, ETH $50 / 25× → $2, ZEC $40 / 10× → $4).
 //
 // Sizing is expressed in MARGIN everywhere in the UI (the slider, the dock,
 // `defaultPositionSize`), so these helpers are the single place that converts
 // the exchange's notional floor into the margin floor the UI enforces.
 
-/** Bulk's minimum order notional, in USD. Below this an order is rejected. */
-export const MIN_NOTIONAL_USD = 50;
+/** Fallback minimum notional, in USD, for a market missing from the table. */
+const DEFAULT_MIN_NOTIONAL_USD = 50;
+
+/** Bulk's minimum order notional for this market, in USD. Below it an order is rejected. */
+export function minNotionalFor(symbol: MarketSymbol): number {
+  return MARKETS[symbol]?.minNotional ?? DEFAULT_MIN_NOTIONAL_USD;
+}
 
 /**
- * Safety pad over the exact minimum, so an order can never land at $49.99.
+ * Safety pad over the exact minimum, so an order can never land just under it.
  *
- * The exact floor (50 / leverage) is a knife edge: the price moves between the
- * tap and the fill, `floorToLot` rounds the base size DOWN to the market's lot,
- * and the notional Bulk computes is therefore a hair under the one we intended.
- * 1% of headroom costs nothing and turns a rejected order into a filled one.
+ * The exact floor (minNotional / leverage) is a knife edge: the price moves
+ * between the tap and the fill, `floorToLot` rounds the base size DOWN to the
+ * market's lot, and the notional Bulk computes is therefore a hair under the
+ * one we intended. 1% of headroom costs nothing and turns a rejected order into
+ * a filled one. It only holds while one lot is worth well under 1% of the
+ * floor — the reason BTC's lot is Bulk's 1e-8, not 1e-6 ($0.08 against $1).
  */
 const MIN_NOTIONAL_PAD = 1.01;
 
@@ -365,7 +385,7 @@ export function minSizeFor(
   byMarket: Partial<Record<MarketSymbol, number>> = {}
 ): number {
   const lev = leverageFor(symbol, byMarket);
-  const exact = (MIN_NOTIONAL_USD * MIN_NOTIONAL_PAD) / lev;
+  const exact = (minNotionalFor(symbol) * MIN_NOTIONAL_PAD) / lev;
   return Math.ceil(exact * 10_000) / 10_000;
 }
 

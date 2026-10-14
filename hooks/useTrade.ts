@@ -62,7 +62,7 @@ export const MARGIN_HEADROOM = 0.98;
 //
 // It used to be a flat $5, which was the 10× market's floor applied everywhere.
 // That silently blocked perfectly valid orders once sizing moved to the real
-// per-market minimum: $50 of notional is $1.25 of margin at BTC's 40×, and a
+// per-market minimum: BTC's $1 of notional is $0.025 of margin at 40×, and a
 // flat $5 floor rejects it in our own code before Bulk ever sees it — with a
 // "deposit more USDC" toast on an account that had plenty. `minSizeFor` derives
 // the floor from the leverage the order will actually use; see lib/markets.ts.
@@ -257,7 +257,7 @@ export function useTrade(
       // prevent.
 
       // The smallest order this market accepts, at the leverage this order will
-      // use. Below it Bulk rejects for sub-$50 notional, so stop here and say
+      // use. Below it Bulk rejects for sub-minimum notional, so stop here and say
       // what is actually wrong instead of surfacing that rejection.
       const minMargin = minSizeFor(activeSymbol, settings.leverageByMarket);
       if (availableMargin != null && marginUsd < minMargin) {
@@ -623,7 +623,7 @@ export function useTrade(
           ? Math.min(deltaUsd, liveBalance.available * MARGIN_HEADROOM)
           : deltaUsd;
       // Per-market floor, as in `open`: an ADD is its own market order and
-      // carries the same $50 notional minimum. Keyed to the POSITION's market,
+      // carries the same notional minimum. Keyed to the POSITION's market,
       // not the active one — the positions list can add to a row you aren't
       // currently looking at.
       const addMin = minSizeFor(position.symbol, settings.leverageByMarket);

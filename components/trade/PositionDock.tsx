@@ -57,7 +57,7 @@ const BOTTOM_INSET = 190; // clears the trade controls / positions section
  * shows the minimum and the reset-to-default at four decimals (`usd4` there),
  * and its number input holds full precision. Nothing rounded here is ever fed
  * back into an order — `defaultPositionSize` in the store is the real value, and
- * this only formats it — so the rounding cannot cause a sub-$50-notional
+ * this only formats it — so the rounding cannot cause a sub-minimum-notional
  * rejection.
  */
 const usd2 = (n: number) =>

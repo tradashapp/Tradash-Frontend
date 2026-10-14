@@ -60,7 +60,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
     label: "XRP",
     pythLazerId: 14,
     exponent: -8,
-    maxLeverage: 10,
+    maxLeverage: 20,
     lotSize: 0.000001,
     logo: "/images/crypto/xrp.png",
     categories: ["crypto"],
@@ -290,7 +290,7 @@ export const DEFAULT_MARKET: MarketSymbol = "BTC";
 
 // --- Leverage ----------------------------------------------------------------
 // Every market has its OWN ceiling on Bulk (see `maxLeverage` above, mirrored
-// from exchangeInfo: BTC 40×, ETH 25×, SOL/PAXG 20×, everything else 10×), so
+// from exchangeInfo: BTC 40×, ETH 25×, SOL/XRP/PAXG 20×, everything else 10×), so
 // leverage is stored per market and always resolved through these helpers —
 // never read raw. That keeps a value chosen on BTC from leaking onto a 10×
 // market as an order Bulk would margin differently than the UI promised.

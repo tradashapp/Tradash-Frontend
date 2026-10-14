@@ -11,10 +11,11 @@ import type { MarketCategory, MarketInfo, MarketSymbol } from "@/types";
 // with `priceSource: "bulk"`: its chart then runs off Bulk's own ticker stream
 // (lib/oracle/bulkTicker.ts) and needs no pythLazerId/exponent. PUMP is priced
 // this way — its Pyth Lazer id (1578) has no price-feed PDA on either the
-// devnet or mainnet ER (probed 2026-09-24). LIT, MEGA, MON and XPL are in the
-// same position but are suspended from trading on Bulk; add them the same way
-// once they reopen. Check the feed PDA's value, not just its existence — PAXG's
-// (163) exists but reads 0.
+// devnet or mainnet ER (probed 2026-09-24). LIT (2921) and MON (2396) are
+// priced the same way — no PDA on the devnet ER when they reopened on Bulk
+// (probed 2026-10-14). MEGA and XPL are in the same position but still
+// suspended; add them the same way once they reopen. Check the feed
+// PDA's value, not just its existence — PAXG's (163) exists but reads 0.
 //
 // pythLazerId + exponent come from MagicBlock's oracle-template
 // (pyth_lazer_list.json): the feed PDA seed is the id as a string, and
@@ -211,6 +212,26 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
     logo: "/images/crypto/pump.png",
     categories: ["crypto"],
   },
+  LIT: {
+    symbol: "LIT",
+    bulkSymbol: "LIT-USD",
+    label: "Lighter",
+    priceSource: "bulk",
+    maxLeverage: 10,
+    lotSize: 0.00000001,
+    logo: "/images/crypto/lit.png",
+    categories: ["crypto"],
+  },
+  MON: {
+    symbol: "MON",
+    bulkSymbol: "MON-USD",
+    label: "Monad",
+    priceSource: "bulk",
+    maxLeverage: 10,
+    lotSize: 0.00000001,
+    logo: "/images/crypto/mon.png",
+    categories: ["crypto"],
+  },
   // FARTCOIN: {
   //   symbol: "FARTCOIN",
   //   bulkSymbol: "FARTCOIN-USD",
@@ -260,6 +281,8 @@ export const MARKET_ORDER: MarketSymbol[] = [
   "HYPE",
   "PAXG",
   "PUMP",
+  "LIT",
+  "MON",
   // "FARTCOIN",
 ];
 

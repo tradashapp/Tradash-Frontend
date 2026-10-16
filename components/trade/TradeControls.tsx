@@ -13,7 +13,9 @@ import {
 } from "@hugeicons/core-free-icons";
 import { roi } from "@/lib/perp";
 import { useAllPositions } from "@/hooks/useAllPositions";
-import { useAppSelector } from "@/store/hooks";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { setLimitEnabled } from "@/store/slices/tradingSlice";
+import { formatPrice } from "@/lib/format";
 import { Odometer } from "@/components/ui/Odometer";
 import { playSound } from "@/lib/sound";
 import { haptic } from "@/lib/haptics";
@@ -55,16 +57,28 @@ export function TradeControls({
   // live inside the "in a position" branch, which meant a user holding ETH
   // while looking at the BTC chart had no way back to their own position — the
   // sheet it opens has always listed every market.
+  const dispatch = useAppDispatch();
   const { items, totalPnl, totalMargin } = useAllPositions();
   const anyOpen = items.length > 0;
   // Where the trail runs depends on the mode — see the note under the button.
   const mode = useAppSelector((s) => s.tradingMode.mode);
+  // Resting limits live in the same sheet as positions, so they keep the pill
+  // up even on a flat account.
+  const orderCount = useAppSelector((s) => s.orders.open.length);
+  // Limit mode (live only): UP/DOWN rest at the drafted price.
+  const symbol = useAppSelector((s) => s.market.active);
+  const limitOn =
+    useAppSelector((s) => s.trading.limit.enabled) && mode === "live";
+  const limitPrice = useAppSelector((s) => s.trading.limit.price[symbol]);
+  const mark = useAppSelector((s) => s.price.prices[symbol]);
+  const needsPrice = limitOn && limitPrice == null;
 
   return (
     <div className="flex flex-col gap-2">
-      {onViewPositions && anyOpen && (
+      {onViewPositions && (anyOpen || orderCount > 0) && (
         <ViewPositionsPill
           count={items.length}
+          orders={orderCount}
           totalPnl={totalPnl}
           totalMargin={totalMargin}
           onClick={onViewPositions}
@@ -75,16 +89,29 @@ export function TradeControls({
       {!position ? (
         <motion.div
           key="flat"
-          className="grid grid-cols-2 gap-3"
+          className="flex flex-col gap-2"
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 12 }}
           transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
         >
+          {limitOn && (
+            <LimitChip
+              price={limitPrice ?? null}
+              mark={mark ?? null}
+              onMarket={() => {
+                playSound("tap");
+                haptic("tap");
+                dispatch(setLimitEnabled(false));
+              }}
+            />
+          )}
+          <div className="grid grid-cols-2 gap-3">
           <button
             type="button"
             onClick={onLong}
-            className="flex items-center justify-center gap-2 rounded-full bg-up-soft py-5 text-lg font-semibold text-up backdrop-blur-sm transition-transform duration-150 ease-snap active:scale-95 tracking-widest"
+            disabled={needsPrice}
+            className="flex items-center justify-center gap-2 rounded-full bg-up-soft py-5 disabled:opacity-40 text-lg font-semibold text-up backdrop-blur-sm transition-transform duration-150 ease-snap active:scale-95 tracking-widest"
           >
             <HugeiconsIcon icon={ArrowUp01Icon} size={22} />
             UP
@@ -92,11 +119,13 @@ export function TradeControls({
           <button
             type="button"
             onClick={onShort}
-            className="flex items-center justify-center gap-2 rounded-full bg-down-soft py-5 text-lg font-semibold text-down backdrop-blur-sm transition-transform duration-150 ease-snap active:scale-95 tracking-widest"
+            disabled={needsPrice}
+            className="flex items-center justify-center gap-2 rounded-full bg-down-soft py-5 disabled:opacity-40 text-lg font-semibold text-down backdrop-blur-sm transition-transform duration-150 ease-snap active:scale-95 tracking-widest"
           >
             <HugeiconsIcon icon={ArrowDown01Icon} size={22} />
             DOWN
           </button>
+          </div>
         </motion.div>
       ) : (
         <motion.div
@@ -131,11 +160,14 @@ export function TradeControls({
  */
 function ViewPositionsPill({
   count,
+  orders,
   totalPnl,
   totalMargin,
   onClick,
 }: {
   count: number;
+  /** Resting limit orders, shown in the same sheet. */
+  orders: number;
   totalPnl: number;
   totalMargin: number;
   onClick: () => void;
@@ -160,21 +192,82 @@ function ViewPositionsPill({
         />
       </span>
       <span className="text-sm font-semibold">
-        {count === 1 ? "View position" : `View ${count} positions`}
+        {count === 0
+          ? orders === 1
+            ? "View order"
+            : `View ${orders} orders`
+          : count === 1
+            ? "View position"
+            : `View ${count} positions`}
       </span>
-      <span
-        className={`ml-1 text-sm font-bold ${isProfit ? "text-up" : "text-down"}`}
-      >
-        <Odometer
-          value={`${isProfit ? "+" : "−"}${Math.abs(roiPct).toFixed(1)}%`}
-        />
-      </span>
+      {count > 0 && (
+        <span
+          className={`ml-1 text-sm font-bold ${isProfit ? "text-up" : "text-down"}`}
+        >
+          <Odometer
+            value={`${isProfit ? "+" : "−"}${Math.abs(roiPct).toFixed(1)}%`}
+          />
+        </span>
+      )}
+      {count > 0 && orders > 0 && (
+        <span className="text-xs text-text-muted">
+          · {orders} {orders === 1 ? "order" : "orders"}
+        </span>
+      )}
       <HugeiconsIcon
         icon={ArrowRight01Icon}
         size={18}
         className="ml-auto text-text-muted"
       />
     </button>
+  );
+}
+
+/**
+ * Shown above UP/DOWN while limit mode is on: the price the next tap rests at
+ * (or a prompt to pick one on the chart), its distance from the mark, and a
+ * way straight back to market orders.
+ */
+function LimitChip({
+  price,
+  mark,
+  onMarket,
+}: {
+  price: number | null;
+  mark: number | null;
+  onMarket: () => void;
+}) {
+  const away =
+    price != null && mark != null && mark > 0
+      ? ((price - mark) / mark) * 100
+      : null;
+  return (
+    <div className="glass-inset flex items-center gap-2 rounded-full py-2 pl-4 pr-2 text-sm">
+      <span className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">
+        Limit
+      </span>
+      {price != null ? (
+        <>
+          <span className="tabular font-semibold">${formatPrice(price)}</span>
+          {away != null && (
+            <span className="tabular text-xs text-text-muted">
+              {away >= 0 ? "+" : "−"}
+              {Math.abs(away).toFixed(2)}%
+            </span>
+          )}
+        </>
+      ) : (
+        <span className="text-text-muted">Tap chart to set price</span>
+      )}
+      <button
+        type="button"
+        onClick={onMarket}
+        aria-label="Switch to market orders"
+        className="ml-auto flex h-7 w-7 items-center justify-center rounded-full bg-white/[0.07] text-text-muted transition-colors hover:bg-white/10 hover:text-text"
+      >
+        <HugeiconsIcon icon={Cancel01Icon} size={14} />
+      </button>
+    </div>
   );
 }
 

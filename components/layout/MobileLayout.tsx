@@ -23,7 +23,11 @@ import {
 } from "@/components/sheets/AdjustPositionSheet";
 import { TpSlSheet } from "@/components/sheets/TpSlSheet";
 import type { LivePosition } from "@/hooks/useAllPositions";
-import type { ChartFrame, PositionOverlay } from "@/lib/chart/engine";
+import type {
+  ChartFrame,
+  OrderLine,
+  PositionOverlay,
+} from "@/lib/chart/engine";
 import type { MarketSymbol } from "@/types";
 import type { useTrade } from "@/hooks/useTrade";
 import type { useLeverage } from "@/hooks/useLeverage";
@@ -32,6 +36,9 @@ import type { ShareSubject } from "@/components/share/ShareCardModal";
 interface Props {
   symbol: MarketSymbol;
   chartPosition: PositionOverlay | null;
+  chartOrders: OrderLine[];
+  /** Set while a limit is being drafted: a chart tap picks its price. */
+  onChartTap?: (price: number) => void;
   trade: ReturnType<typeof useTrade>;
   leverage: ReturnType<typeof useLeverage>;
   onOpenMarket: () => void;
@@ -44,6 +51,8 @@ interface Props {
 export function MobileLayout({
   symbol,
   chartPosition,
+  chartOrders,
+  onChartTap,
   trade,
   leverage,
   onOpenMarket,
@@ -84,6 +93,8 @@ export function MobileLayout({
         <CanvasChart
           symbol={symbol}
           position={chartPosition}
+          orders={chartOrders}
+          onTapPrice={onChartTap}
           onFrame={handleFrame}
           view={chartView}
           interval={chartInterval}
@@ -171,6 +182,7 @@ export function MobileLayout({
         onAdjust={openAdjust}
         onClosePosition={(item) => trade.closePosition(item.position.symbol)}
         onEditTpSl={(item) => setTpsl(item.position.symbol)}
+        onCancelOrder={trade.cancelLimit}
       />
 
       {/* Add / reduce for ONE position. Only the symbol is kept in state — the

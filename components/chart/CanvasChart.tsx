@@ -5,6 +5,7 @@ import {
   ChartEngine,
   type ChartFrame,
   type ChartView,
+  type OrderLine,
   type PositionOverlay,
 } from "@/lib/chart/engine";
 import {
@@ -41,6 +42,13 @@ interface Props {
   view?: ChartView;
   /** Candle interval for the candle view. */
   interval?: CandleInterval;
+  /** Limit-order lines (resting orders + the draft). */
+  orders?: OrderLine[];
+  /**
+   * When set, a TAP on the plot reports the price under it — how a limit price
+   * is picked off the chart. Drags, pinches and long presses are ignored.
+   */
+  onTapPrice?: (price: number) => void;
 }
 
 // Candles of history to load: more than the widest chart shows (~48 on a phone,
@@ -62,6 +70,8 @@ function CanvasChartImpl({
   ignoreSplash = false,
   view = "line",
   interval = DEFAULT_CANDLE_INTERVAL,
+  orders = NO_ORDERS,
+  onTapPrice,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const engineRef = useRef<ChartEngine | null>(null);
@@ -122,6 +132,49 @@ function CanvasChartImpl({
   useEffect(() => {
     engineRef.current?.setPosition(position);
   }, [position]);
+
+  useEffect(() => {
+    engineRef.current?.setOrders(orders);
+  }, [orders]);
+
+  // Tap → price. A tap is a press that neither moved nor lingered; anything
+  // else is a pan/pinch/crosshair drag owned by the candle gestures.
+  const tapRef = useRef(onTapPrice);
+  tapRef.current = onTapPrice;
+  const tapEnabled = onTapPrice != null;
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !tapEnabled) return;
+    let down: { x: number; y: number; t: number; id: number } | null = null;
+    const onDown = (e: PointerEvent) => {
+      down = e.isPrimary
+        ? { x: e.clientX, y: e.clientY, t: performance.now(), id: e.pointerId }
+        : null; // a second finger makes it a pinch, not a tap
+    };
+    const onUp = (e: PointerEvent) => {
+      const d = down;
+      down = null;
+      if (!d || d.id !== e.pointerId) return;
+      if (Math.hypot(e.clientX - d.x, e.clientY - d.y) > 6) return;
+      if (performance.now() - d.t > 350) return;
+      const rect = canvas.getBoundingClientRect();
+      // Taps on the price-scale gutter adjust the axis, not a price.
+      if (e.clientX - rect.left > rect.width - 96) return;
+      const price = engineRef.current?.priceAtClientY(e.clientY);
+      if (price != null && price > 0) tapRef.current?.(price);
+    };
+    const onCancel = () => {
+      down = null;
+    };
+    canvas.addEventListener("pointerdown", onDown);
+    canvas.addEventListener("pointerup", onUp);
+    canvas.addEventListener("pointercancel", onCancel);
+    return () => {
+      canvas.removeEventListener("pointerdown", onDown);
+      canvas.removeEventListener("pointerup", onUp);
+      canvas.removeEventListener("pointercancel", onCancel);
+    };
+  }, [tapEnabled]);
 
   // Feed oracle ticks straight into the engine's interpolator. When an external
   // price is supplied the subscription is inert (`external` symbol has no feed),
@@ -223,6 +276,21 @@ function CanvasChartImpl({
   );
 }
 
+const NO_ORDERS: OrderLine[] = [];
+
+function sameOrders(a: OrderLine[] = NO_ORDERS, b: OrderLine[] = NO_ORDERS) {
+  return (
+    a.length === b.length &&
+    a.every(
+      (o, i) =>
+        o.price === b[i]!.price &&
+        o.label === b[i]!.label &&
+        o.direction === b[i]!.direction &&
+        o.draft === b[i]!.draft
+    )
+  );
+}
+
 // The heavy work (the canvas rAF loop) never re-runs on re-render — it's driven
 // imperatively. Re-rendering only re-runs the cheap setPosition effect, so we
 // compare every position field EXACTLY (including PnL, which the mark-line pill
@@ -252,6 +320,9 @@ export const CanvasChart = memo(CanvasChartImpl, (a, b) => {
     a.ignoreSplash === b.ignoreSplash &&
     a.view === b.view &&
     a.interval === b.interval &&
+    // Only whether taps are wanted matters; the handler is read via a ref.
+    (a.onTapPrice != null) === (b.onTapPrice != null) &&
+    sameOrders(a.orders, b.orders) &&
     samePosition(a.position, b.position)
   );
 });

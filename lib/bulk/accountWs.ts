@@ -2,7 +2,14 @@ import { config } from "@/lib/config";
 import { MARKETS, MARKET_ORDER } from "@/lib/markets";
 import { isDustSize } from "./orders";
 import { readProtection } from "./protection";
-import type { MarketSymbol, Balance, Position, Direction } from "@/types";
+import { readLimitOrders } from "./limits";
+import type {
+  MarketSymbol,
+  Balance,
+  Position,
+  Direction,
+  LimitOrder,
+} from "@/types";
 import { readMargin, type BulkMargin } from "./types";
 
 // Subscribes to the Bulk account WebSocket (no signature required). Pushes live
@@ -27,6 +34,13 @@ export interface AccountEvents {
   onSnapshot?: (positions: Position[]) => void;
   /** A single market's position changed (delta). null = that market closed. */
   onPositionDelta?: (symbol: MarketSymbol, position: Position | null) => void;
+  /** Resting limit orders carried by a snapshot (replace the whole list). */
+  onOrders?: (orders: LimitOrder[]) => void;
+  /**
+   * An order changed state or filled. The delta's shape is not relied on —
+   * the caller re-reads open orders from REST, which is authoritative.
+   */
+  onOrderEvent?: () => void;
 }
 
 // Real WS shapes (verified live 2026-07-26). Account messages arrive as
@@ -138,6 +152,12 @@ export function subscribeAccount(
             .filter((p): p is Position => p !== null);
           events.onSnapshot(open);
         }
+        // The snapshot is documented as unified (positions + orders), but read
+        // it only when actually present so a snapshot without it never blanks
+        // a list the REST seed already filled.
+        if (Array.isArray(data.openOrders)) {
+          events.onOrders?.(readLimitOrders(data.openOrders));
+        }
         break;
       }
 
@@ -158,7 +178,14 @@ export function subscribeAccount(
         break;
       }
 
-      // fill / orderUpdate / feeTierUpdate etc. carry no balance/position we use.
+      // A limit placed, filled, cancelled or rejected — re-read the open list.
+      case "orderUpdate":
+      case "fill": {
+        events.onOrderEvent?.();
+        break;
+      }
+
+      // feeTierUpdate etc. carry nothing we use.
       default:
         break;
     }

@@ -1,8 +1,16 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { startSwitch, finishSwitch } from "@/store/slices/marketSlice";
+import { setLimitPrice } from "@/store/slices/tradingSlice";
 import { MarketSwitcher } from "@/components/sheets/MarketSwitcher";
 import { AccountSheet } from "@/components/sheets/AccountSheet";
 import { OnboardingTutorial } from "@/components/onboarding/OnboardingTutorial";
@@ -20,7 +28,7 @@ import {
   chartLiquidationPrice,
   netBreakEvenPrice,
 } from "@/lib/perp";
-import { marketPath, marketMeta } from "@/lib/markets";
+import { marketPath, marketMeta, roundToTick } from "@/lib/markets";
 import { useAgentWallet } from "@/hooks/useAgentWallet";
 import { useBulkAccount } from "@/hooks/useBulkAccount";
 import { useDemoPnl } from "@/hooks/useDemoPnl";
@@ -33,7 +41,7 @@ import { useTrade } from "@/hooks/useTrade";
 import { useLeverage } from "@/hooks/useLeverage";
 import { useIsDesktop } from "@/hooks/useIsDesktop";
 import { useDefaultSize } from "@/hooks/useDefaultSize";
-import type { PositionOverlay } from "@/lib/chart/engine";
+import type { OrderLine, PositionOverlay } from "@/lib/chart/engine";
 import {
   findStopLoss,
   findTakeProfit,
@@ -177,6 +185,58 @@ export function TradeScreen({ initialMarket }: Props) {
       }
     : null;
 
+  // Limit orders on the chart: every order resting in THIS market, plus the
+  // draft the next UP/DOWN will place. Resting prices are Bulk-quoted; with a
+  // position open they go through the same shift as its other lines (0 on the
+  // Bulk feed), and with none there is nothing to measure a shift against.
+  const openOrders = useAppSelector((s) => s.orders.open);
+  const limitEnabled = useAppSelector((s) => s.trading.limit.enabled);
+  const limitDraft = useAppSelector(
+    (s) => s.trading.limit.price[activeSymbol]
+  );
+  const limitLive = limitEnabled && trade.mode === "live";
+  const tradePosition = trade.position;
+  const chartOrders = useMemo<OrderLine[]>(() => {
+    const lines: OrderLine[] = openOrders
+      .filter((o) => o.symbol === activeSymbol)
+      .map((o) => ({
+        price: tradePosition
+          ? bulkToChartSpace(trade.mode, tradePosition, o.price)
+          : o.price,
+        direction: o.direction,
+        label: `Limit ${o.direction === "long" ? "UP" : "DOWN"}`,
+      }));
+    if (limitLive && !tradePosition && limitDraft != null) {
+      lines.push({ price: limitDraft, label: "Limit", draft: true });
+    }
+    return lines;
+    // tradePosition changes every tick (PnL); only its existence and shift
+    // inputs matter here, and those re-run via entryPrice/markPriceBulk.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    openOrders,
+    activeSymbol,
+    limitLive,
+    limitDraft,
+    trade.mode,
+    tradePosition != null,
+    tradePosition?.entryPrice,
+    tradePosition?.markPriceBulk,
+  ]);
+  // Tapping the chart sets the draft price — only while a limit is being
+  // drafted, so a casual tap on the chart never arms anything.
+  const onChartTap = useCallback(
+    (price: number) =>
+      dispatch(
+        setLimitPrice({
+          symbol: activeSymbol,
+          price: roundToTick(activeSymbol, price),
+        })
+      ),
+    [dispatch, activeSymbol]
+  );
+  const chartTap = limitLive && !tradePosition ? onChartTap : undefined;
+
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [tutorialOpen, setTutorialOpen] = useState(false);
@@ -214,6 +274,8 @@ export function TradeScreen({ initialMarket }: Props) {
   const layoutProps = {
     symbol: activeSymbol,
     chartPosition,
+    chartOrders,
+    onChartTap: chartTap,
     trade,
     leverage,
     onOpenMarket: () => setSwitcherOpen(true),

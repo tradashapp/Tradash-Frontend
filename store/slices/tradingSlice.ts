@@ -1,5 +1,5 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
-import type { OrderStatus } from "@/types";
+import type { MarketSymbol, OrderStatus } from "@/types";
 
 // In-flight order state + one-time onboarding authorizations. Both onboarding
 // steps require a MASTER-account signature (Bulk rule): the agent wallet lets us
@@ -18,6 +18,17 @@ interface TradingState {
    * (PnL comes from Bulk). Consumed when the live position first appears.
    */
   pendingChartEntry: Partial<Record<string, number>>;
+  /**
+   * Limit-order draft. When `enabled`, UP/DOWN place a resting limit at
+   * `price[symbol]` instead of a market order, and tapping the chart sets that
+   * price. Deliberately NOT persisted: a limit armed in a past session, at a
+   * price the market has long left, is not something to wake up to.
+   */
+  limit: {
+    enabled: boolean;
+    /** Draft price per market, in chart space (= Bulk space on the Bulk feed). */
+    price: Partial<Record<MarketSymbol, number>>;
+  };
 }
 
 const initialState: TradingState = {
@@ -26,6 +37,7 @@ const initialState: TradingState = {
   agentAuthorized: false,
   builderApproved: false,
   pendingChartEntry: {},
+  limit: { enabled: false, price: {} },
 };
 
 const tradingSlice = createSlice({
@@ -58,6 +70,18 @@ const tradingSlice = createSlice({
     clearPendingChartEntry(state, action: PayloadAction<string>) {
       delete state.pendingChartEntry[action.payload];
     },
+    setLimitEnabled(state, action: PayloadAction<boolean>) {
+      state.limit.enabled = action.payload;
+    },
+    /** Set (or clear, with null) one market's draft limit price. */
+    setLimitPrice(
+      state,
+      action: PayloadAction<{ symbol: MarketSymbol; price: number | null }>
+    ) {
+      const { symbol, price } = action.payload;
+      if (price == null || !(price > 0)) delete state.limit.price[symbol];
+      else state.limit.price[symbol] = price;
+    },
   },
 });
 
@@ -68,5 +92,7 @@ export const {
   setBuilderApproved,
   setPendingChartEntry,
   clearPendingChartEntry,
+  setLimitEnabled,
+  setLimitPrice,
 } = tradingSlice.actions;
 export default tradingSlice.reducer;

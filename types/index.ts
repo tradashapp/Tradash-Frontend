@@ -65,10 +65,36 @@ interface MarketFields {
    * so every outgoing size must be floored to a multiple of this.
    */
   lotSize: number;
+  /**
+   * Smallest price increment, from exchangeInfo's `tickSize`. Prices travel in
+   * the signed preimage as fixed-point too, so a limit price off the tick is
+   * re-quantised server-side and fails as `bad signature` — round every
+   * outgoing limit price with `roundToTick`.
+   */
+  tickSize: number;
   /** Public path to the asset logo. */
   logo: string;
   /** Static categories this market belongs to (excludes "favourites"). */
   categories: MarketCategory[];
+}
+
+/**
+ * A resting LIMIT order on Bulk (an entry the user placed at a price, waiting
+ * to fill). Protective triggers are not these — they live on the position as
+ * `ProtectionOrder`s.
+ */
+export interface LimitOrder {
+  orderId: string;
+  symbol: MarketSymbol;
+  /** Side it trades: long = buy, short = sell. */
+  direction: Direction;
+  /** Limit price, in Bulk's price space. */
+  price: number;
+  /** Remaining (unfilled) base-asset size. */
+  size: number;
+  /** Base-asset size already filled. */
+  filledSize: number;
+  reduceOnly: boolean;
 }
 
 /** Which protective trigger a resting order is. Mirrors Bulk's `orderType`. */

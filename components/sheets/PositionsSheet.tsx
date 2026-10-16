@@ -4,6 +4,7 @@ import { PositionsPanel } from "@/components/trade/PositionsPanel";
 import { Sheet } from "@/components/ui/Sheet";
 import type { ShareSubject } from "@/components/share/ShareCardModal";
 import type { LivePosition } from "@/hooks/useAllPositions";
+import type { LimitOrder } from "@/types";
 
 interface Props {
   open: boolean;
@@ -17,6 +18,8 @@ interface Props {
   onClosePosition?: (item: LivePosition) => void | Promise<void>;
   /** Open the TP/SL sheet for one position. */
   onEditTpSl?: (item: LivePosition) => void;
+  /** Cancel one resting limit order. */
+  onCancelOrder?: (order: LimitOrder) => Promise<boolean>;
 }
 
 // Mobile: a slide-up sheet that surfaces the SAME positions view used in the
@@ -35,6 +38,7 @@ export function PositionsSheet({
   onAdjust,
   onClosePosition,
   onEditTpSl,
+  onCancelOrder,
 }: Props) {
   return (
     <Sheet open={open} onClose={onClose} title="Open positions" scrollBody={false}>
@@ -49,6 +53,7 @@ export function PositionsSheet({
         onAdjust={onAdjust}
         onClosePosition={onClosePosition}
         onEditTpSl={onEditTpSl}
+        onCancelOrder={onCancelOrder}
       />
     </Sheet>
   );

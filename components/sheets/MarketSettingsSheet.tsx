@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { updateSettings } from "@/store/slices/settingsSlice";
+import { setLimitEnabled, setLimitPrice } from "@/store/slices/tradingSlice";
 import { Sheet } from "@/components/ui/Sheet";
 import {
   MARKETS,
@@ -10,6 +11,7 @@ import {
   defaultSizeFor,
   maxLeverageFor,
   minSizeFor,
+  roundToTick,
 } from "@/lib/markets";
 import { MARGIN_HEADROOM } from "@/hooks/useTrade";
 import { bpsAsPct, useTradingFees } from "@/hooks/useTradingFees";
@@ -187,6 +189,8 @@ export function MarketSettingsSheet({
       title={`${MARKETS[symbol].symbol} settings`}
     >
       <div className="flex flex-col gap-4 pb-2">
+        <OrderTypeSection symbol={symbol} live={mode === "live"} />
+
         {/* ---- Size ------------------------------------------------------- */}
         <section className="glass-inset rounded-2xl p-4">
           <div className="mb-2 flex items-baseline justify-between">
@@ -498,6 +502,145 @@ export function MarketSettingsSheet({
         </section>
       </div>
     </Sheet>
+  );
+}
+
+/**
+ * Market vs limit for the next UP/DOWN. Limit writes the same draft the chart
+ * tap does (`trading.limit`), so the price typed here and the line on the
+ * chart are one value. Live only — a demo account has no book to rest on.
+ */
+function OrderTypeSection({
+  symbol,
+  live,
+}: {
+  symbol: MarketSymbol;
+  live: boolean;
+}) {
+  const dispatch = useAppDispatch();
+  const enabled = useAppSelector((st) => st.trading.limit.enabled) && live;
+  const price = useAppSelector((st) => st.trading.limit.price[symbol]) ?? null;
+  const mark = useAppSelector((st) => st.price.prices[symbol]) ?? null;
+
+  const setPrice = (v: number | null) =>
+    dispatch(setLimitPrice({ symbol, price: v }));
+  const toMark = () => {
+    if (mark != null) setPrice(roundToTick(symbol, mark));
+  };
+  const choose = (limit: boolean) => {
+    playSound("tap");
+    haptic("tap");
+    dispatch(setLimitEnabled(limit));
+    // Start from the mark, so there is a line on the chart to move.
+    if (limit && price == null) toMark();
+  };
+
+  const away =
+    enabled && price != null && mark != null && mark > 0
+      ? ((price - mark) / mark) * 100
+      : null;
+
+  return (
+    <section className="glass-inset rounded-2xl p-4">
+      <div className="mb-2 flex items-baseline justify-between">
+        <SectionTitle title="Order type">
+          Market fills now. Limit rests on Bulk until price reaches your level —
+          type it here or tap the chart. Below the mark, UP waits for a dip;
+          above it, it fills at once. Live trading only.
+        </SectionTitle>
+        {!live && (
+          <span className="flex items-center gap-1 text-[11px] text-text-muted">
+            Limit: live only
+          </span>
+        )}
+      </div>
+      <div className="flex gap-1.5">
+        {[false, true].map((limit) => (
+          <button
+            key={String(limit)}
+            type="button"
+            disabled={limit && !live}
+            onClick={() => choose(limit)}
+            className={`flex-1 rounded-lg py-2 text-xs font-semibold transition-colors disabled:opacity-40 ${
+              enabled === limit
+                ? "bg-white/[0.14] text-text"
+                : "bg-white/[0.05] text-text-muted hover:bg-white/10"
+            }`}
+          >
+            {limit ? "Limit" : "Market"}
+          </button>
+        ))}
+      </div>
+
+      {enabled && (
+        <div className="mt-3 flex items-end justify-between gap-3">
+          <LimitPriceInput value={price} onChange={setPrice} />
+          <div className="flex items-center gap-2 pb-1.5">
+            {away != null && (
+              <span className="tabular text-xs text-text-muted">
+                {away >= 0 ? "+" : "−"}
+                {Math.abs(away).toFixed(2)}%
+              </span>
+            )}
+            <button
+              type="button"
+              disabled={mark == null}
+              onClick={() => {
+                playSound("tap");
+                haptic("tap");
+                toMark();
+              }}
+              className="rounded-lg bg-white/[0.07] px-2.5 py-1 text-xs font-semibold text-text-muted transition-colors hover:bg-white/10 disabled:opacity-40"
+            >
+              Mark
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+/**
+ * Limit price field. Shows the user's own text while focused (so "9." is not
+ * reformatted out from under them) and the stored value otherwise; the tick
+ * rounding happens when the order is placed, not per keystroke.
+ */
+function LimitPriceInput({
+  value,
+  onChange,
+}: {
+  value: number | null;
+  onChange: (v: number | null) => void;
+}) {
+  const [text, setText] = useState("");
+  const [editing, setEditing] = useState(false);
+  const shown = value == null ? "" : String(value);
+  useEffect(() => {
+    if (!editing) setText(shown);
+  }, [shown, editing]);
+  return (
+    <div className="flex items-baseline gap-1">
+      <span className="text-2xl font-bold text-text-muted">$</span>
+      <input
+        inputMode="decimal"
+        value={editing ? text : shown}
+        placeholder="Tap chart"
+        onFocus={() => {
+          setEditing(true);
+          setText(shown);
+        }}
+        onBlur={() => setEditing(false)}
+        onChange={(e) => {
+          const raw = e.target.value.replace(/[^0-9.]/g, "");
+          setText(raw);
+          const n = Number(raw);
+          onChange(raw === "" || !Number.isFinite(n) || n <= 0 ? null : n);
+        }}
+        aria-label="Limit price"
+        className="tabular w-40 bg-transparent text-2xl font-bold text-text outline-none placeholder:text-base placeholder:font-semibold placeholder:text-text-muted/50"
+      />
+    </div>
   );
 }
 

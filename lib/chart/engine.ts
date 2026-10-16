@@ -68,6 +68,20 @@ export interface PositionOverlay {
   breakEvenPrice?: number;
 }
 
+/**
+ * A limit order level, in CHART space: a resting order on Bulk, or the draft
+ * price the next UP/DOWN tap will place at. Independent of the position — a
+ * limit can rest while flat, or alongside a position in the same market.
+ */
+export interface OrderLine {
+  price: number;
+  /** Side it trades; colours the line. Omitted for a draft with no side yet. */
+  direction?: "long" | "short";
+  label: string;
+  /** The not-yet-placed draft: drawn fainter, so it never reads as live. */
+  draft?: boolean;
+}
+
 // Per-frame chart state other layers (e.g. the dot grid) can read.
 export interface ChartFrame {
   price: number | null;
@@ -226,6 +240,10 @@ export class ChartEngine {
 
   // Active position overlay (null while flat).
   private position: PositionOverlay | null = null;
+  private orders: OrderLine[] = [];
+  // Last frame's price ↔ y mapping, so a tap can be read back as a price.
+  private scale: { min: number; span: number; top: number; bottom: number } | null =
+    null;
 
   // --- Line / candles view ----------------------------------------------------
   private view: ChartView = "line";
@@ -308,6 +326,24 @@ export class ChartEngine {
     // A new position shouldn't roll up from the last one's PnL.
     if (!overlay || !this.position) this.pnlOdo.reset();
     this.position = overlay;
+  }
+
+  /** Set the limit-order lines (resting orders + the draft). */
+  setOrders(lines: OrderLine[]) {
+    this.orders = lines;
+  }
+
+  /**
+   * The price under a viewport y coordinate (e.g. a tap's clientY), from the
+   * scale of the last frame drawn. Null before the first frame or outside the
+   * plot's vertical range.
+   */
+  priceAtClientY(clientY: number): number | null {
+    const sc = this.scale;
+    if (!sc) return null;
+    const y = clientY - this.canvas.getBoundingClientRect().top;
+    if (y < sc.top || y > sc.bottom) return null;
+    return sc.min + ((sc.bottom - y) / (sc.bottom - sc.top)) * sc.span;
   }
 
   /**
@@ -419,6 +455,7 @@ export class ChartEngine {
   /** Clear the window (e.g. on market switch) so the new feed starts fresh. */
   reset() {
     this.vp.reset();
+    this.scale = null; // the old market's price ↔ y mapping no longer holds
     this.lastFormingT = null;
     this.olderRequestedFor = null;
     // A candle view can't show the old market's candles for even a frame:
@@ -960,6 +997,23 @@ export class ChartEngine {
     lx: number | null
   ) {
     const { ctx, h } = this;
+    this.scale = { min, span, top, bottom };
+    // Limit orders — drawn here so both views share them, and before the fade
+    // so they dissolve with everything else on the left.
+    for (const o of this.orders) {
+      const color = !o.direction
+        ? this.theme.entryLine
+        : o.direction === "long"
+          ? this.theme.tpLine
+          : this.theme.slLine;
+      ctx.save();
+      if (o.draft) ctx.globalAlpha = 0.75;
+      this.drawLineOrEdge(
+        yOf(o.price), top, bottom, plotW, o.label, o.price, color, "#08090c",
+        o.draft ? [2, 3] : [8, 4], o.draft ? 1 : 1.5, true
+      );
+      ctx.restore();
+    }
     // Erase with a gradient rather than fading each stroke, so the line (or
     // candles), the PnL band, gridlines and reference lines all dissolve
     // together. The gutter (labels, tags, pill) is right of the fade.

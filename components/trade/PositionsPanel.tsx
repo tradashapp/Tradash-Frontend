@@ -30,7 +30,7 @@ import { startSwitch, finishSwitch } from "@/store/slices/marketSlice";
 import type { ShareSubject } from "@/components/share/ShareCardModal";
 import { playSound } from "@/lib/sound";
 import { haptic } from "@/lib/haptics";
-import type { MarketSymbol } from "@/types";
+import type { LimitOrder, MarketSymbol } from "@/types";
 
 interface Props {
   /** Open the share card for a given position. */
@@ -48,6 +48,8 @@ interface Props {
   onClosePosition?: (item: LivePosition) => void | Promise<void>;
   /** Open the TP/SL sheet for one position. Omit to hide the TP/SL row. */
   onEditTpSl?: (item: LivePosition) => void;
+  /** Cancel one resting limit order. Omit to hide the orders list. */
+  onCancelOrder?: (order: LimitOrder) => Promise<boolean>;
 }
 
 // The right-panel positions view: an AGGREGATED Unrealized PnL across all markets,
@@ -61,8 +63,10 @@ export function PositionsPanel({
   onAdjust,
   onClosePosition,
   onEditTpSl,
+  onCancelOrder,
 }: Props) {
   const { items, totalPnl, totalRoiPct } = useAllPositions();
+  const orders = useAppSelector((s) => s.orders.open);
   const dispatch = useAppDispatch();
   // TP/SL are real resting orders on Bulk, so the row is live-only: a demo
   // position has no account to rest them against.
@@ -135,6 +139,26 @@ export function PositionsPanel({
         )}
       </div>
 
+      {/* Resting limit orders, every market. Capped so a long list never
+          pushes the positions out of view — it scrolls on its own. */}
+      {onCancelOrder && orders.length > 0 && (
+        <div className="flex shrink-0 flex-col">
+          <div className="mb-2 px-1 text-[11px] font-medium uppercase tracking-wide text-text-muted">
+            Orders
+          </div>
+          <div className="scroll-glass flex max-h-44 flex-col gap-2 overflow-y-auto pr-1">
+            {orders.map((o) => (
+              <OrderRow
+                key={o.orderId}
+                order={o}
+                onGoToMarket={() => goToMarket(o.symbol)}
+                onCancel={() => onCancelOrder(o)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Open positions list. */}
       {items.length === 0 ? (
         <div className="glass-inset flex flex-1 flex-col items-center justify-center gap-3 rounded-2xl p-4 text-center text-sm text-text-muted">
@@ -169,6 +193,70 @@ export function PositionsPanel({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function OrderRow({
+  order,
+  onGoToMarket,
+  onCancel,
+}: {
+  order: LimitOrder;
+  onGoToMarket: () => void;
+  onCancel: () => Promise<boolean>;
+}) {
+  const [cancelling, setCancelling] = useState(false);
+  const market = MARKETS[order.symbol];
+  const up = order.direction === "long";
+  return (
+    <div className="glass-inset flex items-center gap-2.5 rounded-2xl p-2.5">
+      <button
+        type="button"
+        onClick={onGoToMarket}
+        className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
+      >
+        <Image
+          src={market.logo}
+          alt={market.symbol}
+          width={28}
+          height={28}
+          className="h-7 w-7 shrink-0 rounded-full"
+        />
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5 text-sm font-semibold">
+            {market.symbol}
+            <span
+              className={`text-[11px] font-semibold ${up ? "text-up" : "text-down"}`}
+            >
+              Limit {up ? "UP" : "DOWN"}
+            </span>
+          </div>
+          <div className="tabular text-xs text-text-muted">
+            ${formatPrice(order.price)} · {formatUsd(order.size * order.price)}
+          </div>
+        </div>
+      </button>
+      <button
+        type="button"
+        disabled={cancelling}
+        onClick={async () => {
+          playSound("tap");
+          haptic("tap");
+          setCancelling(true);
+          try {
+            await onCancel();
+          } finally {
+            setCancelling(false);
+          }
+        }}
+        className="flex shrink-0 items-center gap-1.5 rounded-full bg-white/[0.07] px-3 py-1.5 text-xs font-semibold text-text-muted transition-colors hover:bg-white/10 hover:text-text disabled:opacity-50"
+      >
+        {cancelling && (
+          <HugeiconsIcon icon={Loading03Icon} size={12} className="animate-spin" />
+        )}
+        Cancel
+      </button>
     </div>
   );
 }

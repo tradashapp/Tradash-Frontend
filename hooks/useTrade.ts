@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
-import { MARKETS, leverageFor, minSizeFor } from "@/lib/markets";
+import { MARKETS, leverageFor, minSizeFor, roundToTick } from "@/lib/markets";
 import {
   openPosition,
   trailStopFor,
@@ -22,7 +22,10 @@ import {
   setOrderError,
   setPendingChartEntry,
   clearPendingChartEntry,
+  setLimitPrice,
 } from "@/store/slices/tradingSlice";
+import { addOpenOrder, removeOpenOrder } from "@/store/slices/ordersSlice";
+import { cancelLimit as cancelLimitOnBulk, placeLimit } from "@/lib/bulk/limits";
 import { recordClose } from "@/lib/history";
 import { playSound, playCloseOutcome } from "@/lib/sound";
 import { haptic } from "@/lib/haptics";
@@ -45,7 +48,7 @@ import {
   findTrailingStop,
 } from "@/lib/bulk/protection";
 import { useProtection } from "@/hooks/useProtection";
-import type { Direction, MarketSymbol, Position } from "@/types";
+import type { Direction, LimitOrder, MarketSymbol, Position } from "@/types";
 
 /**
  * Fraction of free margin an order may consume.
@@ -114,6 +117,10 @@ export function useTrade(
   const builderApproved = useAppSelector((s) => s.trading.builderApproved);
   const activeSymbol = useAppSelector((s) => s.market.active);
   const settings = useAppSelector((s) => s.settings);
+  // Limit mode: UP/DOWN rest a limit at the drafted price instead of a market
+  // order. Live only — a demo account has no book to rest an order on.
+  const limitEnabled = useAppSelector((s) => s.trading.limit.enabled);
+  const limitDraft = useAppSelector((s) => s.trading.limit.price);
   // Free collateral reported by the Bulk account WS — the same figure Bulk
   // divides notional by when it checks the order against the leverage cap.
   const liveBalance = useAppSelector((s) => s.user.balance);
@@ -202,6 +209,26 @@ export function useTrade(
       // value can never exceed the cap.
       const leverage = leverageFor(activeSymbol, settings.leverageByMarket);
 
+      // The draft limit price, snapped to the tick. It was read off the CHART,
+      // which runs on Bulk's own ticker (`config.chartFeed`), so it is already
+      // in Bulk's price space — there is no position yet to measure a shift
+      // against, and on the Bulk feed that shift is 0 anyway.
+      //
+      // Live only: demo has no book to rest on, so there the switch is ignored
+      // and UP/DOWN stay market orders (the settings sheet greys it out).
+      const limitOn = limitEnabled && mode === "live";
+      const draft = limitOn ? limitDraft[activeSymbol] : undefined;
+      const limitPx = draft != null ? roundToTick(activeSymbol, draft) : null;
+      if (limitOn) {
+        if (limitPx == null || !(limitPx > 0)) {
+          toast("Set a limit price", {
+            type: "info",
+            description: "Tap the chart at the price you want.",
+          });
+          return;
+        }
+      }
+
       if (mode === "demo") {
         // Simulate: create a position at the current oracle price.
         const pos = openPosition({
@@ -273,16 +300,19 @@ export function useTrade(
       // Snapshot the MagicBlock price at THIS instant (the tap) so the chart's
       // entry line lands exactly where the user clicked. Consumed when the
       // position appears via the WS. Purely visual — PnL stays Bulk-anchored.
-      dispatch(
-        setPendingChartEntry({ symbol: activeSymbol, price })
-      );
+      // Not for a limit: it fills later, at its own price, not at this tap.
+      if (limitPx == null) {
+        dispatch(setPendingChartEntry({ symbol: activeSymbol, price }));
+      }
       dispatch(setOrderStatus("submitting"));
       // Loading toast, keyed per market, upgraded to success by useBulkAccount
-      // when the WS confirms the fill.
-      toast(`Opening ${direction === "long" ? "long" : "short"} ${activeSymbol}…`, {
-        type: "loading",
-        id: `open-${activeSymbol}`,
-      });
+      // when the WS confirms the fill (or below, once a limit is resting).
+      toast(
+        limitPx != null
+          ? `Placing limit ${direction === "long" ? "UP" : "DOWN"}…`
+          : `Opening ${direction === "long" ? "long" : "short"} ${activeSymbol}…`,
+        { type: "loading", id: `open-${activeSymbol}` }
+      );
       try {
         // Bulk margins the fill at the leverage stored on the ACCOUNT for this
         // symbol, not at anything in the order. If the user changed leverage
@@ -295,6 +325,51 @@ export function useTrade(
           await pushLeverageToBulk(liveSigner, market.bulkSymbol, leverage);
         } catch (e) {
           console.warn("[open] leverage sync skipped:", e);
+        }
+        if (limitPx != null) {
+          // Sized at the LIMIT price, not the mark: that is the price the
+          // margin will actually buy at, and what Bulk checks min notional and
+          // leverage against when it fills.
+          const size = baseSizeFromUsd(marginUsd, leverage, limitPx);
+          const res = await placeLimit(liveSigner, {
+            symbol: activeSymbol,
+            isLong: direction === "long",
+            size,
+            price: limitPx,
+          });
+          dispatch(setOrderStatus("filled"));
+          // Spent: the next tap needs a fresh price, so a double tap cannot
+          // stack two identical orders.
+          dispatch(setLimitPrice({ symbol: activeSymbol, price: null }));
+          playSound("open");
+          haptic("open");
+          if (res.kind === "resting") {
+            // Optimistic row so the line is on the chart now; the account
+            // refresh that follows replaces it with Bulk's own copy.
+            if (res.orderId) {
+              dispatch(
+                addOpenOrder({
+                  orderId: res.orderId,
+                  symbol: activeSymbol,
+                  direction,
+                  price: limitPx,
+                  size,
+                  filledSize: 0,
+                  reduceOnly: false,
+                })
+              );
+            }
+            toast(`Limit ${direction === "long" ? "UP" : "DOWN"} placed`, {
+              type: "success",
+              id: `open-${activeSymbol}`,
+              description: `${activeSymbol} @ $${limitPx.toLocaleString(undefined, {
+                maximumFractionDigits: 8,
+              })}`,
+            });
+          }
+          // Crossed the book and filled on arrival — the WS position update
+          // upgrades the loading toast exactly as it does for a market order.
+          return;
         }
         const size = baseSizeFromUsd(marginUsd, leverage, price);
         await openMarket(liveSigner, {
@@ -317,7 +392,7 @@ export function useTrade(
           api.reportOrderFailure(reporter, {
             symbol: activeSymbol,
             side: direction,
-            orderType: "market_open",
+            orderType: limitPx != null ? "limit_open" : "market_open",
             reason: isBuilderNotApprovedError(e)
               ? "builder_not_approved"
               : isBadSignatureError(e)
@@ -374,6 +449,8 @@ export function useTrade(
       price,
       activeSymbol,
       settings,
+      limitEnabled,
+      limitDraft,
       signer,
       liveBalance,
       requireLiveSetup,
@@ -381,6 +458,36 @@ export function useTrade(
       toast,
       onBuilderNotApproved,
     ]
+  );
+
+  /** Cancel one resting limit order (any market). */
+  const cancelLimit = useCallback(
+    async (order: LimitOrder) => {
+      const liveSigner = requireLiveSetup();
+      if (!liveSigner) return false;
+      toast("Cancelling limit…", { type: "loading", id: `limit-${order.orderId}` });
+      try {
+        await cancelLimitOnBulk(liveSigner, order.symbol, order.orderId);
+        dispatch(removeOpenOrder(order.orderId));
+        toast("Limit cancelled", {
+          type: "info",
+          id: `limit-${order.orderId}`,
+          description: `${order.symbol} @ $${order.price.toLocaleString(undefined, {
+            maximumFractionDigits: 8,
+          })}`,
+        });
+        return true;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Cancel failed";
+        toast("Cancel failed", {
+          type: "error",
+          id: `limit-${order.orderId}`,
+          description: msg.replace(/^Bulk order error:\s*/, ""),
+        });
+        return false;
+      }
+    },
+    [requireLiveSetup, dispatch, toast]
   );
 
   /**
@@ -1024,6 +1131,7 @@ export function useTrade(
     // show markets other than the one on screen.
     closePosition: (symbol: MarketSymbol) => close(symbol),
     closeAll,
+    cancelLimit,
     // Add / reduce SIZE of an open position (deltaUsd = margin at current lev).
     // Both default to the active market when no symbol is given.
     increase,

@@ -30,7 +30,11 @@ import {
   type AdjustMode,
 } from "@/components/sheets/AdjustPositionSheet";
 import type { LivePosition } from "@/hooks/useAllPositions";
-import type { ChartFrame, PositionOverlay } from "@/lib/chart/engine";
+import type {
+  ChartFrame,
+  OrderLine,
+  PositionOverlay,
+} from "@/lib/chart/engine";
 import type { MarketSymbol } from "@/types";
 import type { useTrade } from "@/hooks/useTrade";
 import type { useLeverage } from "@/hooks/useLeverage";
@@ -40,6 +44,9 @@ import Image from "next/image";
 interface Props {
   symbol: MarketSymbol;
   chartPosition: PositionOverlay | null;
+  chartOrders: OrderLine[];
+  /** Set while a limit is being drafted: a chart tap picks its price. */
+  onChartTap?: (price: number) => void;
   trade: ReturnType<typeof useTrade>;
   leverage: ReturnType<typeof useLeverage>;
   onOpenMarket: () => void;
@@ -51,6 +58,8 @@ interface Props {
 export function DesktopLayout({
   symbol,
   chartPosition,
+  chartOrders,
+  onChartTap,
   trade,
   leverage,
   onOpenMarket,
@@ -98,6 +107,8 @@ export function DesktopLayout({
           <CanvasChart
             symbol={symbol}
             position={chartPosition}
+            orders={chartOrders}
+            onTapPrice={onChartTap}
             onFrame={handleFrame}
             view={chartView}
             interval={chartInterval}
@@ -148,6 +159,7 @@ export function DesktopLayout({
             trade.closePosition(item.position.symbol)
           }
           onEditTpSl={(item: LivePosition) => setTpsl(item.position.symbol)}
+          onCancelOrder={trade.cancelLimit}
         />
 
         <div className="shrink-0">

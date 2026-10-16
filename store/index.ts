@@ -4,6 +4,7 @@ import price from "./slices/priceSlice";
 import position from "./slices/positionSlice";
 import user from "./slices/userSlice";
 import trading from "./slices/tradingSlice";
+import orders from "./slices/ordersSlice";
 import tradingMode from "./slices/tradingModeSlice";
 import settings from "./slices/settingsSlice";
 import history from "./slices/historySlice";
@@ -17,6 +18,7 @@ export const makeStore = () =>
       position,
       user,
       trading,
+      orders,
       tradingMode,
       settings,
       history,

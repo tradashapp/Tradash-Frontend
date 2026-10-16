@@ -31,6 +31,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
     maxLeverage: 40,
     minNotional: 1,
     lotSize: 0.00000001,
+    tickSize: 0.01,
     logo: "/images/crypto/btc.png",
     categories: ["crypto"],
   },
@@ -43,6 +44,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
     maxLeverage: 25,
     minNotional: 50,
     lotSize: 0.0001,
+    tickSize: 0.001,
     logo: "/images/crypto/eth.png",
     categories: ["crypto"],
   },
@@ -55,6 +57,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
     maxLeverage: 20,
     minNotional: 50,
     lotSize: 0.0001,
+    tickSize: 0.001,
     logo: "/images/crypto/sol.png",
     categories: ["crypto"],
   },
@@ -67,6 +70,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
     maxLeverage: 20,
     minNotional: 50,
     lotSize: 0.000001,
+    tickSize: 0.0001,
     logo: "/images/crypto/xrp.png",
     categories: ["crypto"],
   },
@@ -78,6 +82,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
   //   exponent: -8,
   //   maxLeverage: 10,
   //   lotSize: 0.000001,
+  //   tickSize: 0.001,
   //   logo: "/images/crypto/bnb.png",
   //   categories: ["crypto"],
   // },
@@ -89,6 +94,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
   //   exponent: -8,
   //   maxLeverage: 10,
   //   lotSize: 0.000001,
+  //   tickSize: 0.00001,
   //   logo: "/images/crypto/doge.png",
   //   categories: ["crypto"],
   // },
@@ -100,6 +106,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
   //   exponent: -8,
   //   maxLeverage: 10,
   //   lotSize: 0.00000001,
+  //   tickSize: 0.00001,
   //   logo: "/images/crypto/sui.png",
   //   categories: ["crypto"],
   // },
@@ -112,6 +119,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
     maxLeverage: 10,
     minNotional: 50,
     lotSize: 0.00000001,
+    tickSize: 0.0001,
     logo: "/images/crypto/near.png",
     categories: ["crypto"],
   },
@@ -123,6 +131,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
   //   exponent: -8,
   //   maxLeverage: 10,
   //   lotSize: 0.00000001,
+  //   tickSize: 0.001,
   //   logo: "/images/crypto/aave.png",
   //   categories: ["crypto"],
   // },
@@ -134,6 +143,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
   //   exponent: -8,
   //   maxLeverage: 10,
   //   lotSize: 0.00000001,
+  //   tickSize: 0.001,
   //   logo: "/images/crypto/tao.png",
   //   categories: ["crypto"],
   // },
@@ -146,6 +156,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
     maxLeverage: 10,
     minNotional: 40,
     lotSize: 0.00000001,
+    tickSize: 0.001,
     logo: "/images/crypto/zec.png",
     categories: ["crypto"],
   },
@@ -157,6 +168,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
   //   exponent: -8,
   //   maxLeverage: 10,
   //   lotSize: 0.00000001,
+  //   tickSize: 0.00001,
   //   logo: "/images/crypto/ena.png",
   //   categories: ["crypto"],
   // },
@@ -168,6 +180,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
   //   exponent: -8,
   //   maxLeverage: 10,
   //   lotSize: 0.00000001,
+  //   tickSize: 0.00001,
   //   logo: "/images/crypto/jto.png",
   //   categories: ["crypto"],
   // },
@@ -179,6 +192,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
   //   exponent: -8,
   //   maxLeverage: 10,
   //   lotSize: 0.00000001,
+  //   tickSize: 0.00001,
   //   logo: "/images/crypto/jup.png",
   //   categories: ["crypto"],
   // },
@@ -191,6 +205,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
     maxLeverage: 10,
     minNotional: 50,
     lotSize: 0.00000001,
+    tickSize: 0.001,
     logo: "/images/crypto/hype.png",
     categories: ["crypto"],
   },
@@ -208,6 +223,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
     maxLeverage: 20,
     minNotional: 50,
     lotSize: 0.0001,
+    tickSize: 0.001,
     logo: "/images/crypto/paxg.png",
     categories: ["commodities"],
   },
@@ -219,6 +235,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
     maxLeverage: 10,
     minNotional: 50,
     lotSize: 0.00000001,
+    tickSize: 0.000001,
     logo: "/images/crypto/pump.png",
     categories: ["crypto"],
   },
@@ -230,6 +247,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
     maxLeverage: 10,
     minNotional: 50,
     lotSize: 0.00000001,
+    tickSize: 0.0001,
     logo: "/images/crypto/lit.png",
     categories: ["crypto"],
   },
@@ -241,6 +259,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
     maxLeverage: 10,
     minNotional: 50,
     lotSize: 0.00000001,
+    tickSize: 0.000001,
     logo: "/images/crypto/mon.png",
     categories: ["crypto"],
   },
@@ -252,6 +271,7 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
   //   exponent: -8,
   //   maxLeverage: 10,
   //   lotSize: 0.00000001,
+  //   tickSize: 0.00001,
   //   logo: "/images/crypto/fartcoin.png",
   //   categories: ["crypto"],
   // },
@@ -273,6 +293,20 @@ export const BULK_TO_SYMBOL: Record<string, MarketSymbol> = Object.fromEntries(
 export function lotSizeForBulkSymbol(bulkSymbol: string): number {
   const sym = BULK_TO_SYMBOL[bulkSymbol];
   return sym ? MARKETS[sym].lotSize : 1e-8;
+}
+
+/**
+ * Snap a price to the market's tick (exchangeInfo `tickSize`).
+ *
+ * Done in tick units and re-fixed to the tick's decimals so binary floats
+ * cannot leave a 0.30000000000000004 that Bulk would re-quantise — and then
+ * reject the signature over (prices are fixed-point in the preimage, exactly
+ * like sizes; see `floorToLot`).
+ */
+export function roundToTick(symbol: MarketSymbol, price: number): number {
+  const tick = MARKETS[symbol]?.tickSize ?? 0.01;
+  const dp = Math.max(0, Math.ceil(-Math.log10(tick) - 1e-9));
+  return Number((Math.round(price / tick) * tick).toFixed(dp));
 }
 
 export const MARKET_ORDER: MarketSymbol[] = [

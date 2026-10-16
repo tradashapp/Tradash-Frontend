@@ -17,6 +17,8 @@ import {
   clearAllPositions,
 } from "@/store/slices/positionSlice";
 import { clearPendingChartEntry } from "@/store/slices/tradingSlice";
+import { setOpenOrders } from "@/store/slices/ordersSlice";
+import { readLimitOrders } from "@/lib/bulk/limits";
 import {
   hydrateLiveHistory,
   markLiveHydrated,
@@ -56,6 +58,7 @@ export function useBulkAccount(
     if (!walletAddress) {
       dispatch(setBalance(null));
       dispatch(clearAllPositions());
+      dispatch(setOpenOrders([]));
       // Signed out: there is no live history to wait for, so settle the flag or
       // the history panel would show a loading state indefinitely.
       dispatch(markLiveHydrated());
@@ -102,12 +105,14 @@ export function useBulkAccount(
           if (!acct) {
             dispatch(setBalance({ equity: 0, available: 0, marginUsed: 0 }));
             dispatch(clearAllPositions());
+            dispatch(setOpenOrders([]));
             lastOpen.current = {};
             return;
           }
           // Bulk renamed these (totalBalance→totalMargin, availableBalance→
           // availableMargin), so read them through the normalizer rather than by
           // a single hard-coded spelling.
+          dispatch(setOpenOrders(readLimitOrders(acct.openOrders)));
           const m = readMargin(acct.margin);
           dispatch(
             setBalance({
@@ -149,12 +154,33 @@ export function useBulkAccount(
     seed();
     let resyncTimer: ReturnType<typeof setTimeout> | null = null;
 
+    // Re-read ONLY the open orders. Bulk's orderUpdate/fill deltas say that
+    // something changed; the list itself is taken from REST, so a limit that
+    // filled, was cancelled on another device or hit a risk limit drops out
+    // without trusting a delta's shape. Debounced: one fill emits several.
+    let ordersTimer: ReturnType<typeof setTimeout> | null = null;
+    const refreshOrders = () => {
+      if (ordersTimer) clearTimeout(ordersTimer);
+      ordersTimer = setTimeout(() => {
+        fetchAccount(walletAddress)
+          .then((acct) => {
+            if (!disposed) {
+              dispatch(setOpenOrders(readLimitOrders(acct?.openOrders)));
+            }
+          })
+          .catch(() => {});
+      }, 400);
+    };
+
     const unsub = subscribeAccount(walletAddress, {
       // A snapshot is authoritative and replaces the balance; a delta is
       // partial and must be MERGED. Replacing on a delta is what previously
       // zeroed `equity` and left the pill showing PnL-since-load only.
       onBalance: (b, snapshot) =>
         dispatch(snapshot ? setBalance(b) : mergeBalance(b)),
+
+      onOrders: (orders) => dispatch(setOpenOrders(orders)),
+      onOrderEvent: refreshOrders,
 
       // Full snapshot: reconcile ALL markets. Any previously-open market absent
       // from the incoming set has closed → record it.
@@ -184,6 +210,9 @@ export function useBulkAccount(
 
       // Single-market delta.
       onPositionDelta: (symbol, p) => {
+        // A position change may be a resting limit filling — re-read the list
+        // even if no orderUpdate arrives for it.
+        refreshOrders();
         const prev = lastOpen.current[symbol] ?? null;
         if (prev && !p) {
           recordCloseFor(store, dispatch, privyId, prev, toast);
@@ -218,6 +247,7 @@ export function useBulkAccount(
     return () => {
       disposed = true;
       if (resyncTimer) clearTimeout(resyncTimer);
+      if (ordersTimer) clearTimeout(ordersTimer);
       unsub();
     };
   }, [walletAddress, privyId, dispatch, store, toast]);

@@ -39,7 +39,12 @@ const LEADERBOARD_SIZE = 10;
  */
 export function LeaderboardSheet({ open, onClose, onBack }: Props) {
   // ROI leads: it ranks on skill rather than on who deposited the most.
-  const [metric, setMetric] = useState<LeaderboardMetric>("roi");
+  // Pinned to ROI while the ROI / PnL switch is hidden (Filters.tsx). A
+  // state value would keep a PnL pick made before the switch was hidden, with
+  // no way back. Restore the useState with the switch.
+  // const [metric, setMetric] = useState<LeaderboardMetric>("roi");
+  const metric: LeaderboardMetric = "roi";
+  const setMetric = (_m: LeaderboardMetric) => {};
   const [period, setPeriod] = useState<LeaderboardPeriod>("all");
   const [subject, setSubject] = useState<LeaderboardEntry | null>(null);
 

@@ -34,12 +34,16 @@ export function Filters({
 }) {
   return (
     <div className="mb-1 flex flex-col gap-2">
-      <Segmented
-        options={METRICS}
-        value={metric}
-        onChange={onMetric}
-        ariaLabel="Rank by"
-      />
+      {/* ROI / PnL switch hidden for now (2026-10-16) — the board ranks by
+          ROI only. Restore this to bring the PnL ranking back. */}
+      {false && (
+        <Segmented
+          options={METRICS}
+          value={metric}
+          onChange={onMetric}
+          ariaLabel="Rank by"
+        />
+      )}
       <Segmented
         options={PERIODS}
         value={period}

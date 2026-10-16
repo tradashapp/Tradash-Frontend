@@ -88,7 +88,8 @@ function HeaderRow({ metric }: { metric: LeaderboardMetric }) {
     <div className="mb-1.5 flex items-center gap-3 px-3 text-[10px] font-medium uppercase tracking-wide text-text-muted">
       <span className="w-6 shrink-0">#</span>
       <span className="flex-1">Trader</span>
-      <span className="w-20 shrink-0 text-right">Volume</span>
+      {/* Volume column hidden for now (2026-10-16); restore with the cell in Row. */}
+      {/* <span className="w-20 shrink-0 text-right">Volume</span> */}
       <span className="w-20 shrink-0 text-right">
         {metric === "pnl" ? "PnL" : "ROI"}
       </span>
@@ -161,9 +162,11 @@ function Row({ entry, metric, isMe, floating, onSelect }: RowProps) {
         )}
       </button>
 
+      {/* Volume hidden for now (2026-10-16); restore with the header in HeaderRow.
       <span className="tabular w-20 shrink-0 text-right text-xs text-text-muted">
         {formatUsd(entry.volume)}
       </span>
+      */}
       {/* Same size as the volume column beside it — the colour and weight
           already carry the emphasis, so a larger figure only made the row
           top-heavy against the handle it belongs to. */}

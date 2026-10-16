@@ -16,6 +16,7 @@ import {
   bulkToChartSpace,
   chartLiquidationPrice,
   chartToBulkSpace,
+  netBreakEvenPrice,
 } from "@/lib/perp";
 import { useAppSelector } from "@/store/hooks";
 import {
@@ -128,6 +129,12 @@ export function TpSlSheet({ open, onClose, symbol, onSubmit }: Props) {
     item.markPrice ??
     bulkToChartSpace(tradingMode, pos, pos.markPriceBulk ?? pos.entryPrice);
   const liqChart = chartLiquidationPrice(tradingMode, pos);
+  // Where a stop closes for zero net — entry plus the fees already paid and the
+  // exit fee still to come. Only offered once price is past it, since a stop
+  // there would otherwise sit on the wrong side of the mark.
+  const beChart = netBreakEvenPrice(tradingMode, pos) ?? entryChart;
+  const canBreakEven =
+    pos.direction === "long" ? markChart > beChart : markChart < beChart;
 
   const tpError = tp
     ? validateTrigger({
@@ -234,6 +241,7 @@ export function TpSlSheet({ open, onClose, symbol, onSubmit }: Props) {
           value={sl}
           onChange={setSl}
           error={slError}
+          onBreakEven={canBreakEven ? () => setSl(beChart) : undefined}
         />
 
         {/* A trailing stop rests ALONGSIDE a fixed one — Bulk allows both, and
@@ -361,6 +369,7 @@ function TriggerEditor({
   value,
   onChange,
   error,
+  onBreakEven,
 }: {
   side: TpSlSide;
   label: string;
@@ -371,6 +380,8 @@ function TriggerEditor({
   value: number | null;
   onChange: (v: number | null) => void;
   error: string | null;
+  /** Moves the level to break-even; omitted when that is not a valid stop. */
+  onBreakEven?: () => void;
 }) {
   const pos = item.position;
   const isTp = side === "tp";
@@ -410,19 +421,34 @@ function TriggerEditor({
     <div className="glass-inset rounded-2xl p-4">
       <div className="mb-2.5 flex items-baseline justify-between">
         <span className="text-sm font-semibold text-text">{label}</span>
-        {value != null && (
-          <button
-            type="button"
-            onClick={() => {
-              playSound("tap");
-              haptic("tap");
-              onChange(null);
-            }}
-            className="text-[11px] text-text-muted transition-colors hover:text-text"
-          >
-            Clear
-          </button>
-        )}
+        <div className="flex items-baseline gap-3">
+          {onBreakEven && (
+            <button
+              type="button"
+              onClick={() => {
+                playSound("tap");
+                haptic("tap");
+                onBreakEven();
+              }}
+              className="text-[11px] font-semibold text-up transition-opacity hover:opacity-80"
+            >
+              B/E
+            </button>
+          )}
+          {value != null && (
+            <button
+              type="button"
+              onClick={() => {
+                playSound("tap");
+                haptic("tap");
+                onChange(null);
+              }}
+              className="text-[11px] text-text-muted transition-colors hover:text-text"
+            >
+              Clear
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="flex gap-2">

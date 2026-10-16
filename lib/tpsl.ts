@@ -13,10 +13,12 @@ import type { Direction, Position } from "@/types";
  * and back. Everything here is pure: prices in Bulk's space (matching the
  * Entry / Liquidation figures shown beside them), sizes in the base asset.
  *
- * Sign convention: a take-profit's ROI/P&L is POSITIVE, a stop-loss's is
- * NEGATIVE, for both longs and shorts. Users enter "-29%" for a stop the same
- * way whichever direction they hold, and `triggerFromRoi` puts the level on the
- * correct side of entry from the position's direction.
+ * Sign convention: a take-profit's ROI/P&L is usually POSITIVE and a
+ * stop-loss's NEGATIVE, for both longs and shorts — though a stop moved to
+ * break-even or beyond reads 0 or positive, which is allowed. Users enter
+ * "-29%" for a stop the same way whichever direction they hold, and
+ * `triggerFromRoi` puts the level on the correct side of entry from the
+ * position's direction.
  */
 
 /** The dollar P&L a position would realize if closed at `price`. */
@@ -90,29 +92,24 @@ export function triggerFromPnl(
     : pos.entryPrice - offset;
 }
 
-/**
- * Is `price` on the profitable side of entry for this position?
- *
- * Used to validate that a take-profit sits where it can actually take profit
- * and a stop where it limits a loss — a TP below entry on a long would fire
- * instantly, closing at a loss the moment it is placed.
- */
-export function isProfitSide(
-  direction: Direction,
-  entryPrice: number,
-  price: number
-): boolean {
-  return direction === "long" ? price > entryPrice : price < entryPrice;
-}
-
 export type TpSlSide = "tp" | "sl";
 
 /**
  * Why a proposed trigger cannot be used, or null when it is fine.
  *
- * Returns a message meant to be shown verbatim. The liquidation check matters
- * most: a stop placed beyond the liquidation price is not a stop at all, since
- * the position would be liquidated before the trigger was ever reached.
+ * Returns a message meant to be shown verbatim.
+ *
+ * The side check is against the MARK, not entry. Bulk fires a long's stop when
+ * price FALLS to it and its take-profit when price RISES to it — entry plays no
+ * part — so the only level that can make a trigger invalid is one price has
+ * already crossed. Checking against entry blocked the most common stop edit
+ * there is: dragging a winning long's stop up to break-even or above, to lock
+ * profit in. Likewise a take-profit below entry on a losing long is just an
+ * exit on a bounce, not a mistake.
+ *
+ * The liquidation check matters most: a stop placed beyond the liquidation
+ * price is not a stop at all, since the position would be liquidated before
+ * the trigger was ever reached.
  */
 export function validateTrigger({
   side,
@@ -134,30 +131,15 @@ export function validateTrigger({
   }
 
   const long = direction === "long";
-  const profitable = isProfitSide(direction, entryPrice, triggerPrice);
+  // Without a live mark, entry is the best stand-in for "where price is now".
+  const ref = markPrice != null && markPrice > 0 ? markPrice : entryPrice;
+  const firesAbove = side === "tp" ? long : !long;
 
-  if (side === "tp" && !profitable) {
-    return long
-      ? "Take profit must be above your entry."
-      : "Take profit must be below your entry.";
-  }
-  if (side === "sl" && profitable) {
-    return long
-      ? "Stop loss must be below your entry."
-      : "Stop loss must be above your entry.";
-  }
-
-  // A trigger already crossed by the current price fires the instant it rests.
-  if (markPrice != null && markPrice > 0) {
-    const fires =
-      side === "tp"
-        ? long
-          ? markPrice >= triggerPrice
-          : markPrice <= triggerPrice
-        : long
-          ? markPrice <= triggerPrice
-          : markPrice >= triggerPrice;
-    if (fires) return "That level has already been passed — it would close now.";
+  // A level price has already crossed would fire the instant it rests.
+  if (firesAbove ? ref >= triggerPrice : ref <= triggerPrice) {
+    return `${side === "tp" ? "Take profit" : "Stop loss"} must be ${
+      firesAbove ? "above" : "below"
+    } the mark price.`;
   }
 
   if (side === "sl" && liquidationPrice > 0) {

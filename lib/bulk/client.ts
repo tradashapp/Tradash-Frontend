@@ -73,7 +73,15 @@ function humanizeStatusKey(key: string): string {
  * on a failure status, otherwise onboarding/orders silently "succeed".
  */
 export async function submitSigned(
-  signedEnvelope: unknown
+  signedEnvelope: unknown,
+  opts?: {
+    /**
+     * Status keys that mean SUCCESS for this action. A cancel's success is
+     * `{ cancelled: { oid } }` (verified live), which the `cancelled*` rule
+     * below would otherwise report as a rejection.
+     */
+    accept?: string[];
+  }
 ): Promise<OrderResponse> {
   const res = await post<OrderResponse>("/order", signedEnvelope);
   // A signature rejection says nothing about WHICH action was rejected or what
@@ -140,7 +148,9 @@ export async function submitSigned(
   // leaves no position, so treating it as success is the same failure.
   const rejectedKey = status
     ? Object.keys(status).find(
-        (k) => k.startsWith("rejected") || k.startsWith("cancelled")
+        (k) =>
+          (k.startsWith("rejected") || k.startsWith("cancelled")) &&
+          !opts?.accept?.includes(k)
       )
     : undefined;
   if (rejectedKey && status) {

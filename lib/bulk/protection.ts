@@ -152,7 +152,9 @@ export async function cancelProtection(
   bulkSymbol: string,
   orderId: string
 ): Promise<void> {
-  await submitSigned(signer.signOrderFor(cancelOrder(bulkSymbol, orderId)));
+  await submitSigned(signer.signOrderFor(cancelOrder(bulkSymbol, orderId)), {
+    accept: ["cancelled"],
+  });
 }
 
 /**

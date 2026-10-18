@@ -28,6 +28,7 @@ import {
   SparklesIcon,
   GiftIcon,
   GridViewIcon,
+  Notification01Icon,
 } from "@hugeicons/core-free-icons";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { resetDemo } from "@/store/slices/tradingModeSlice";
@@ -48,6 +49,8 @@ import { AdvancedPanel } from "./panels/AdvancedPanel";
 import { AuraPanel } from "./panels/AuraPanel";
 import { ReferralPanel, useReferralDetail } from "./panels/ReferralPanel";
 import { GridPanel } from "./panels/GridPanel";
+import { NotificationSettingsPanel, NotificationsPanel } from "./panels/NotificationsPanel";
+import { useNotifications } from "@/hooks/useNotifications";
 import { useFeatures } from "@/hooks/useFeatures";
 import { useToast } from "@/components/toast/ToastProvider";
 import { useWithdrawal } from "@/hooks/useWithdrawal";
@@ -77,7 +80,9 @@ type View =
   | "advanced"
   | "aura"
   | "referrals"
-  | "grid";
+  | "grid"
+  | "notifications"
+  | "notificationSettings";
 
 interface Props {
   open: boolean;
@@ -111,6 +116,8 @@ const TITLES: Record<View, string> = {
   aura: "Bulk Aura",
   referrals: "Referrals",
   grid: "Grid bot",
+  notifications: "Notifications",
+  notificationSettings: "Notification settings",
 };
 
 // Central account hub. A single sheet with sub-views (menu → settings/history)
@@ -136,6 +143,7 @@ export function AccountSheet({
   // asks first rather than firing on a stray tap next to the menu rows.
   const [confirmLogout, setConfirmLogout] = useState(false);
 
+  const { unread } = useNotifications();
   const mode = useAppSelector((s) => s.tradingMode.mode);
   const demoBalance = useAppSelector((s) => s.tradingMode.demo.balance);
   const liveEquity = useAppSelector((s) => s.user.balance?.equity);
@@ -198,20 +206,37 @@ export function AccountSheet({
         // The menu leads with its own profile header, so only sub-views get a
         // title bar (and the back chevron that returns to the menu).
         title={view === "menu" ? undefined : TITLES[view]}
-        onBack={view === "menu" ? undefined : () => go("menu")}
+        onBack={view === "menu" ? undefined : () => go(view === "notificationSettings" ? "notifications" : "menu")}
         // Settings is reachable from the menu's top-left rather than only from a
         // row further down, because it is the one destination users look for by
         // its icon.
         headerLeft={
           view === "menu" ? (
-            <button
-              type="button"
-              onClick={() => go("settingsMenu")}
-              aria-label="Settings"
-              className="glass-inset flex h-9 w-9 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-white/10 hover:text-text active:scale-90"
-            >
-              <HugeiconsIcon icon={Settings02Icon} size={18} />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => go("settingsMenu")}
+                aria-label="Settings"
+                className="glass-inset flex h-9 w-9 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-white/10 hover:text-text active:scale-90"
+              >
+                <HugeiconsIcon icon={Settings02Icon} size={18} />
+              </button>
+              {authenticated && (
+                <button
+                  type="button"
+                  onClick={() => go("notifications")}
+                  aria-label={unread ? `Notifications, ${unread} unread` : "Notifications"}
+                  className="glass-inset relative flex h-9 w-9 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-white/10 hover:text-text active:scale-90"
+                >
+                  <HugeiconsIcon icon={Notification01Icon} size={18} />
+                  {unread > 0 && (
+                    <span className="tabular absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-down px-1 text-[10px] font-bold text-white">
+                      {unread > 9 ? "9+" : unread}
+                    </span>
+                  )}
+                </button>
+              )}
+            </div>
           ) : undefined
         }
       >
@@ -264,6 +289,10 @@ export function AccountSheet({
             {view === "aura" && <AuraPanel wallet={agent.masterAddress} />}
             {view === "referrals" && <ReferralPanel />}
             {view === "grid" && <GridPanel agent={agent} />}
+            {view === "notifications" && (
+              <NotificationsPanel onOpenSettings={() => go("notificationSettings")} onNavigate={onClose} />
+            )}
+            {view === "notificationSettings" && <NotificationSettingsPanel />}
             {view === "settingsMenu" && <SettingsMenuPanel />}
             {view === "history" && (
               <HistoryPanel

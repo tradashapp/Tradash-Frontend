@@ -75,3 +75,41 @@ self.addEventListener("fetch", (event) => {
     );
   }
 });
+
+// --- Push notifications ---------------------------------------------------------
+// The backend sends {id, title, body, url, category} (services/notifications).
+// `tag` = the notification id, so a retried delivery replaces instead of stacking.
+self.addEventListener("push", (event) => {
+  let d = {};
+  try {
+    d = event.data ? event.data.json() : {};
+  } catch {
+    d = { body: event.data ? event.data.text() : "" };
+  }
+  event.waitUntil(
+    self.registration.showNotification(d.title || "Tradash", {
+      body: d.body || "",
+      icon: "/icon-192.png",
+      badge: "/icon-192.png",
+      tag: d.id || undefined,
+      data: { url: typeof d.url === "string" && d.url.startsWith("/") ? d.url : "/" },
+    })
+  );
+});
+
+// Tap → focus an open Tradash tab on the notification's page, or open one.
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = new URL((event.notification.data && event.notification.data.url) || "/", self.location.origin).href;
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+      for (const c of list) {
+        if (new URL(c.url).origin === self.location.origin && "focus" in c) {
+          return c.focus().then((w) => (w && "navigate" in w ? w.navigate(url) : w));
+        }
+      }
+      return self.clients.openWindow(url);
+    })
+  );
+});
+

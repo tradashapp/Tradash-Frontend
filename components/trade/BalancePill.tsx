@@ -8,6 +8,7 @@ import { Odometer } from "@/components/ui/Odometer";
 import { ProfileAvatar } from "@/components/ui/ProfileAvatar";
 import { SkeletonText } from "@/components/ui/Skeleton";
 import { useProfile } from "@/hooks/useProfile";
+import { useNotifications } from "@/hooks/useNotifications";
 import { playSound } from "@/lib/sound";
 import { haptic } from "@/lib/haptics";
 
@@ -62,6 +63,8 @@ export function BalancePill({ onOpen }: Props) {
     (user?.email?.address ?? user?.google?.email)?.split("@")[0] ??
     null;
 
+  const { unread } = useNotifications();
+
   return (
     <button
       type="button"
@@ -96,12 +99,18 @@ export function BalancePill({ onOpen }: Props) {
           {mode === "demo" ? "Demo" : ""}
         </div> */}
       </div>
-      <ProfileAvatar
-        src={profile.avatarUrl}
-        name={name}
-        className="h-9 w-9"
-        loading={mode !== "demo" && (!ready || (authenticated && profile.loading))}
-      />
+      <span className="relative">
+        <ProfileAvatar
+          src={profile.avatarUrl}
+          name={name}
+          className="h-9 w-9"
+          loading={mode !== "demo" && (!ready || (authenticated && profile.loading))}
+        />
+        {/* Unread notifications live in the sheet this opens. */}
+        {unread > 0 && (
+          <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-down ring-2 ring-bg" aria-label={`${unread} unread notifications`} />
+        )}
+      </span>
     </button>
   );
 }

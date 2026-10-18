@@ -353,6 +353,45 @@ export interface FeatureView {
   botsHalted: boolean;
 }
 
+// --- Notifications (backend routes/notifications.ts) -----------------------------
+export type NotificationCategory =
+  | "signal_alert"
+  | "auto_trade"
+  | "bot_risk"
+  | "grid"
+  | "funds"
+  | "price_alert"
+  | "system";
+export type NotificationChannel = "webpush" | "expo" | "telegram" | "email";
+
+export interface NotificationItem {
+  id: string;
+  category: NotificationCategory;
+  title: string;
+  body: string;
+  /** `url` = in-app path the notification opens. */
+  data: { url?: string; [k: string]: unknown };
+  createdAt: string;
+  read: boolean;
+}
+
+export interface NotificationSettings {
+  channels: {
+    webpush: { available: boolean; publicKey: string | null; devices: Array<{ id: string; createdAt: string }> };
+    expo: { available: boolean; devices: Array<{ id: string; createdAt: string; platform: string | null }> };
+    telegram: { available: boolean; chats: Array<{ id: string; username: string | null; mutedUntil: string | null }> };
+    /** `address` is masked. */
+    email: { available: boolean; address: string | null };
+  };
+  categories: Array<{
+    key: NotificationCategory;
+    label: string;
+    /** Email is only ever sent for important events in these categories. */
+    emailAllowed: boolean;
+    enabled: Record<NotificationChannel, boolean>;
+  }>;
+}
+
 // --- Grid bot (backend routes/grid.ts) ------------------------------------------
 export type GridBotStatus = "starting" | "running" | "stopping" | "stopped" | "error";
 
@@ -786,6 +825,31 @@ export const api = {
     send<GridBotView>(`/users/${encodeURIComponent(privyId)}/grid/bots`, input),
   gridStop: (privyId: string, botId: string) =>
     send<GridBotView>(`/users/${encodeURIComponent(privyId)}/grid/bots/${botId}/stop`),
+
+  // Notifications. Every user has an inbox; not feature-gated.
+  notifications: (privyId: string, before?: string) =>
+    req<{ items: NotificationItem[]; unread: number }>(
+      `/users/${encodeURIComponent(privyId)}/notifications${before ? `?before=${encodeURIComponent(before)}` : ""}`
+    ),
+  notificationsUnread: (privyId: string) =>
+    req<{ unread: number }>(`/users/${encodeURIComponent(privyId)}/notifications/unread`),
+  notificationsRead: (privyId: string, ids: string[] | "all") =>
+    send<{ unread: number }>(`/users/${encodeURIComponent(privyId)}/notifications/read`, ids === "all" ? { all: true } : { ids }),
+  notificationSettings: (privyId: string) =>
+    req<NotificationSettings>(`/users/${encodeURIComponent(privyId)}/notifications/settings`),
+  setNotificationPreference: (privyId: string, category: NotificationCategory, channel: NotificationChannel, enabled: boolean) =>
+    req<NotificationSettings>(`/users/${encodeURIComponent(privyId)}/notifications/preferences`, {
+      method: "PUT",
+      body: JSON.stringify({ category, channel, enabled }),
+    }),
+  registerWebPush: (privyId: string, subscription: PushSubscriptionJSON) =>
+    send<{ id: string }>(`/users/${encodeURIComponent(privyId)}/notifications/channels/webpush`, subscription),
+  removeNotificationChannel: (privyId: string, channelId: string) =>
+    req<{ ok: true }>(`/users/${encodeURIComponent(privyId)}/notifications/channels/${channelId}`, { method: "DELETE" }),
+  telegramLink: (privyId: string) =>
+    send<{ url: string; expiresInSeconds: number }>(`/users/${encodeURIComponent(privyId)}/notifications/telegram/link`),
+  sendTestNotification: (privyId: string) =>
+    send<{ id: string | null }>(`/users/${encodeURIComponent(privyId)}/notifications/test`),
 
   /** Public: the owner of a shared code, for the "invited by" line. */
   lookupReferral: (code: string): Promise<ReferralLookup> =>

@@ -42,6 +42,7 @@ import { useLeverage } from "@/hooks/useLeverage";
 import { useIsDesktop } from "@/hooks/useIsDesktop";
 import { useDefaultSize } from "@/hooks/useDefaultSize";
 import type { OrderLine, PositionOverlay } from "@/lib/chart/engine";
+import { SignalCard } from "@/components/signals/SignalCard";
 import {
   findStopLoss,
   findTakeProfit,
@@ -239,6 +240,20 @@ export function TradeScreen({ initialMarket }: Props) {
 
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+
+  // A signal opened from a notification: /trade/<COIN>?signal=<id>. Read once
+  // on mount (client-only), dropped from the URL when dismissed or taken.
+  const [signalId, setSignalId] = useState<string | null>(null);
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("signal");
+    if (id && /^[0-9a-f-]{36}$/i.test(id)) setSignalId(id);
+  }, []);
+  const closeSignal = useCallback(() => {
+    setSignalId(null);
+    const url = new URL(window.location.href);
+    url.searchParams.delete("signal");
+    window.history.replaceState(null, "", url.pathname + url.search);
+  }, []);
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [installOpen, setInstallOpen] = useState(false);
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
@@ -289,6 +304,12 @@ export function TradeScreen({ initialMarket }: Props) {
         <DesktopLayout {...layoutProps} />
       ) : (
         <MobileLayout {...layoutProps} />
+      )}
+
+      {signalId && agent.privyId && (
+        <div className="pointer-events-none fixed inset-x-0 top-20 z-40 flex justify-center px-4">
+          <SignalCard privyId={agent.privyId} signalId={signalId} trade={trade} onDone={closeSignal} />
+        </div>
       )}
 
       <MarketSwitcher open={switcherOpen} onClose={() => setSwitcherOpen(false)} />

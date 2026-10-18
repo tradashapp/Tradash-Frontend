@@ -29,6 +29,7 @@ import {
   GiftIcon,
   GridViewIcon,
   Notification01Icon,
+  Target02Icon,
 } from "@hugeicons/core-free-icons";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { resetDemo } from "@/store/slices/tradingModeSlice";
@@ -50,6 +51,7 @@ import { AuraPanel } from "./panels/AuraPanel";
 import { ReferralPanel, useReferralDetail } from "./panels/ReferralPanel";
 import { GridPanel } from "./panels/GridPanel";
 import { NotificationSettingsPanel, NotificationsPanel } from "./panels/NotificationsPanel";
+import { SignalsPanel } from "./panels/SignalsPanel";
 import { useNotifications } from "@/hooks/useNotifications";
 import { useFeatures } from "@/hooks/useFeatures";
 import { useToast } from "@/components/toast/ToastProvider";
@@ -82,7 +84,8 @@ type View =
   | "referrals"
   | "grid"
   | "notifications"
-  | "notificationSettings";
+  | "notificationSettings"
+  | "signals";
 
 interface Props {
   open: boolean;
@@ -118,6 +121,7 @@ const TITLES: Record<View, string> = {
   grid: "Grid bot",
   notifications: "Notifications",
   notificationSettings: "Notification settings",
+  signals: "Signals",
 };
 
 // Central account hub. A single sheet with sub-views (menu → settings/history)
@@ -272,6 +276,7 @@ export function AccountSheet({
                 onAura={() => go("aura")}
                 onReferrals={() => go("referrals")}
                 onGrid={() => go("grid")}
+                onSignals={() => go("signals")}
                 onTransfer={(dir) => {
                   setTransferDir(dir);
                   go("transfer");
@@ -293,6 +298,7 @@ export function AccountSheet({
               <NotificationsPanel onOpenSettings={() => go("notificationSettings")} onNavigate={onClose} />
             )}
             {view === "notificationSettings" && <NotificationSettingsPanel />}
+            {view === "signals" && <SignalsPanel onNavigate={onClose} />}
             {view === "settingsMenu" && <SettingsMenuPanel />}
             {view === "history" && (
               <HistoryPanel
@@ -364,6 +370,7 @@ function Menu({
   onAura,
   onReferrals,
   onGrid,
+  onSignals,
   onTransfer,
   onWithdraw,
   onMoneyHistory,
@@ -398,6 +405,8 @@ function Menu({
   onReferrals: () => void;
   /** Open the Grid bot panel (only offered to users the backend allows). */
   onGrid: () => void;
+  /** Open the Signals panel (only offered to users the backend allows). */
+  onSignals: () => void;
   onTransfer: (dir: "in" | "out") => void;
   /** Open the external-withdrawal panel (wallet → outside address). */
   onWithdraw: () => void;
@@ -410,7 +419,7 @@ function Menu({
   onDeposit: () => void;
 }) {
   const referralDetail = useReferralDetail();
-  const { gridBot, applyGridBeta } = useFeatures();
+  const { gridBot, signalBot, applyGridBeta, applySignalBeta } = useFeatures();
   const { toast } = useToast();
   const [applying, setApplying] = useState(false);
 
@@ -429,6 +438,23 @@ function Menu({
       toast("Couldn't apply right now", { type: "error", description: "Try again in a moment." });
     } finally {
       setApplying(false);
+    }
+  };
+
+  const [applyingSignals, setApplyingSignals] = useState(false);
+  const applyForSignals = async () => {
+    if (applyingSignals) return;
+    setApplyingSignals(true);
+    try {
+      await applySignalBeta();
+      toast("You're on the Signals beta list", {
+        type: "success",
+        description: "It'll appear in this menu once you're approved.",
+      });
+    } catch {
+      toast("Couldn't apply right now", { type: "error", description: "Try again in a moment." });
+    } finally {
+      setApplyingSignals(false);
     }
   };
 
@@ -678,6 +704,22 @@ function Menu({
         )}
         {authenticated && gridBot && !gridBot.allowed && gridBot.access === "pending" && (
           <NavRow icon={GridViewIcon} label="Grid bot" detail="Beta · applied" disabled />
+        )}
+        {/* Signals: same beta pattern as the grid row above. */}
+        {authenticated && signalBot?.allowed && (
+          <NavRow icon={Target02Icon} label="Signals" onClick={onSignals} />
+        )}
+        {authenticated && signalBot && !signalBot.allowed && signalBot.canApply && (
+          <NavRow
+            icon={Target02Icon}
+            label="Apply for Signals Beta"
+            detail={applyingSignals ? "Applying…" : undefined}
+            disabled={applyingSignals}
+            onClick={applyForSignals}
+          />
+        )}
+        {authenticated && signalBot && !signalBot.allowed && signalBot.access === "pending" && (
+          <NavRow icon={Target02Icon} label="Signals" detail="Beta · applied" disabled />
         )}
         <NavRow icon={Settings02Icon} label="Settings" onClick={onSettings} />
         {/* Advanced opens the Bulk permission panel (agent key + builder code).

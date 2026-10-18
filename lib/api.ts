@@ -353,6 +353,87 @@ export interface FeatureView {
   botsHalted: boolean;
 }
 
+// --- Signals (backend routes/signals.ts) -----------------------------------------
+export type SignalPresetId = "trend_pullback" | "momentum_cross" | "breakout" | "mean_reversion";
+export type SignalTimeframe = "15m" | "1h" | "4h";
+export type SignalVerdict = "confirmed" | "caution" | "rejected" | "veto";
+
+export interface SignalPresetStat {
+  days: number;
+  trades: number;
+  winRate: number;
+  /** Average result per trade in R (1R = the stop distance). */
+  avgR: number;
+  maxDrawdownR: number;
+}
+
+export interface SignalPreset {
+  id: SignalPresetId;
+  label: string;
+  counterTrend: boolean;
+  params: Record<string, { default: number; min: number; max: number; label: string }>;
+  risk: { stopAtr: number; rr: number };
+  stats: Partial<Record<SignalTimeframe, SignalPresetStat>>;
+}
+
+export interface SignalPresets {
+  network: "testnet" | "mainnet";
+  /** Bulk symbols, e.g. "BTC-USD". */
+  markets: string[];
+  timeframes: SignalTimeframe[];
+  maxAlerts: number;
+  backtest: { generatedAt: string; markets: string[]; costBpsPerSide: number; note: string };
+  presets: SignalPreset[];
+}
+
+export interface SignalAlert {
+  id: string;
+  symbol: string;
+  preset: SignalPresetId;
+  timeframe: SignalTimeframe;
+  params: Record<string, number>;
+  notifyMin: "confirmed" | "caution";
+  active: boolean;
+  createdAt: string;
+  lastSignalAt: string | null;
+}
+
+export interface SignalFactor {
+  key: string;
+  label: string;
+  /** −1…+1 relative to the trade (+ supports it). */
+  score: number;
+  weight: number;
+  detail: string;
+}
+
+export interface SignalView {
+  id: string;
+  alertId: string;
+  symbol: string;
+  preset: SignalPresetId;
+  presetLabel: string;
+  timeframe: SignalTimeframe;
+  direction: "long" | "short";
+  price: number;
+  stop: number;
+  target: number;
+  atr: number;
+  strength: number;
+  reason: string;
+  verdict: SignalVerdict;
+  score: number;
+  factors: SignalFactor[];
+  vetoReason: string | null;
+  status: "quiet" | "notified" | "taken";
+  candleTime: string;
+  createdAt: string;
+  expiresAt: string;
+  mark: number | null;
+  /** Past its window, chased more than 0.5 ATR, or already through its stop. */
+  expired: boolean;
+}
+
 // --- Notifications (backend routes/notifications.ts) -----------------------------
 export type NotificationCategory =
   | "signal_alert"
@@ -803,8 +884,10 @@ export const api = {
     return body as ReferralSummary;
   },
 
-  fetchFeatures: (privyId: string): Promise<{ gridBot: FeatureView }> =>
-    req<{ gridBot: FeatureView }>(`/users/${encodeURIComponent(privyId)}/features`),
+  fetchFeatures: (privyId: string): Promise<{ gridBot: FeatureView; signalBot?: FeatureView | null }> =>
+    req<{ gridBot: FeatureView; signalBot?: FeatureView | null }>(`/users/${encodeURIComponent(privyId)}/features`),
+  applySignalBeta: (privyId: string): Promise<{ signalBot: FeatureView }> =>
+    send<{ signalBot: FeatureView }>(`/users/${encodeURIComponent(privyId)}/features/signal-bot/apply`),
 
   /** One-tap beta application. Idempotent: re-applying returns the same state. */
   applyGridBeta: (privyId: string): Promise<{ gridBot: FeatureView }> =>
@@ -825,6 +908,34 @@ export const api = {
     send<GridBotView>(`/users/${encodeURIComponent(privyId)}/grid/bots`, input),
   gridStop: (privyId: string, botId: string) =>
     send<GridBotView>(`/users/${encodeURIComponent(privyId)}/grid/bots/${botId}/stop`),
+
+  // Signals (beta-gated on the backend).
+  signalPresets: (privyId: string) => req<SignalPresets>(`/users/${encodeURIComponent(privyId)}/signals/presets`),
+  signalAlerts: (privyId: string) =>
+    req<{ alerts: SignalAlert[]; maxAlerts: number }>(`/users/${encodeURIComponent(privyId)}/signals/alerts`),
+  createSignalAlert: (
+    privyId: string,
+    input: { symbol: string; preset: SignalPresetId; timeframe: SignalTimeframe; notifyMin: "confirmed" | "caution"; params?: Record<string, number> }
+  ) => send<SignalAlert>(`/users/${encodeURIComponent(privyId)}/signals/alerts`, input),
+  updateSignalAlert: async (privyId: string, id: string, patch: Partial<Pick<SignalAlert, "active" | "notifyMin" | "params">>) => {
+    const auth = await authHeader();
+    const res = await fetch(`${BASE}/users/${encodeURIComponent(privyId)}/signals/alerts/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...auth },
+      body: JSON.stringify(patch),
+    });
+    const json = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(json?.message ?? `Request failed (${res.status})`);
+    return json as SignalAlert;
+  },
+  deleteSignalAlert: (privyId: string, id: string) =>
+    req<{ ok: true }>(`/users/${encodeURIComponent(privyId)}/signals/alerts/${id}`, { method: "DELETE" }),
+  signalFeed: (privyId: string, before?: string) =>
+    req<{ signals: SignalView[] }>(
+      `/users/${encodeURIComponent(privyId)}/signals/feed${before ? `?before=${encodeURIComponent(before)}` : ""}`
+    ),
+  signal: (privyId: string, id: string) => req<SignalView>(`/users/${encodeURIComponent(privyId)}/signals/feed/${id}`),
+  signalTaken: (privyId: string, id: string) => send<{ ok: true }>(`/users/${encodeURIComponent(privyId)}/signals/feed/${id}/taken`),
 
   // Notifications. Every user has an inbox; not feature-gated.
   notifications: (privyId: string, before?: string) =>

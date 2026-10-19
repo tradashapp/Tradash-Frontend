@@ -109,7 +109,7 @@ export function useTrade(
   const { toast } = useToast();
   // Native Bulk trigger orders (TP / SL / trailing). Live trailing routes
   // through here so it rests server-side rather than in a client watcher.
-  const { setProtection, resizeProtection } = useProtection(signer);
+  const { setProtection, setScaleOut, resizeProtection } = useProtection(signer);
   const mode = useAppSelector((s) => s.tradingMode.mode);
   // Optimistic (Bulk exposes no readable builder-approval state), so a stale
   // `true` is still possible on a new device — `onBuilderNotApproved` remains
@@ -201,7 +201,10 @@ export function useTrade(
   }, [signer, builderApproved, authenticated, onNeedsSetup, dispatch, toast]);
 
   const open = useCallback(
-    async (direction: Direction) => {
+    // `override.size`: an exact base size (a signal's risk-sized trade). It is
+    // always a MARKET order and skips the margin-based size; sizing and the
+    // minimum-order check were done by the caller (lib/signals/sizing.ts).
+    async (direction: Direction, override?: { size: number }) => {
       if (price == null) return;
       const market = MARKETS[activeSymbol];
       // Leverage is per market (each has its own cap on Bulk), resolved through
@@ -216,7 +219,7 @@ export function useTrade(
       //
       // Live only: demo has no book to rest on, so there the switch is ignored
       // and UP/DOWN stay market orders (the settings sheet greys it out).
-      const limitOn = limitEnabled && mode === "live";
+      const limitOn = limitEnabled && mode === "live" && !override;
       const draft = limitOn ? limitDraft[activeSymbol] : undefined;
       const limitPx = draft != null ? roundToTick(activeSymbol, draft) : null;
       if (limitOn) {
@@ -234,7 +237,7 @@ export function useTrade(
         const pos = openPosition({
           symbol: activeSymbol,
           direction,
-          marginUsd: settings.defaultPositionSize,
+          marginUsd: override ? (override.size * price) / leverage : settings.defaultPositionSize,
           leverage,
           entryPrice: price,
         });
@@ -287,7 +290,7 @@ export function useTrade(
       // use. Below it Bulk rejects for sub-minimum notional, so stop here and say
       // what is actually wrong instead of surfacing that rejection.
       const minMargin = minSizeFor(activeSymbol, settings.leverageByMarket);
-      if (availableMargin != null && marginUsd < minMargin) {
+      if (!override && availableMargin != null && marginUsd < minMargin) {
         dispatch(clearPendingChartEntry(activeSymbol));
         toast("Not enough margin", {
           type: "error",
@@ -371,7 +374,7 @@ export function useTrade(
           // upgrades the loading toast exactly as it does for a market order.
           return;
         }
-        const size = baseSizeFromUsd(marginUsd, leverage, price);
+        const size = override ? override.size : baseSizeFromUsd(marginUsd, leverage, price);
         await openMarket(liveSigner, {
           bulkSymbol: market.bulkSymbol,
           isLong: direction === "long",
@@ -1068,6 +1071,10 @@ export function useTrade(
     position: position as Position | null,
     openLong: () => open("long"),
     openShort: () => open("short"),
+    /** A market order of an exact base size (signal trades). */
+    openSized: (direction: Direction, size: number) => open(direction, { size }),
+    /** A signal trade's stop + take-profit legs on the live position (live only). */
+    setScaleOut,
     toggleTrail,
     // Live reads the RESTING trl order on Bulk; demo reads its local flag.
     // Using `trailActive` for both would leave the live button permanently off,

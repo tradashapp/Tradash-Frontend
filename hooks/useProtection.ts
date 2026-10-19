@@ -270,6 +270,65 @@ export function useProtection(signer: AgentSigner | null) {
     [signer, walletAddress, setProtection]
   );
 
+  /**
+   * A signal trade's exits: ONE stop for the whole position and one
+   * take-profit per leg, each sized explicitly (Bulk drops `reduceOnly` on
+   * tp/st, so a leg must carry its own share or it would close too much).
+   * Same cancel → place → verify discipline as setProtection; verified by
+   * counting that every leg and the stop are resting.
+   */
+  const setScaleOut = useCallback(
+    async ({
+      symbol,
+      direction,
+      stopLoss,
+      stopSize,
+      legs,
+    }: {
+      symbol: MarketSymbol;
+      direction: Direction;
+      stopLoss: number;
+      stopSize: number;
+      legs: Array<{ price: number; size: number }>;
+    }): Promise<boolean> => {
+      if (!signer) {
+        toast("Connect your wallet to set TP/SL", { type: "error" });
+        return false;
+      }
+      const bulkSymbol = MARKETS[symbol].bulkSymbol;
+      const id = `tpsl-${symbol}`;
+      toast("Setting stop and targets…", { type: "loading", id });
+      try {
+        for (const o of await readBack(symbol)) {
+          await cancelProtection(signer, bulkSymbol, o.orderId).catch(() => undefined);
+        }
+        await submitProtection(signer, stopLossOrder({ bulkSymbol, direction, size: stopSize, triggerPrice: stopLoss }));
+        for (const leg of legs.filter((l) => l.size > 0)) {
+          await submitProtection(signer, takeProfitOrder({ bulkSymbol, direction, size: leg.size, triggerPrice: leg.price }));
+        }
+        const wantTps = legs.filter((l) => l.size > 0).length;
+        const ok = await verify(
+          symbol,
+          (orders) => findStopLoss(orders) != null && orders.filter((o) => o.kind === "takeProfit").length === wantTps
+        );
+        if (!ok) {
+          toast("Couldn't confirm stop and targets", {
+            type: "error",
+            id,
+            description: "Bulk accepted the orders but they aren't all resting. Check the position's TP/SL.",
+          });
+          return false;
+        }
+        toast("Stop and targets set", { type: "success", id });
+        return true;
+      } catch (e) {
+        toast("Couldn't set stop and targets", { type: "error", id, description: e instanceof Error ? e.message : undefined });
+        return false;
+      }
+    },
+    [signer, toast, readBack, verify]
+  );
+
   /** Remove every resting trigger from a position. */
   const clearProtection = useCallback(
     (symbol: MarketSymbol, direction: Direction, size: number) =>
@@ -284,5 +343,5 @@ export function useProtection(signer: AgentSigner | null) {
     [setProtection]
   );
 
-  return { setProtection, clearProtection, resizeProtection };
+  return { setProtection, setScaleOut, clearProtection, resizeProtection };
 }

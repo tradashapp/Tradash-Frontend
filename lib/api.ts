@@ -358,22 +358,30 @@ export type SignalPresetId = "trend_pullback" | "momentum_cross" | "breakout" | 
 export type SignalTimeframe = "15m" | "1h" | "4h";
 export type SignalVerdict = "confirmed" | "caution" | "rejected" | "veto";
 
-export interface SignalPresetStat {
-  days: number;
+export type SignalExitPlanId = "scale_out" | "target_1_5" | "target_2" | "target_3";
+
+export interface SignalPlanStat {
   trades: number;
   winRate: number;
-  /** Average result per trade in R (1R = the stop distance). */
+  /** Average result per trade in R (1R = the stop distance), fees included. */
   avgR: number;
+  profitFactor: number;
   maxDrawdownR: number;
 }
+
+/** Per timeframe: history length + { train, test } per exit plan. TEST is out of sample. */
+export type SignalTimeframeStats = { days: number } & Partial<Record<SignalExitPlanId, { train: SignalPlanStat; test: SignalPlanStat }>>;
 
 export interface SignalPreset {
   id: SignalPresetId;
   label: string;
   counterTrend: boolean;
+  stopAtr: number;
+  /** Timeframes that held up out of sample; the rest are experimental. */
+  validated: SignalTimeframe[];
   params: Record<string, { default: number; min: number; max: number; label: string }>;
   risk: { stopAtr: number; rr: number };
-  stats: Partial<Record<SignalTimeframe, SignalPresetStat>>;
+  stats: Partial<Record<SignalTimeframe, SignalTimeframeStats>>;
 }
 
 export interface SignalPresets {
@@ -383,7 +391,29 @@ export interface SignalPresets {
   timeframes: SignalTimeframe[];
   maxAlerts: number;
   backtest: { generatedAt: string; markets: string[]; costBpsPerSide: number; note: string };
+  exitPlans: Array<{ id: SignalExitPlanId; label: string }>;
   presets: SignalPreset[];
+}
+
+export interface SignalSettings {
+  riskPct: number;
+  exitPlan: SignalExitPlanId;
+}
+
+export interface SignalTrackStat {
+  signals: number;
+  wins: number;
+  winRate: number;
+  avgR: number;
+  last: Array<{ r: number; outcome: string; closedAt: string; symbol: string; direction: string }>;
+}
+
+export interface SignalTrack {
+  since: string;
+  /** Keyed "preset|timeframe". */
+  global: Record<string, SignalTrackStat>;
+  /** Keyed by alert id. */
+  alerts: Record<string, SignalTrackStat>;
 }
 
 export interface SignalAlert {
@@ -393,6 +423,8 @@ export interface SignalAlert {
   timeframe: SignalTimeframe;
   params: Record<string, number>;
   notifyMin: "confirmed" | "caution";
+  exitPlan: SignalExitPlanId;
+  validated: boolean;
   active: boolean;
   createdAt: string;
   lastSignalAt: string | null;
@@ -430,6 +462,15 @@ export interface SignalView {
   createdAt: string;
   expiresAt: string;
   mark: number | null;
+  exitPlan: SignalExitPlanId;
+  /** First take-profit (1R). */
+  tp1: number | null;
+  validated: boolean;
+  /** Paper-tracked result: target | stop | breakeven | trail | timeout. */
+  outcome: string | null;
+  outcomeR: number | null;
+  tp1At: string | null;
+  closedAt: string | null;
   /** Past its window, chased more than 0.5 ATR, or already through its stop. */
   expired: boolean;
 }
@@ -915,7 +956,14 @@ export const api = {
     req<{ alerts: SignalAlert[]; maxAlerts: number }>(`/users/${encodeURIComponent(privyId)}/signals/alerts`),
   createSignalAlert: (
     privyId: string,
-    input: { symbol: string; preset: SignalPresetId; timeframe: SignalTimeframe; notifyMin: "confirmed" | "caution"; params?: Record<string, number> }
+    input: {
+      symbol: string;
+      preset: SignalPresetId;
+      timeframe: SignalTimeframe;
+      notifyMin: "confirmed" | "caution";
+      exitPlan: SignalExitPlanId;
+      params?: Record<string, number>;
+    }
   ) => send<SignalAlert>(`/users/${encodeURIComponent(privyId)}/signals/alerts`, input),
   updateSignalAlert: async (privyId: string, id: string, patch: Partial<Pick<SignalAlert, "active" | "notifyMin" | "params">>) => {
     const auth = await authHeader();
@@ -936,6 +984,10 @@ export const api = {
     ),
   signal: (privyId: string, id: string) => req<SignalView>(`/users/${encodeURIComponent(privyId)}/signals/feed/${id}`),
   signalTaken: (privyId: string, id: string) => send<{ ok: true }>(`/users/${encodeURIComponent(privyId)}/signals/feed/${id}/taken`),
+  signalSettings: (privyId: string) => req<SignalSettings>(`/users/${encodeURIComponent(privyId)}/signals/settings`),
+  saveSignalSettings: (privyId: string, s: SignalSettings) =>
+    req<SignalSettings>(`/users/${encodeURIComponent(privyId)}/signals/settings`, { method: "PUT", body: JSON.stringify(s) }),
+  signalTrack: (privyId: string) => req<SignalTrack>(`/users/${encodeURIComponent(privyId)}/signals/track`),
 
   // Notifications. Every user has an inbox; not feature-gated.
   notifications: (privyId: string, before?: string) =>

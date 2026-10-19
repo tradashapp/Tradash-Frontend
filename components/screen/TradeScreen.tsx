@@ -42,7 +42,7 @@ import { useLeverage } from "@/hooks/useLeverage";
 import { useIsDesktop } from "@/hooks/useIsDesktop";
 import { useDefaultSize } from "@/hooks/useDefaultSize";
 import type { OrderLine, PositionOverlay } from "@/lib/chart/engine";
-import { SignalCard } from "@/components/signals/SignalCard";
+import { SignalSheet } from "@/components/signals/SignalSheet";
 import {
   findStopLoss,
   findTakeProfit,
@@ -197,6 +197,8 @@ export function TradeScreen({ initialMarket }: Props) {
   );
   const limitLive = limitEnabled && trade.mode === "live";
   const tradePosition = trade.position;
+  // The open signal's stop and targets, drawn on the chart as drafts.
+  const [signalLines, setSignalLines] = useState<OrderLine[]>([]);
   const chartOrders = useMemo<OrderLine[]>(() => {
     const lines: OrderLine[] = openOrders
       .filter((o) => o.symbol === activeSymbol)
@@ -210,6 +212,7 @@ export function TradeScreen({ initialMarket }: Props) {
     if (limitLive && !tradePosition && limitDraft != null) {
       lines.push({ price: limitDraft, label: "Limit", draft: true });
     }
+    lines.push(...signalLines);
     return lines;
     // tradePosition changes every tick (PnL); only its existence and shift
     // inputs matter here, and those re-run via entryPrice/markPriceBulk.
@@ -223,6 +226,7 @@ export function TradeScreen({ initialMarket }: Props) {
     tradePosition != null,
     tradePosition?.entryPrice,
     tradePosition?.markPriceBulk,
+    signalLines,
   ]);
   // Tapping the chart sets the draft price — only while a limit is being
   // drafted, so a casual tap on the chart never arms anything.
@@ -307,9 +311,7 @@ export function TradeScreen({ initialMarket }: Props) {
       )}
 
       {signalId && agent.privyId && (
-        <div className="pointer-events-none fixed inset-x-0 top-20 z-40 flex justify-center px-4">
-          <SignalCard privyId={agent.privyId} signalId={signalId} trade={trade} onDone={closeSignal} />
-        </div>
+        <SignalSheet privyId={agent.privyId} signalId={signalId} trade={trade} onDone={closeSignal} onLines={setSignalLines} />
       )}
 
       <MarketSwitcher open={switcherOpen} onClose={() => setSwitcherOpen(false)} />

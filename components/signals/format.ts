@@ -9,6 +9,15 @@ export const VERDICT: Record<SignalVerdict, { label: string; className: string }
   veto: { label: "Blocked", className: "bg-down-soft text-down" },
 };
 
+/** Short label for a paper-tracked outcome. */
+export const OUTCOME: Record<string, string> = {
+  target: "Target",
+  stop: "Stop",
+  breakeven: "BE",
+  trail: "Trail",
+  timeout: "Time",
+};
+
 /** Bulk symbol ("BTC-USD") → this app's market, when the app lists it. */
 export function marketOfBulk(bulkSymbol: string): MarketSymbol | null {
   const hit = (Object.keys(MARKETS) as MarketSymbol[]).find((m) => MARKETS[m].bulkSymbol === bulkSymbol);

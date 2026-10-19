@@ -82,6 +82,12 @@ export function SignalSheet({
   const [pending, setPending] = useState<{ until: number; size: number } | null>(null);
   const applied = useRef(false);
   const loaded = useRef(false);
+  // Clock for the countdown (keeps render pure; ticks every 30s).
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
 
   const symbol = signal ? marketOfBulk(signal.symbol) : null;
   const mark = useAppSelector((s) => (symbol ? (s.price.prices[symbol] ?? null) : null));
@@ -185,7 +191,7 @@ export function SignalSheet({
   const long = signal.direction === "long";
   const v = VERDICT[signal.verdict];
   const blocked = signal.verdict === "veto" || signal.verdict === "rejected";
-  const minsLeft = Math.max(0, Math.round((new Date(signal.expiresAt).getTime() - Date.now()) / 60_000));
+  const minsLeft = Math.max(0, Math.round((new Date(signal.expiresAt).getTime() - now) / 60_000));
   const drift = mark != null ? ((long ? 1 : -1) * (mark - signal.price)) / Math.abs(signal.price - signal.stop) : null;
   const trailed = legs.some((l) => l.price === null);
 

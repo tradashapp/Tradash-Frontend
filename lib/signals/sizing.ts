@@ -48,7 +48,7 @@ export interface Sizing {
   /** What the stop costs, fees included. */
   riskUsd: number;
   /** Profit per leg at its price, fees included (null for a trailed leg). */
-  legRewardsUsd: Array<number | null>;
+  legRewardsUsd: (number | null)[];
   /** All fixed legs hit; a trailed leg is counted at its last fixed leg's price. */
   rewardUsd: number;
   /** rewardUsd ÷ riskUsd. */

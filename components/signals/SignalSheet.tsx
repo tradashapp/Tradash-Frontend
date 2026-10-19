@@ -11,6 +11,9 @@ import { Sheet } from "@/components/ui/Sheet";
 import { InfoTip } from "@/components/ui/InfoTip";
 import type { useTrade } from "@/hooks/useTrade";
 import type { OrderLine } from "@/lib/chart/engine";
+import type { useAgentWallet } from "@/hooks/useAgentWallet";
+import { config } from "@/lib/config";
+import { authorizeAgentWallet, isAgentAlreadyAuthorizedError } from "@/lib/bulk/onboarding";
 import { leverageFor, lotSizeForBulkSymbol, minNotionalFor, roundToTick } from "@/lib/markets";
 import { fillFeeRate, liveAccountValue } from "@/lib/perp";
 import { legSizes, sizeSignalTrade, type SizingLeg } from "@/lib/signals/sizing";
@@ -60,16 +63,43 @@ export function signalLegs(s: Pick<SignalView, "direction" | "price" | "stop" | 
 
 const usd = (x: number) => `$${Math.abs(x).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+/** Bulk network for the bot key ("devnet" is Bulk's testnet). */
+const KEY_NETWORK: "testnet" | "mainnet" = config.bulk.network === "mainnet" ? "mainnet" : "testnet";
+
+/** Issue → authorize on Bulk with one master signature → confirm (the grid's flow, Signals' endpoints). */
+async function enableBotKey(privyId: string, agent: ReturnType<typeof useAgentWallet>) {
+  if (!agent.masterAddress) throw new Error("Connect your wallet first.");
+  const network = KEY_NETWORK;
+  const key = await api.signalIssueKey(privyId, network);
+  if (key.authorized) return;
+  try {
+    await authorizeAgentWallet(agent.masterAddress, key.pubkey, agent.masterSign);
+  } catch (e) {
+    if (!isAgentAlreadyAuthorizedError(e)) throw e;
+  }
+  for (let i = 0; ; i++) {
+    try {
+      await api.signalConfirmKey(privyId, network);
+      return;
+    } catch (e) {
+      if (i === 5) throw e;
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+  }
+}
+
 export function SignalSheet({
   privyId,
   signalId,
   trade,
+  agent,
   onDone,
   onLines,
 }: {
   privyId: string;
   signalId: string;
   trade: ReturnType<typeof useTrade>;
+  agent: ReturnType<typeof useAgentWallet>;
   onDone: () => void;
   /** Levels to draw on the chart while the sheet is open (empty to clear). */
   onLines: (lines: OrderLine[]) => void;
@@ -79,6 +109,9 @@ export function SignalSheet({
   const [preset, setPreset] = useState<SignalPreset | null>(null);
   const [settings, setSettings] = useState<SignalSettings>({ riskPct: 1, exitPlan: "scale_out" });
   const [placing, setPlacing] = useState(false);
+  // Bot key on this network = Tradash can move the stop to break-even after TP1.
+  const [managed, setManaged] = useState<boolean | null>(null);
+  const [enabling, setEnabling] = useState(false);
   const [pending, setPending] = useState<{ until: number; size: number } | null>(null);
   const applied = useRef(false);
   const loaded = useRef(false);
@@ -107,6 +140,10 @@ export function SignalSheet({
         // The signal's own plan unless the user saved a preference.
         setSettings(st ?? { riskPct: 1, exitPlan: s.exitPlan });
         loaded.current = true;
+        api
+          .signalKeyStatus(privyId, KEY_NETWORK)
+          .then((k) => live && setManaged(k.authorized))
+          .catch(() => live && setManaged(false));
       })
       .catch(() => live && onDone());
     return () => {
@@ -176,6 +213,19 @@ export function SignalSheet({
           stopSize: size,
           legs: fixed.map((l) => ({ price: roundToTick(symbol, l.price!), size: sizes[legs.indexOf(l)]! })),
         })
+        .then(async (ok) => {
+          // Hand the exit to Tradash only once Bulk shows the stop + targets resting.
+          if (!ok || !managed || legs.length < 2) return;
+          await api
+            .registerManagedTrade(privyId, signal.id, {
+              network: KEY_NETWORK,
+              size,
+              entry: livePosition.entryPrice,
+              exitPlan: settings.exitPlan,
+              legs: legs.map((l) => ({ r: l.r, frac: l.frac, price: l.price })),
+            })
+            .catch((e) => toast("Break-even move not set", { type: "info", description: e instanceof Error ? e.message : undefined }));
+        })
         .finally(finish);
       return;
     }
@@ -185,7 +235,7 @@ export function SignalSheet({
       finish();
     }, Math.max(0, pending.until - Date.now()));
     return () => clearTimeout(t);
-  }, [pending, livePosition, signal, symbol, legs, trade, privyId, onDone, toast]);
+  }, [pending, livePosition, signal, symbol, legs, trade, privyId, onDone, toast, managed, settings.exitPlan]);
 
   if (!signal) return null;
   const long = signal.direction === "long";
@@ -322,14 +372,37 @@ export function SignalSheet({
           </p>
         ))}
         {live && settings.exitPlan === "scale_out" && (
-          <p className="flex items-center gap-1.5 px-1 text-xs text-text-muted">
-            Stop to break-even after TP1
+          <div className="flex items-center gap-1.5 px-1 text-xs">
+            <span className={managed ? "text-up" : "text-text-muted"}>
+              {managed ? "Stop moves to break-even after TP1" : "Stop stays put after TP1"}
+            </span>
             <InfoTip variant="info" label="Break-even">
               {trailed
-                ? "Bulk can't move a stop or trail on its own. Turn on bot trading so Tradash moves the stop to break-even and trails the rest after TP1; otherwise the stop stays where it is."
-                : "Bulk can't move a stop on its own. Turn on bot trading so Tradash moves it to break-even after TP1; otherwise the stop stays where it is."}
+                ? "Bulk can't move a stop or trail on its own. With bot trading on, Tradash moves the stop to break-even and trails the rest after TP1 (one approval in your wallet, revocable on Bulk)."
+                : "Bulk can't move a stop on its own. With bot trading on, Tradash moves it to break-even after TP1 (one approval in your wallet, revocable on Bulk)."}
             </InfoTip>
-          </p>
+            {managed === false && (
+              <button
+                type="button"
+                disabled={enabling}
+                onClick={async () => {
+                  setEnabling(true);
+                  try {
+                    await enableBotKey(privyId, agent);
+                    setManaged(true);
+                    toast("Bot trading on", { type: "success" });
+                  } catch (e) {
+                    toast("Couldn't turn on bot trading", { type: "error", description: e instanceof Error ? e.message : undefined });
+                  } finally {
+                    setEnabling(false);
+                  }
+                }}
+                className="ml-auto rounded-full bg-white/[0.08] px-2.5 py-0.5 font-semibold text-text hover:bg-white/[0.12] disabled:opacity-50"
+              >
+                {enabling ? "Approve in wallet…" : "Enable"}
+              </button>
+            )}
+          </div>
         )}
 
         <button

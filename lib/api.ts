@@ -988,6 +988,18 @@ export const api = {
   saveSignalSettings: (privyId: string, s: SignalSettings) =>
     req<SignalSettings>(`/users/${encodeURIComponent(privyId)}/signals/settings`, { method: "PUT", body: JSON.stringify(s) }),
   signalTrack: (privyId: string) => req<SignalTrack>(`/users/${encodeURIComponent(privyId)}/signals/track`),
+  // The server-held bot key for managed exits / the bot (same key as the grid's).
+  signalKeyStatus: (privyId: string, network: "testnet" | "mainnet") =>
+    req<{ pubkey: string | null; authorized: boolean }>(`/users/${encodeURIComponent(privyId)}/signals/key?network=${network}`),
+  signalIssueKey: (privyId: string, network: "testnet" | "mainnet") =>
+    send<{ pubkey: string; authorized: boolean }>(`/users/${encodeURIComponent(privyId)}/signals/key`, { network }),
+  signalConfirmKey: (privyId: string, network: "testnet" | "mainnet") =>
+    send<{ pubkey: string; authorized: boolean }>(`/users/${encodeURIComponent(privyId)}/signals/key/confirm`, { network }),
+  registerManagedTrade: (
+    privyId: string,
+    signalId: string,
+    body: { network: "testnet" | "mainnet"; size: number; entry: number; exitPlan: SignalExitPlanId; legs: Array<{ r: number; frac: number; price: number | null }> }
+  ) => send<{ id: string; state: string }>(`/users/${encodeURIComponent(privyId)}/signals/feed/${signalId}/managed`, body),
 
   // Notifications. Every user has an inbox; not feature-gated.
   notifications: (privyId: string, before?: string) =>

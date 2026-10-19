@@ -311,7 +311,7 @@ export function TradeScreen({ initialMarket }: Props) {
       )}
 
       {signalId && agent.privyId && (
-        <SignalSheet privyId={agent.privyId} signalId={signalId} trade={trade} onDone={closeSignal} onLines={setSignalLines} />
+        <SignalSheet privyId={agent.privyId} signalId={signalId} trade={trade} agent={agent} onDone={closeSignal} onLines={setSignalLines} />
       )}
 
       <MarketSwitcher open={switcherOpen} onClose={() => setSwitcherOpen(false)} />

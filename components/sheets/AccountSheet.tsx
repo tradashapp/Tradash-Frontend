@@ -298,7 +298,7 @@ export function AccountSheet({
               <NotificationsPanel onOpenSettings={() => go("notificationSettings")} onNavigate={onClose} />
             )}
             {view === "notificationSettings" && <NotificationSettingsPanel />}
-            {view === "signals" && <SignalsPanel onNavigate={onClose} />}
+            {view === "signals" && <SignalsPanel onNavigate={onClose} agent={agent} />}
             {view === "settingsMenu" && <SettingsMenuPanel />}
             {view === "history" && (
               <HistoryPanel

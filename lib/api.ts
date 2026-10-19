@@ -475,6 +475,64 @@ export interface SignalView {
   expired: boolean;
 }
 
+export interface SignalBotTrade {
+  id: string;
+  symbol: string;
+  direction: "long" | "short";
+  size: number;
+  entry: number | null;
+  stop: number;
+  legs: Array<{ r: number; frac: number; price: number | null }>;
+  state: "pending" | "open" | "tp1" | "closed" | "unmanaged" | "failed";
+  filledFrac: number;
+  realizedPnl: number;
+  r: number | null;
+  closeReason: string | null;
+  openedAt: string | null;
+  tp1At: string | null;
+  closedAt: string | null;
+  mark: number | null;
+}
+
+export interface SignalBotStartInput {
+  venue: "paper" | "bulk";
+  capital: number;
+  riskPct: number;
+  maxOpen: number;
+  dailyLossPct: number;
+  killPct: number;
+  markets: string[];
+  strategies: Array<{ preset: SignalPresetId; timeframe: SignalTimeframe }>;
+  exitPlan: SignalExitPlanId;
+}
+
+export interface SignalBotStatus {
+  venues: { paper: { available: boolean }; bulk: { available: boolean; network: "testnet" | "mainnet"; keyAuthorized: boolean } };
+  maxCapital: number;
+  allowExperimental: boolean;
+  validated: Array<{ preset: SignalPresetId; timeframe: SignalTimeframe; label: string }>;
+  bot: null | {
+    id: string;
+    status: "starting" | "running" | "stopping" | "stopped" | "error";
+    venue: "paper" | "bulk";
+    network: "testnet" | "mainnet";
+    config: SignalBotStartInput & { pausedUntil?: string | null };
+    capital: number;
+    startEquity: number | null;
+    equity: number | null;
+    netPnl: number | null;
+    unrealized: number;
+    stopReason: string | null;
+    lastError: string | null;
+    startedAt: string | null;
+    stoppedAt: string | null;
+    stats: { trades: number; wins: number; winRate: number; avgR: number };
+    trades: SignalBotTrade[];
+    curve: Array<{ at: string; equity: number }>;
+    events: Array<{ at: string; level: string; kind: string; message: string }>;
+  };
+}
+
 // --- Notifications (backend routes/notifications.ts) -----------------------------
 export type NotificationCategory =
   | "signal_alert"
@@ -995,6 +1053,9 @@ export const api = {
     send<{ pubkey: string; authorized: boolean }>(`/users/${encodeURIComponent(privyId)}/signals/key`, { network }),
   signalConfirmKey: (privyId: string, network: "testnet" | "mainnet") =>
     send<{ pubkey: string; authorized: boolean }>(`/users/${encodeURIComponent(privyId)}/signals/key/confirm`, { network }),
+  signalBot: (privyId: string) => req<SignalBotStatus>(`/users/${encodeURIComponent(privyId)}/signals/bot`),
+  startSignalBot: (privyId: string, input: SignalBotStartInput) => send<SignalBotStatus>(`/users/${encodeURIComponent(privyId)}/signals/bot/start`, input),
+  stopSignalBot: (privyId: string) => send<SignalBotStatus>(`/users/${encodeURIComponent(privyId)}/signals/bot/stop`),
   registerManagedTrade: (
     privyId: string,
     signalId: string,

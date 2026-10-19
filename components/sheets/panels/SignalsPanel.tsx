@@ -24,6 +24,8 @@ import { InfoTip } from "@/components/ui/InfoTip";
 import { SkeletonText } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/toast/ToastProvider";
 import { OUTCOME, VERDICT, ago, fmtPx, fmtR, marketOfBulk } from "@/components/signals/format";
+import { BotTab } from "@/components/signals/BotTab";
+import type { useAgentWallet } from "@/hooks/useAgentWallet";
 
 const ABOUT: Record<SignalPresetId, string> = {
   trend_pullback: "Buys dips in an uptrend: EMA 50 above EMA 200 and RSI back above 40. Mirrored for shorts.",
@@ -39,10 +41,10 @@ const PLAN_ABOUT: Record<SignalExitPlanId, string> = {
   target_3: "Whole position at 3R. Wins least often, pays most when it does.",
 };
 
-type Tab = "signals" | "alerts" | "new";
+type Tab = "signals" | "alerts" | "bot" | "new";
 
 /** Signals beta: live record, the signal feed, the user's alerts, a new-alert form. */
-export function SignalsPanel({ onNavigate }: { onNavigate: () => void }) {
+export function SignalsPanel({ onNavigate, agent }: { onNavigate: () => void; agent?: ReturnType<typeof useAgentWallet> }) {
   const router = useRouter();
   const { privyId } = useNotifications();
   const { toast } = useToast();
@@ -119,14 +121,14 @@ export function SignalsPanel({ onNavigate }: { onNavigate: () => void }) {
     <div className="flex flex-col">
       {tab !== "new" && (
         <div className="glass-inset mb-4 flex rounded-full p-1 text-sm">
-          {(["signals", "alerts"] as const).map((t) => (
+          {(["signals", "alerts", "bot"] as const).map((t) => (
             <button
               key={t}
               type="button"
               onClick={() => setTab(t)}
               className={`flex-1 rounded-full py-1.5 transition-colors ${tab === t ? "bg-white/10 font-semibold text-text" : "text-text-muted"}`}
             >
-              {t === "signals" ? "Signals" : `Alerts${alerts.length ? ` · ${alerts.filter((a) => a.active).length}` : ""}`}
+              {t === "signals" ? "Signals" : t === "bot" ? "Bot" : `Alerts${alerts.length ? ` · ${alerts.filter((a) => a.active).length}` : ""}`}
             </button>
           ))}
         </div>
@@ -248,6 +250,8 @@ export function SignalsPanel({ onNavigate }: { onNavigate: () => void }) {
           </button>
         </>
       )}
+
+      {tab === "bot" && <BotTab privyId={privyId} presets={presets} agent={agent} />}
 
       {tab === "new" && (
         <NewAlert

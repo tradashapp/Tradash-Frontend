@@ -43,6 +43,8 @@ import { useIsDesktop } from "@/hooks/useIsDesktop";
 import { useDefaultSize } from "@/hooks/useDefaultSize";
 import type { OrderLine, PositionOverlay } from "@/lib/chart/engine";
 import { SignalSheet } from "@/components/signals/SignalSheet";
+import { marketOfBulk } from "@/components/signals/format";
+import { onOpenSignal, signalIdOf, type OpenSignalDetail } from "@/lib/signals/open";
 import {
   findStopLoss,
   findTakeProfit,
@@ -245,15 +247,26 @@ export function TradeScreen({ initialMarket }: Props) {
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
 
-  // A signal opened from a notification: /trade/<COIN>?signal=<id>. Read once
-  // on mount (client-only), dropped from the URL when dismissed or taken.
-  const [signalId, setSignalId] = useState<string | null>(null);
+  // The signal whose confirm sheet is open. Two ways in: a cold load of
+  // /trade/<COIN>?signal=<id> (push notification, shared link), read once on
+  // mount; and an in-app tap (Signals panel, inbox) via openSignal(), which
+  // carries the signal it already has so the sheet shows it at once. Dropped
+  // from the URL when dismissed or taken.
+  const [openedSignal, setOpenedSignal] = useState<OpenSignalDetail | null>(null);
   useEffect(() => {
-    const id = new URLSearchParams(window.location.search).get("signal");
-    if (id && /^[0-9a-f-]{36}$/i.test(id)) setSignalId(id);
-  }, []);
+    const id = signalIdOf(window.location.href);
+    if (id) setOpenedSignal({ id });
+    return onOpenSignal((d) => {
+      const m = d.signal ? marketOfBulk(d.signal.symbol) : null;
+      if (m) {
+        dispatch(startSwitch(m));
+        requestAnimationFrame(() => dispatch(finishSwitch()));
+      }
+      setOpenedSignal(d);
+    });
+  }, [dispatch]);
   const closeSignal = useCallback(() => {
-    setSignalId(null);
+    setOpenedSignal(null);
     const url = new URL(window.location.href);
     url.searchParams.delete("signal");
     window.history.replaceState(null, "", url.pathname + url.search);
@@ -310,8 +323,17 @@ export function TradeScreen({ initialMarket }: Props) {
         <MobileLayout {...layoutProps} />
       )}
 
-      {signalId && agent.privyId && (
-        <SignalSheet privyId={agent.privyId} signalId={signalId} trade={trade} agent={agent} onDone={closeSignal} onLines={setSignalLines} />
+      {openedSignal && (
+        <SignalSheet
+          key={openedSignal.id}
+          privyId={agent.privyId}
+          signalId={openedSignal.id}
+          initial={openedSignal.signal}
+          trade={trade}
+          agent={agent}
+          onDone={closeSignal}
+          onLines={setSignalLines}
+        />
       )}
 
       <MarketSwitcher open={switcherOpen} onClose={() => setSwitcherOpen(false)} />

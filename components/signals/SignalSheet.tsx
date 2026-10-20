@@ -9,6 +9,7 @@ import { useAllPositions } from "@/hooks/useAllPositions";
 import { useToast } from "@/components/toast/ToastProvider";
 import { Sheet } from "@/components/ui/Sheet";
 import { InfoTip } from "@/components/ui/InfoTip";
+import { Skeleton, SkeletonText } from "@/components/ui/Skeleton";
 import type { useTrade } from "@/hooks/useTrade";
 import type { OrderLine } from "@/lib/chart/engine";
 import type { useAgentWallet } from "@/hooks/useAgentWallet";
@@ -91,13 +92,17 @@ async function enableBotKey(privyId: string, agent: ReturnType<typeof useAgentWa
 export function SignalSheet({
   privyId,
   signalId,
+  initial,
   trade,
   agent,
   onDone,
   onLines,
 }: {
-  privyId: string;
+  /** Null until sign-in hydrates; the sheet shows meanwhile, the fetch waits. */
+  privyId: string | null;
   signalId: string;
+  /** The signal as the opener already has it — rendered at once, then refreshed. */
+  initial?: SignalView;
   trade: ReturnType<typeof useTrade>;
   agent: ReturnType<typeof useAgentWallet>;
   onDone: () => void;
@@ -105,9 +110,10 @@ export function SignalSheet({
   onLines: (lines: OrderLine[]) => void;
 }) {
   const { toast } = useToast();
-  const [signal, setSignal] = useState<SignalView | null>(null);
+  const [signal, setSignal] = useState<SignalView | null>(initial ?? null);
+  const hadInitial = initial != null;
   const [preset, setPreset] = useState<SignalPreset | null>(null);
-  const [settings, setSettings] = useState<SignalSettings>({ riskPct: 1, exitPlan: "scale_out" });
+  const [settings, setSettings] = useState<SignalSettings>({ riskPct: 1, exitPlan: initial?.exitPlan ?? "scale_out" });
   const [placing, setPlacing] = useState(false);
   // Bot key on this network = Tradash can move the stop to break-even after TP1.
   const [managed, setManaged] = useState<boolean | null>(null);
@@ -131,6 +137,7 @@ export function SignalSheet({
   const { totalPnl } = useAllPositions();
 
   useEffect(() => {
+    if (!privyId) return;
     let live = true;
     Promise.all([api.signal(privyId, signalId), api.signalSettings(privyId).catch(() => null), api.signalPresets(privyId).catch(() => null)])
       .then(([s, st, ps]) => {
@@ -145,15 +152,16 @@ export function SignalSheet({
           .then((k) => live && setManaged(k.authorized))
           .catch(() => live && setManaged(false));
       })
-      .catch(() => live && onDone());
+      // Nothing to show → close; an opener's copy stays up without the refresh.
+      .catch(() => live && !hadInitial && onDone());
     return () => {
       live = false;
     };
-  }, [privyId, signalId, onDone]);
+  }, [privyId, signalId, onDone, hadInitial]);
 
   // Remember the user's risk % and plan (debounced).
   useEffect(() => {
-    if (!loaded.current) return;
+    if (!loaded.current || !privyId) return;
     const t = setTimeout(() => void api.saveSignalSettings(privyId, settings).catch(() => undefined), 800);
     return () => clearTimeout(t);
   }, [privyId, settings]);
@@ -193,7 +201,7 @@ export function SignalSheet({
 
   // Attach the stop and targets once the live position shows up.
   useEffect(() => {
-    if (!pending || !signal || !symbol || applied.current) return;
+    if (!pending || !signal || !symbol || !privyId || applied.current) return;
     const finish = () => {
       applied.current = true;
       void api.signalTaken(privyId, signal.id).catch(() => undefined);
@@ -237,7 +245,21 @@ export function SignalSheet({
     return () => clearTimeout(t);
   }, [pending, livePosition, signal, symbol, legs, trade, privyId, onDone, toast, managed, settings.exitPlan]);
 
-  if (!signal) return null;
+  if (!signal) {
+    return (
+      <Sheet open onClose={onDone} title="Signal">
+        <div className="flex flex-col gap-3">
+          <SkeletonText width="55%" />
+          <div className="glass-inset rounded-2xl p-4">
+            <SkeletonText width="70%" />
+            <SkeletonText width="45%" className="mt-3" />
+            <SkeletonText width="60%" className="mt-3" />
+          </div>
+          <Skeleton className="h-12 w-full rounded-2xl" />
+        </div>
+      </Sheet>
+    );
+  }
   const long = signal.direction === "long";
   const v = VERDICT[signal.verdict];
   const blocked = signal.verdict === "veto" || signal.verdict === "rejected";
@@ -246,7 +268,7 @@ export function SignalSheet({
   const trailed = legs.some((l) => l.price === null);
 
   const confirm = async () => {
-    if (!sizing?.ok || !symbol || placing || pending) return;
+    if (!sizing?.ok || !symbol || !privyId || placing || pending) return;
     if (trade.hasPosition) {
       toast(`You already have a ${symbol} position`, { type: "info" });
       return;
@@ -268,6 +290,7 @@ export function SignalSheet({
 
   const reason =
     !symbol ? "This market isn't in the app." :
+    !privyId ? "Signing in…" :
     signal.expired ? "This signal has expired." :
     blocked ? (signal.vetoReason ? `Blocked: ${signal.vetoReason}` : "The fundamentals reject this trade.") :
     mark == null ? "Waiting for price…" :
@@ -386,6 +409,7 @@ export function SignalSheet({
                 type="button"
                 disabled={enabling}
                 onClick={async () => {
+                  if (!privyId) return;
                   setEnabling(true);
                   try {
                     await enableBotKey(privyId, agent);

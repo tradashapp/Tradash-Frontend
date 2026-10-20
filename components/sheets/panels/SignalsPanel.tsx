@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Add01Icon, Delete02Icon, Target02Icon } from "@hugeicons/core-free-icons";
 import {
@@ -25,6 +24,7 @@ import { SkeletonText } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/toast/ToastProvider";
 import { OUTCOME, VERDICT, ago, fmtPx, fmtR, marketOfBulk } from "@/components/signals/format";
 import { BotTab } from "@/components/signals/BotTab";
+import { openSignal } from "@/lib/signals/open";
 import type { useAgentWallet } from "@/hooks/useAgentWallet";
 
 const ABOUT: Record<SignalPresetId, string> = {
@@ -45,7 +45,6 @@ type Tab = "signals" | "alerts" | "bot" | "new";
 
 /** Signals beta: live record, the signal feed, the user's alerts, a new-alert form. */
 export function SignalsPanel({ onNavigate, agent }: { onNavigate: () => void; agent?: ReturnType<typeof useAgentWallet> }) {
-  const router = useRouter();
   const { privyId } = useNotifications();
   const { toast } = useToast();
   const [tab, setTab] = useState<Tab>("signals");
@@ -84,11 +83,10 @@ export function SignalsPanel({ onNavigate, agent }: { onNavigate: () => void; ag
     );
   }
 
-  const openSignal = (s: SignalView) => {
-    const m = marketOfBulk(s.symbol);
-    if (!m) return;
+  const open = (s: SignalView) => {
+    if (!marketOfBulk(s.symbol)) return;
     onNavigate();
-    router.push(`/trade/${m}?signal=${s.id}`);
+    openSignal(s.id, s);
   };
 
   const toggle = async (a: SignalAlert, active: boolean) => {
@@ -175,7 +173,7 @@ export function SignalsPanel({ onNavigate, agent }: { onNavigate: () => void; ag
                   <button
                     key={s.id}
                     type="button"
-                    onClick={() => openSignal(s)}
+                    onClick={() => open(s)}
                     disabled={!marketOfBulk(s.symbol)}
                     className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-white/[0.04] ${s.expired && !s.outcome ? "opacity-60" : ""}`}
                   >

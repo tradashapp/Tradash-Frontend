@@ -31,6 +31,7 @@ import { ToggleSwitch } from "@/components/ui/ToggleSwitch";
 import { InfoTip } from "@/components/ui/InfoTip";
 import { SkeletonText } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/toast/ToastProvider";
+import { openSignal, signalIdOf } from "@/lib/signals/open";
 
 const ICONS: Record<NotificationCategory, typeof Notification01Icon> = {
   signal_alert: Target02Icon,
@@ -73,7 +74,9 @@ export function NotificationsPanel({ onOpenSettings, onNavigate }: { onOpenSetti
     const url = typeof item.data.url === "string" && item.data.url.startsWith("/") ? item.data.url : null;
     if (!url) return;
     onNavigate();
-    router.push(url);
+    const signalId = signalIdOf(url);
+    if (signalId) openSignal(signalId);
+    else router.push(url);
   };
 
   return (

@@ -76,6 +76,11 @@ interface MarketFields {
   logo: string;
   /** Static categories this market belongs to (excludes "favourites"). */
   categories: MarketCategory[];
+  /**
+   * Listed on Bulk MAINNET only (testnet has no such market), so it is left
+   * out of MARKETS entirely on any other network — see lib/markets.ts.
+   */
+  mainnetOnly?: boolean;
 }
 
 /**

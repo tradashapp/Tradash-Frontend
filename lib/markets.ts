@@ -21,7 +21,7 @@ import type { MarketCategory, MarketInfo, MarketSymbol } from "@/types";
 // (pyth_lazer_list.json): the feed PDA seed is the id as a string, and
 // USD price = rawI64 * 10^exponent. maxLeverage and minNotional mirror Bulk's
 // exchangeInfo.
-export const MARKETS: Record<MarketSymbol, MarketInfo> = {
+const ALL_MARKETS: Record<MarketSymbol, MarketInfo> = {
   BTC: {
     symbol: "BTC",
     bulkSymbol: "BTC-USD",
@@ -263,6 +263,50 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
     logo: "/images/crypto/mon.png",
     categories: ["crypto"],
   },
+  // Stock perps (verified 2026-11-02). Bulk-priced — MagicBlock has no feed —
+  // and MAINNET-ONLY: testnet's exchangeInfo lists none of them. Bulk quotes
+  // them around the clock, so outside exchange hours (KRX for SKHYNIX) the
+  // price is Bulk's own model, not a live venue. NVDA, TSLA, MSTR, CRCL and
+  // SPACEX are listed but SUSPENDED; add them the same way once they open.
+  MU: {
+    symbol: "MU",
+    bulkSymbol: "MU-USD",
+    label: "Micron",
+    priceSource: "bulk",
+    mainnetOnly: true,
+    maxLeverage: 10,
+    minNotional: 50,
+    lotSize: 0.00000001,
+    tickSize: 0.001,
+    logo: "/images/crypto/mu.png",
+    categories: ["stocks"],
+  },
+  SNDK: {
+    symbol: "SNDK",
+    bulkSymbol: "SNDK-USD",
+    label: "SanDisk",
+    priceSource: "bulk",
+    mainnetOnly: true,
+    maxLeverage: 10,
+    minNotional: 50,
+    lotSize: 0.00000001,
+    tickSize: 0.001,
+    logo: "/images/crypto/sndk.png",
+    categories: ["stocks"],
+  },
+  SKHYNIX: {
+    symbol: "SKHYNIX",
+    bulkSymbol: "SKHYNIX-USD",
+    label: "SK Hynix",
+    priceSource: "bulk",
+    mainnetOnly: true,
+    maxLeverage: 10,
+    minNotional: 50,
+    lotSize: 0.00000001,
+    tickSize: 0.001,
+    logo: "/images/crypto/skhynix.png",
+    categories: ["stocks"],
+  },
   // FARTCOIN: {
   //   symbol: "FARTCOIN",
   //   bulkSymbol: "FARTCOIN-USD",
@@ -276,6 +320,19 @@ export const MARKETS: Record<MarketSymbol, MarketInfo> = {
   //   categories: ["crypto"],
   // },
 };
+
+/**
+ * The markets this build can trade: every entry above, minus `mainnetOnly`
+ * ones when we're not on mainnet. Filtering HERE (not in the UI) keeps them
+ * out of every consumer at once — the switcher, routes, price and account
+ * subscriptions — so a testnet build never subscribes to a ticker Bulk
+ * doesn't have.
+ */
+export const MARKETS: Record<MarketSymbol, MarketInfo> = Object.fromEntries(
+  Object.entries(ALL_MARKETS).filter(
+    ([, m]) => !m.mainnetOnly || config.bulk.network === "mainnet"
+  )
+);
 
 /** Bulk's market id ("BTC-USD") → our MarketSymbol ("BTC"). */
 export const BULK_TO_SYMBOL: Record<string, MarketSymbol> = Object.fromEntries(
@@ -329,8 +386,11 @@ export const MARKET_ORDER: MarketSymbol[] = [
   "PUMP",
   "LIT",
   "MON",
+  "MU",
+  "SNDK",
+  "SKHYNIX",
   // "FARTCOIN",
-];
+].filter(isMarketSymbol);
 
 export const DEFAULT_MARKET: MarketSymbol = "BTC";
 

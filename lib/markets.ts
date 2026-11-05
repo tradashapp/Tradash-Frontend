@@ -263,11 +263,11 @@ const ALL_MARKETS: Record<MarketSymbol, MarketInfo> = {
     logo: "/images/crypto/mon.png",
     categories: ["crypto"],
   },
-  // Stock perps (verified 2026-11-02). Bulk-priced — MagicBlock has no feed —
+  // Stock perps (verified 2026-11-05). Bulk-priced — MagicBlock has no feed —
   // and MAINNET-ONLY: testnet's exchangeInfo lists none of them. Bulk quotes
   // them around the clock, so outside exchange hours (KRX for SKHYNIX) the
-  // price is Bulk's own model, not a live venue. NVDA, TSLA, MSTR, CRCL and
-  // SPACEX are listed but SUSPENDED; add them the same way once they open.
+  // price is Bulk's own model, not a live venue. US500 is listed but
+  // SUSPENDED; add it the same way once it opens.
   MU: {
     symbol: "MU",
     bulkSymbol: "MU-USD",
@@ -305,6 +305,71 @@ const ALL_MARKETS: Record<MarketSymbol, MarketInfo> = {
     lotSize: 0.00000001,
     tickSize: 0.001,
     logo: "/images/crypto/skhynix.png",
+    categories: ["stocks"],
+  },
+  NVDA: {
+    symbol: "NVDA",
+    bulkSymbol: "NVDA-USD",
+    label: "Nvidia",
+    priceSource: "bulk",
+    mainnetOnly: true,
+    maxLeverage: 10,
+    minNotional: 50,
+    lotSize: 0.00000001,
+    tickSize: 0.001,
+    logo: "/images/crypto/nvda.png",
+    categories: ["stocks"],
+  },
+  TSLA: {
+    symbol: "TSLA",
+    bulkSymbol: "TSLA-USD",
+    label: "Tesla",
+    priceSource: "bulk",
+    mainnetOnly: true,
+    maxLeverage: 10,
+    minNotional: 50,
+    lotSize: 0.00000001,
+    tickSize: 0.001,
+    logo: "/images/crypto/tsla.png",
+    categories: ["stocks"],
+  },
+  MSTR: {
+    symbol: "MSTR",
+    bulkSymbol: "MSTR-USD",
+    label: "Strategy",
+    priceSource: "bulk",
+    mainnetOnly: true,
+    maxLeverage: 10,
+    minNotional: 50,
+    lotSize: 0.00000001,
+    tickSize: 0.001,
+    logo: "/images/crypto/mstr.png",
+    categories: ["stocks"],
+  },
+  CRCL: {
+    symbol: "CRCL",
+    bulkSymbol: "CRCL-USD",
+    label: "Circle",
+    priceSource: "bulk",
+    mainnetOnly: true,
+    maxLeverage: 10,
+    minNotional: 50,
+    lotSize: 0.00000001,
+    tickSize: 0.001,
+    logo: "/images/crypto/crcl.png",
+    categories: ["stocks"],
+  },
+  SPACEX: {
+    symbol: "SPACEX",
+    bulkSymbol: "SPACEX-USD",
+    label: "SpaceX",
+    priceSource: "bulk",
+    mainnetOnly: true,
+    maxLeverage: 10,
+    minNotional: 50,
+    lotSize: 0.00000001,
+    tickSize: 0.001,
+    logo: "/images/crypto/spacex.png",
     categories: ["stocks"],
   },
   // FARTCOIN: {
@@ -389,6 +454,11 @@ export const MARKET_ORDER: MarketSymbol[] = [
   "MU",
   "SNDK",
   "SKHYNIX",
+  "NVDA",
+  "TSLA",
+  "MSTR",
+  "CRCL",
+  "SPACEX",
   // "FARTCOIN",
 ].filter(isMarketSymbol);
 

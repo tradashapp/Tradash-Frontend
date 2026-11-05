@@ -4,7 +4,10 @@ import { useState } from "react";
 import { Sheet } from "@/components/ui/Sheet";
 import { Filters } from "@/components/leaderboard/Filters";
 import { Podium } from "@/components/leaderboard/Podium";
-import { LeaderboardTable } from "@/components/leaderboard/LeaderboardTable";
+import {
+  LEADERBOARD_SIZE,
+  LeaderboardTable,
+} from "@/components/leaderboard/LeaderboardTable";
 import { TraderProfileModal } from "@/components/leaderboard/TraderProfileModal";
 import { useLeaderboard } from "@/hooks/useLeaderboard";
 import { playSound } from "@/lib/sound";
@@ -25,9 +28,6 @@ interface Props {
    */
   onBack?: () => void;
 }
-
-/** How many traders the board lists. */
-const LEADERBOARD_SIZE = 10;
 
 /**
  * The leaderboard: filters at the top, the top-3 podium beneath them, then the

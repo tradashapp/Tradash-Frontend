@@ -1,10 +1,14 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
+import { InfoTip } from "@/components/ui/InfoTip";
 import { formatUsd } from "@/lib/format";
 import { Avatar } from "./Avatar";
 import { RankNumeral } from "./RankBadge";
 import type { LeaderboardEntry, LeaderboardMetric } from "@/types";
+
+/** How many traders the board lists. */
+export const LEADERBOARD_SIZE = 10;
 
 interface Props {
   entries: LeaderboardEntry[];
@@ -87,7 +91,13 @@ function HeaderRow({ metric }: { metric: LeaderboardMetric }) {
   return (
     <div className="mb-1.5 flex items-center gap-3 px-3 text-[10px] font-medium uppercase tracking-wide text-text-muted">
       <span className="w-6 shrink-0">#</span>
-      <span className="flex-1">Trader</span>
+      <span className="flex flex-1 items-center gap-1">
+        Top {LEADERBOARD_SIZE} traders
+        <InfoTip label="About this list" size={12}>
+          Only the top {LEADERBOARD_SIZE} traders are shown, not everyone on
+          Tradash.
+        </InfoTip>
+      </span>
       {/* Volume column hidden for now (2026-10-16); restore with the cell in Row. */}
       {/* <span className="w-20 shrink-0 text-right">Volume</span> */}
       <span className="w-20 shrink-0 text-right">

@@ -114,6 +114,7 @@ const ALL_MARKETS: Record<MarketSymbol, MarketInfo> = {
     symbol: "NEAR",
     bulkSymbol: "NEAR-USD",
     label: "Near",
+    mainnetOnly: true, // not on testnet (2026-11-05)
     pythLazerId: 27,
     exponent: -8,
     maxLeverage: 10,
@@ -244,6 +245,7 @@ const ALL_MARKETS: Record<MarketSymbol, MarketInfo> = {
     bulkSymbol: "LIT-USD",
     label: "Lighter",
     priceSource: "bulk",
+    mainnetOnly: true, // not on testnet (2026-11-05)
     maxLeverage: 10,
     minNotional: 50,
     lotSize: 0.00000001,

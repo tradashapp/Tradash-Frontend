@@ -51,9 +51,9 @@ export function BotTab({ privyId, presets, agent }: { privyId: string; presets: 
     <div className="flex flex-col gap-3">
       <div className="glass-inset rounded-2xl p-4">
         <div className="flex items-center gap-2 text-xs">
-          <span className={`rounded px-1.5 py-0.5 font-semibold ${bot.venue === "paper" ? "bg-white/[0.08] text-text" : "bg-amber-400/15 text-amber-300"}`}>
-            {bot.venue === "paper" ? "Paper" : `Bulk ${bot.network}`}
-          </span>
+          {bot.venue !== "paper" && (
+            <span className="rounded bg-amber-400/15 px-1.5 py-0.5 font-semibold text-amber-300">Bulk {bot.network}</span>
+          )}
           <span className="text-text-muted">{STATUS[bot.status]}</span>
           {bot.config.pausedUntil && new Date(bot.config.pausedUntil).getTime() > Date.now() && (
             <span className="text-amber-300">paused for today</span>

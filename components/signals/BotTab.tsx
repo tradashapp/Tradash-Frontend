@@ -21,6 +21,12 @@ import { ago, fmtPx, fmtR, marketOfBulk } from "./format";
 const APP_NETWORK: "testnet" | "mainnet" = config.bulk.network === "mainnet" ? "mainnet" : "testnet";
 
 const usd = (x: number) => `${x < 0 ? "−" : ""}$${Math.abs(x).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+// Stepper ladders: fine steps where most people sit, coarse ones up to the caps.
+const RISK_STEPS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 25, 30, 35, 40, 45, 50];
+const DAILY_STEPS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 25, 30, 35, 40, 45, 50];
+const KILL_STEPS = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90];
+/** Smallest step at or above `x` (the top step when none is). */
+const atLeast = (steps: number[], x: number) => steps.find((s) => s >= x) ?? steps[steps.length - 1]!;
 const STATUS: Record<string, string> = { starting: "Starting", running: "Running", stopping: "Stopping", stopped: "Stopped", error: "Needs attention" };
 
 export function BotTab({ privyId, presets, agent }: { privyId: string; presets: SignalPresets; agent?: ReturnType<typeof useAgentWallet> }) {
@@ -169,10 +175,17 @@ function Setup({
   const markets = useMemo(() => presets.markets.filter((m) => marketOfBulk(m)), [presets.markets]);
   const [venue, setVenue] = useState<"paper" | "bulk">("paper");
   const [capital, setCapital] = useState("500");
-  const [riskPct, setRiskPct] = useState(1);
+  const [riskPct, setRisk] = useState(1);
   const [maxOpen, setMaxOpen] = useState(3);
   const [dailyLossPct, setDaily] = useState(3);
   const [killPct, setKill] = useState(15);
+  // A day's limit below one trade's risk would pause the bot on its first
+  // loss, and a drawdown stop at it would end the bot there. Keep both above.
+  const setRiskPct = (v: number) => {
+    setRisk(v);
+    setDaily((d) => Math.max(d, atLeast(DAILY_STEPS, v)));
+    setKill((k) => Math.max(k, atLeast(KILL_STEPS, Math.min(90, v * 2))));
+  };
   const [picked, setPicked] = useState<string[]>(markets.filter((m) => ["BTC-USD", "ETH-USD", "SOL-USD"].includes(m)));
   const [strategies, setStrategies] = useState(st.validated.map((v) => `${v.preset}|${v.timeframe}`));
   const [exitPlan, setExitPlan] = useState<SignalExitPlanId>("scale_out");
@@ -297,16 +310,16 @@ function Setup({
           />
         </Field>
         <Field label="Risk per trade" tip="Lost if a trade's stop is hit. Sets the size; the signal sets the stop.">
-          <Steps value={riskPct} set={setRiskPct} min={0.25} max={2} step={0.25} suffix="%" />
+          <Steps value={riskPct} set={setRiskPct} steps={RISK_STEPS} suffix="%" />
         </Field>
         <Field label="Max open" tip="Positions at once. One per market.">
-          <Steps value={maxOpen} set={setMaxOpen} min={1} max={5} step={1} />
+          <Steps value={maxOpen} set={setMaxOpen} steps={[1, 2, 3, 4, 5]} />
         </Field>
         <Field label="Daily loss limit" tip="No new trades until 00:00 UTC once today's result reaches this.">
-          <Steps value={dailyLossPct} set={setDaily} min={1} max={10} step={1} suffix="%" />
+          <Steps value={dailyLossPct} set={setDaily} steps={DAILY_STEPS.filter((s) => s >= riskPct)} suffix="%" />
         </Field>
         <Field label="Stop at drawdown" tip="Closes everything and stops the bot.">
-          <Steps value={killPct} set={setKill} min={5} max={50} step={5} suffix="%" />
+          <Steps value={killPct} set={setKill} steps={KILL_STEPS.filter((s) => s > riskPct)} suffix="%" />
         </Field>
       </MenuSection>
 
@@ -372,15 +385,16 @@ function Field({ label, tip, children }: { label: string; tip?: string; children
   );
 }
 
-function Steps({ value, set, min, max, step, suffix = "" }: { value: number; set: (v: number) => void; min: number; max: number; step: number; suffix?: string }) {
+function Steps({ value, set, steps, suffix = "" }: { value: number; set: (v: number) => void; steps: number[]; suffix?: string }) {
+  const i = Math.max(0, steps.findIndex((s) => s >= value));
   return (
     <div className="flex items-center gap-1">
-      <button type="button" onClick={() => set(Math.max(min, +(value - step).toFixed(2)))} className="h-6 w-6 rounded-full bg-white/[0.06] text-text-muted">−</button>
+      <button type="button" onClick={() => set(steps[Math.max(0, i - 1)]!)} className="h-6 w-6 rounded-full bg-white/[0.06] text-text-muted">−</button>
       <span className="tabular w-12 text-center text-sm">
         {value}
         {suffix}
       </span>
-      <button type="button" onClick={() => set(Math.min(max, +(value + step).toFixed(2)))} className="h-6 w-6 rounded-full bg-white/[0.06] text-text-muted">+</button>
+      <button type="button" onClick={() => set(steps[Math.min(steps.length - 1, steps[i] === value ? i + 1 : i)]!)} className="h-6 w-6 rounded-full bg-white/[0.06] text-text-muted">+</button>
     </div>
   );
 }

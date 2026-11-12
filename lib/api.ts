@@ -496,6 +496,8 @@ export interface SignalBotTrade {
 
 export interface SignalBotStartInput {
   venue: "paper" | "bulk";
+  /** Bulk venue: the network to trade on. */
+  network?: "testnet" | "mainnet";
   capital: number;
   riskPct: number;
   maxOpen: number;
@@ -508,6 +510,8 @@ export interface SignalBotStartInput {
 
 export interface SignalBotStatus {
   venues: { paper: { available: boolean }; bulk: { available: boolean; network: "testnet" | "mainnet"; keyAuthorized: boolean } };
+  /** Older backends don't send it. */
+  minCapital?: number;
   maxCapital: number;
   allowExperimental: boolean;
   validated: Array<{ preset: SignalPresetId; timeframe: SignalTimeframe; label: string }>;
@@ -1053,7 +1057,9 @@ export const api = {
     send<{ pubkey: string; authorized: boolean }>(`/users/${encodeURIComponent(privyId)}/signals/key`, { network }),
   signalConfirmKey: (privyId: string, network: "testnet" | "mainnet") =>
     send<{ pubkey: string; authorized: boolean }>(`/users/${encodeURIComponent(privyId)}/signals/key/confirm`, { network }),
-  signalBot: (privyId: string) => req<SignalBotStatus>(`/users/${encodeURIComponent(privyId)}/signals/bot`),
+  /** `network` = the Bulk network this app trades on; the bot's Bulk venue is offered there. */
+  signalBot: (privyId: string, network?: "testnet" | "mainnet") =>
+    req<SignalBotStatus>(`/users/${encodeURIComponent(privyId)}/signals/bot${network ? `?network=${network}` : ""}`),
   startSignalBot: (privyId: string, input: SignalBotStartInput) => send<SignalBotStatus>(`/users/${encodeURIComponent(privyId)}/signals/bot/start`, input),
   stopSignalBot: (privyId: string) => send<SignalBotStatus>(`/users/${encodeURIComponent(privyId)}/signals/bot/stop`),
   registerManagedTrade: (

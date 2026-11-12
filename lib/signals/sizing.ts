@@ -34,6 +34,13 @@ export interface SizingInput {
   minNotional: number;
   /** Per fill, e.g. 0.00085. */
   feeRate: number;
+  /**
+   * The bot only. When the risk size comes out under Bulk's minimum order,
+   * raise it to the minimum as long as the loss at the stop stays within this
+   * many dollars (the bot passes its daily loss limit). Unset = refuse, as the
+   * confirm sheet does.
+   */
+  minOrderMaxRiskUsd?: number;
 }
 
 export interface Sizing {
@@ -59,6 +66,14 @@ export interface Sizing {
 }
 
 const floorTo = (x: number, step: number) => (step > 0 ? Math.floor(x / step + 1e-9) * step : x);
+const ceilTo = (x: number, step: number) => (step > 0 ? Math.ceil(x / step - 1e-9) * step : x);
+
+/**
+ * Headroom over Bulk's minimum when an order is raised to it: the base size is
+ * fixed but the price moves between sizing and the fill, and an order sized at
+ * exactly $50.00 lands at $49.9x and is rejected.
+ */
+export const MIN_NOTIONAL_PAD = 1.01;
 
 export function sizeSignalTrade(x: SizingInput): Sizing {
   const sign = x.direction === "long" ? 1 : -1;
@@ -83,17 +98,30 @@ export function sizeSignalTrade(x: SizingInput): Sizing {
     notes.push("Size capped by available margin. Raise leverage or lower risk.");
   }
   size = floorTo(size, x.lotSize);
-  if (!(size > 0)) return empty("Not enough margin for one lot.");
+  if (!(size > 0) && x.minOrderMaxRiskUsd === undefined) return empty("Not enough margin for one lot.");
+
+  if (size * x.entry < x.minNotional) {
+    const minSize = +ceilTo((x.minNotional * MIN_NOTIONAL_PAD) / x.entry, x.lotSize).toFixed(10);
+    const minRisk = minSize * perUnitRisk;
+    if (x.minOrderMaxRiskUsd === undefined) {
+      const needPct = ((x.minNotional / x.entry) * perUnitRisk * 100) / x.equity;
+      return {
+        ...empty(`Below Bulk's $${x.minNotional} minimum order. Needs about ${needPct.toFixed(2)}% risk.`),
+        size,
+        notional: size * x.entry,
+      };
+    }
+    if (minSize > maxByMargin) return empty(`Not enough free margin for Bulk's $${x.minNotional} minimum order.`);
+    if (minRisk > x.minOrderMaxRiskUsd) {
+      return empty(
+        `Bulk's $${x.minNotional} minimum order would lose $${minRisk.toFixed(2)} at the stop, more than the $${x.minOrderMaxRiskUsd.toFixed(2)} daily loss limit.`
+      );
+    }
+    size = minSize;
+    notes.push(`Raised to Bulk's $${x.minNotional} minimum order: $${minRisk.toFixed(2)} at the stop.`);
+  }
 
   const notional = size * x.entry;
-  if (notional < x.minNotional) {
-    const needPct = ((x.minNotional / x.entry) * perUnitRisk * 100) / x.equity;
-    return {
-      ...empty(`Below Bulk's $${x.minNotional} minimum order. Needs about ${needPct.toFixed(2)}% risk.`),
-      size,
-      notional,
-    };
-  }
 
   const margin = notional / x.leverage;
   const riskUsd = size * perUnitRisk;
@@ -126,6 +154,31 @@ export function sizeSignalTrade(x: SizingInput): Sizing {
     };
   }
   return { ok: true, error: null, notes, size, notional, margin, riskUsd, legRewardsUsd, rewardUsd, rr: rewardUsd / riskUsd, feesUsd, liquidation };
+}
+
+/**
+ * Bulk enforces its minimum order on every take-profit too, so a target leg
+ * worth less than the minimum would be rejected. Merge such a leg with the
+ * leg after it (keeping the earlier price); a too-small last leg folds back
+ * into the one before. A position at the minimum then takes all its profit at
+ * the first target instead of scaling out.
+ */
+export function fitLegsToMinimum<L extends SizingLeg>(legs: L[], size: number, minNotional: number): L[] {
+  const min = minNotional * MIN_NOTIONAL_PAD;
+  const small = (l: L) => l.price !== null && l.frac * size * l.price < min;
+  const out: L[] = [];
+  for (const l of legs) {
+    const prev = out[out.length - 1];
+    if (prev && small(prev)) out[out.length - 1] = { ...prev, frac: prev.frac + l.frac };
+    else out.push({ ...l });
+  }
+  const last = out[out.length - 1];
+  if (out.length > 1 && last && small(last)) {
+    out.pop();
+    const prev = out[out.length - 1]!;
+    out[out.length - 1] = { ...prev, frac: prev.frac + last.frac };
+  }
+  return out;
 }
 
 /** Split a position across legs on the lot grid; the last leg takes the remainder. */

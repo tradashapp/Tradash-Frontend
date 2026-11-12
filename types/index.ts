@@ -368,7 +368,10 @@ export interface TraderProfile {
   twitterHandle: string | null;
   pnl: number;
   roi: number;
+  /** Every fill in the window, opens and closes, bots included (USD). */
   volume: number;
+  /** Average opening size of a trade (USD); older backends don't send it. */
+  avgSize?: number;
   trades: number;
   wins: number;
   losses: number;

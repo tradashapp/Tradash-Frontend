@@ -14,9 +14,11 @@ import { ago, fmtPx, fmtR, marketOfBulk } from "./format";
 
 /**
  * The signal bot: trades its own confirmed signals with the confirm sheet's
- * sizing and exits, inside hard limits. Paper first (live prices, simulated
- * fills), then Bulk testnet in its own sub-account.
+ * sizing and exits, inside hard limits. Paper (live prices, simulated fills)
+ * or Bulk, on the network the app trades on, in its own sub-account.
  */
+
+const APP_NETWORK: "testnet" | "mainnet" = config.bulk.network === "mainnet" ? "mainnet" : "testnet";
 
 const usd = (x: number) => `${x < 0 ? "−" : ""}$${Math.abs(x).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const STATUS: Record<string, string> = { starting: "Starting", running: "Running", stopping: "Stopping", stopped: "Stopped", error: "Needs attention" };
@@ -26,7 +28,7 @@ export function BotTab({ privyId, presets, agent }: { privyId: string; presets: 
   const [st, setSt] = useState<SignalBotStatus | null>(null);
   const [confirmStop, setConfirmStop] = useState(false);
 
-  const load = useCallback(async () => setSt(await api.signalBot(privyId)), [privyId]);
+  const load = useCallback(async () => setSt(await api.signalBot(privyId, APP_NETWORK)), [privyId]);
   useEffect(() => {
     void load().catch(() => toast("Couldn't load the bot", { type: "error" }));
     const t = setInterval(() => void load().catch(() => undefined), 15_000);
@@ -177,7 +179,14 @@ function Setup({
   const [busy, setBusy] = useState(false);
   const [keyOn, setKeyOn] = useState(st.venues.bulk.keyAuthorized);
   const cap = Number(capital);
-  const capErr = !(cap > 0) ? "Enter an amount." : cap > st.maxCapital ? `Up to $${st.maxCapital} in the beta.` : null;
+  const minCapital = st.minCapital ?? 10;
+  const capErr = !(cap > 0)
+    ? "Enter an amount."
+    : cap < minCapital
+      ? `At least $${minCapital}.`
+      : cap > st.maxCapital
+        ? `Up to $${st.maxCapital} in the beta.`
+        : null;
 
   // Out-of-sample record of what the bot will run, pooled.
   const oos = (() => {
@@ -230,7 +239,7 @@ function Setup({
     setBusy(true);
     try {
       const input: SignalBotStartInput = {
-        venue, capital: cap, riskPct, maxOpen, dailyLossPct, killPct, markets: picked, exitPlan,
+        venue, network: bulkNetwork, capital: cap, riskPct, maxOpen, dailyLossPct, killPct, markets: picked, exitPlan,
         strategies: strategies.map((k) => {
           const [preset, timeframe] = k.split("|");
           return { preset: preset as SignalBotStartInput["strategies"][number]["preset"], timeframe: timeframe as "4h" };
@@ -246,7 +255,7 @@ function Setup({
   };
 
   const bulkNetwork = st.venues.bulk.network;
-  const appNetwork = config.bulk.network === "mainnet" ? "mainnet" : "testnet";
+  const appNetwork = APP_NETWORK;
 
   return (
     <div className="flex flex-col">
@@ -279,7 +288,7 @@ function Setup({
       </MenuSection>
 
       <MenuSection title="Money" className="mb-4">
-        <Field label="Capital" tip={`Up to $${st.maxCapital} in the beta.`}>
+        <Field label="Capital" tip={`$${minCapital} to $${st.maxCapital} in the beta. Every market trades at its max leverage. A size under Bulk's minimum order ($50 on most markets) is raised to it when the loss at the stop fits the daily loss limit.`}>
           <input
             value={capital}
             onChange={(e) => setCapital(e.target.value.replace(/[^0-9.]/g, ""))}

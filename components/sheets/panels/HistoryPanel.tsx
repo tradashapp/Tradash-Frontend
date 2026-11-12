@@ -289,11 +289,9 @@ function computeStats(allTrades: CompletedTrade[]): Stats {
       streak = 0;
     }
     lifetimePnl += t.pnl;
-    // Convert to USD at THIS row's entry price before adding. `size` is base
-    // asset, so summing it raw added BTC to SOL to ETH — a number that was not
-    // dollars and not even one unit, and which under-reported BTC rows by ~5
-    // orders of magnitude while SOL rows dominated the total.
-    volume += notionalUsd(t.size, t.entryPrice);
+    // Both legs, the open AND the close, each in USD at its own price. `size`
+    // is base asset, so summing it raw would add BTC to SOL to ETH.
+    volume += notionalUsd(t.size, t.entryPrice) + notionalUsd(t.size, t.exitPrice);
   }
   return {
     total: trades.length,

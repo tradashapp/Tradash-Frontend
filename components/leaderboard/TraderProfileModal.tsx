@@ -174,7 +174,7 @@ export function TraderProfileModal({ subject, period, onClose }: Props) {
                     label="Avg size"
                     value={
                       profile.trades > 0
-                        ? formatUsd(profile.volume / profile.trades)
+                        ? formatUsd(profile.avgSize ?? profile.volume / profile.trades)
                         : "—"
                     }
                   />

@@ -44,12 +44,16 @@ export function Filters({
           ariaLabel="Rank by"
         />
       )}
+      {/* Daily / Weekly / Monthly / All time switch hidden for now
+          (2026-11-12): the board shows all time only. Restore this to bring
+          the period filter back.
       <Segmented
         options={PERIODS}
         value={period}
         onChange={onPeriod}
         ariaLabel="Time period"
       />
+      */}
     </div>
   );
 }

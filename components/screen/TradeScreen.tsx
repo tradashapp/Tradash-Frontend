@@ -52,6 +52,7 @@ import {
 } from "@/lib/bulk/protection";
 import type {
   CompletedTrade,
+  LeaderboardMetric,
   MarketSymbol,
   Position,
   TradeEpisode,
@@ -274,6 +275,7 @@ export function TradeScreen({ initialMarket }: Props) {
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [installOpen, setInstallOpen] = useState(false);
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
+  const [leaderboardMetric, setLeaderboardMetric] = useState<LeaderboardMetric>("roi");
   const [shareSubject, setShareSubject] = useState<ShareSubject | null>(null);
   // The trade being replayed, with its recording. Null while the player is shut.
   const [replaySubject, setReplaySubject] = useState<{
@@ -357,10 +359,11 @@ export function TradeScreen({ initialMarket }: Props) {
           setAccountOpen(false);
           setInstallOpen(true);
         }}
-        onOpenLeaderboard={() => {
+        onOpenLeaderboard={(metric) => {
           // Close the account sheet first — two stacked sheets leave the user
           // with two grabbers and no clear idea which dismisses what.
           setAccountOpen(false);
+          setLeaderboardMetric(metric ?? "roi");
           setLeaderboardOpen(true);
         }}
       />
@@ -371,6 +374,7 @@ export function TradeScreen({ initialMarket }: Props) {
       <InstallSheet open={installOpen} onClose={() => setInstallOpen(false)} />
       <LeaderboardSheet
         open={leaderboardOpen}
+        initialMetric={leaderboardMetric}
         onClose={() => setLeaderboardOpen(false)}
         // The leaderboard is reached FROM the account sheet, which closes to
         // open it — so back reverses exactly that, rather than dumping the user

@@ -9,6 +9,12 @@ const METRICS: { value: LeaderboardMetric; label: string }[] = [
   { value: "pnl", label: "PnL" },
 ];
 
+/** Which board: trading results (ROI) or points. */
+const BOARDS: { value: LeaderboardMetric; label: string }[] = [
+  { value: "roi", label: "Traders" },
+  { value: "points", label: "Points" },
+];
+
 const PERIODS: { value: LeaderboardPeriod; label: string }[] = [
   { value: "daily", label: "Daily" },
   { value: "weekly", label: "Weekly" },
@@ -34,6 +40,12 @@ export function Filters({
 }) {
   return (
     <div className="mb-1 flex flex-col gap-2">
+      <Segmented
+        options={BOARDS}
+        value={metric === "points" ? "points" : "roi"}
+        onChange={onMetric}
+        ariaLabel="Board"
+      />
       {/* ROI / PnL switch hidden for now (2026-10-16) — the board ranks by
           ROI only. Restore this to bring the PnL ranking back. */}
       {false && (

@@ -27,6 +27,7 @@ import {
   Cancel01Icon,
   SparklesIcon,
   GiftIcon,
+  StarIcon,
   GridViewIcon,
   Notification01Icon,
   Target02Icon,
@@ -49,6 +50,7 @@ import { MoneyHistoryPanel } from "./panels/MoneyHistoryPanel";
 import { AdvancedPanel } from "./panels/AdvancedPanel";
 import { AuraPanel } from "./panels/AuraPanel";
 import { ReferralPanel, useReferralDetail } from "./panels/ReferralPanel";
+import { PointsPanel, usePointsDetail } from "./panels/PointsPanel";
 import { GridPanel } from "./panels/GridPanel";
 import { NotificationSettingsPanel, NotificationsPanel } from "./panels/NotificationsPanel";
 import { SignalsPanel } from "./panels/SignalsPanel";
@@ -56,7 +58,7 @@ import { useNotifications } from "@/hooks/useNotifications";
 import { useFeatures } from "@/hooks/useFeatures";
 import { useToast } from "@/components/toast/ToastProvider";
 import { useWithdrawal } from "@/hooks/useWithdrawal";
-import type { CompletedTrade, TradeEpisode } from "@/types";
+import type { CompletedTrade, LeaderboardMetric, TradeEpisode } from "@/types";
 import { playSound } from "@/lib/sound";
 import { haptic } from "@/lib/haptics";
 import { useAgentWallet } from "@/hooks/useAgentWallet";
@@ -82,6 +84,7 @@ type View =
   | "advanced"
   | "aura"
   | "referrals"
+  | "points"
   | "grid"
   | "notifications"
   | "notificationSettings"
@@ -93,7 +96,8 @@ interface Props {
   agent: ReturnType<typeof useAgentWallet>;
   onOpenTutorial: () => void;
   onOpenInstall: () => void;
-  onOpenLeaderboard: () => void;
+  /** Open the leaderboard, on the Points board when asked. */
+  onOpenLeaderboard: (metric?: LeaderboardMetric) => void;
   /** Open the details sheet for a trade tapped in the history. */
   onOpenTrade: (trade: CompletedTrade) => void;
   /**
@@ -118,6 +122,7 @@ const TITLES: Record<View, string> = {
   advanced: "Advanced",
   aura: "Bulk Aura",
   referrals: "Referrals",
+  points: "Points",
   grid: "Grid bot",
   notifications: "Notifications",
   notificationSettings: "Notification settings",
@@ -275,6 +280,7 @@ export function AccountSheet({
                 onAdvanced={() => go("advanced")}
                 onAura={() => go("aura")}
                 onReferrals={() => go("referrals")}
+                onPoints={() => go("points")}
                 onGrid={() => go("grid")}
                 onSignals={() => go("signals")}
                 onTransfer={(dir) => {
@@ -285,7 +291,7 @@ export function AccountSheet({
                 onMoneyHistory={() => go("money")}
                 onTutorial={onOpenTutorial}
                 onInstall={onOpenInstall}
-                onLeaderboard={onOpenLeaderboard}
+                onLeaderboard={() => onOpenLeaderboard()}
                 onDeposit={() => go("deposit")}
               />
             )}
@@ -293,6 +299,7 @@ export function AccountSheet({
             {view === "advanced" && <AdvancedPanel agent={agent} />}
             {view === "aura" && <AuraPanel wallet={agent.masterAddress} />}
             {view === "referrals" && <ReferralPanel />}
+            {view === "points" && <PointsPanel onOpenBoard={() => onOpenLeaderboard("points")} />}
             {view === "grid" && <GridPanel agent={agent} />}
             {view === "notifications" && (
               <NotificationsPanel onOpenSettings={() => go("notificationSettings")} onNavigate={onClose} />
@@ -369,6 +376,7 @@ function Menu({
   onAdvanced,
   onAura,
   onReferrals,
+  onPoints,
   onGrid,
   onSignals,
   onTransfer,
@@ -403,6 +411,7 @@ function Menu({
   /** Bulk Aura points for the signed-in wallet. */
   onAura: () => void;
   onReferrals: () => void;
+  onPoints: () => void;
   /** Open the Grid bot panel (only offered to users the backend allows). */
   onGrid: () => void;
   /** Open the Signals panel (only offered to users the backend allows). */
@@ -419,6 +428,7 @@ function Menu({
   onDeposit: () => void;
 }) {
   const referralDetail = useReferralDetail();
+  const pointsDetail = usePointsDetail();
   const { gridBot, signalBot, applyGridBeta, applySignalBeta } = useFeatures();
   const { toast } = useToast();
   const [applying, setApplying] = useState(false);
@@ -673,7 +683,10 @@ function Menu({
           label="Leaderboard"
           onClick={onLeaderboard}
         />
-        {/* Referrals are per account, so they need a signed-in user. */}
+        {/* Points and referrals are per account: signed-in users only. */}
+        {authenticated && (
+          <NavRow icon={StarIcon} label="Points" detail={pointsDetail} onClick={onPoints} />
+        )}
         {authenticated && (
           <NavRow
             icon={GiftIcon}

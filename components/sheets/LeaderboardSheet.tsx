@@ -27,6 +27,8 @@ interface Props {
    * caller that opened it from nowhere in particular.
    */
   onBack?: () => void;
+  /** Board to show when the sheet opens. Default: Traders (ROI). */
+  initialMetric?: LeaderboardMetric;
 }
 
 /**
@@ -37,26 +39,31 @@ interface Props {
  * filters and podium stay put while the ranks scroll under them, and so the
  * pinned "you" row has a scroll container to anchor to.
  */
-export function LeaderboardSheet({ open, onClose, onBack }: Props) {
-  // ROI leads: it ranks on skill rather than on who deposited the most.
-  // Pinned to ROI while the ROI / PnL switch is hidden (Filters.tsx). A
-  // state value would keep a PnL pick made before the switch was hidden, with
-  // no way back. Restore the useState with the switch.
-  // const [metric, setMetric] = useState<LeaderboardMetric>("roi");
-  const metric: LeaderboardMetric = "roi";
-  const setMetric = (_m: LeaderboardMetric) => {};
+export function LeaderboardSheet({ open, onClose, onBack, initialMetric = "roi" }: Props) {
+  // ROI leads: it ranks on skill rather than on who deposited the most. The
+  // ROI / PnL switch is hidden (Filters.tsx), so the choice is Traders (ROI)
+  // or Points. Each open starts on the board the caller asked for.
+  const [metric, setMetric] = useState<LeaderboardMetric>(initialMetric);
+  const [openedWith, setOpenedWith] = useState({ open, initialMetric });
+  if (openedWith.open !== open || openedWith.initialMetric !== initialMetric) {
+    setOpenedWith({ open, initialMetric });
+    if (open) setMetric(initialMetric);
+  }
   const [period, setPeriod] = useState<LeaderboardPeriod>("all");
   const [subject, setSubject] = useState<LeaderboardEntry | null>(null);
 
-  const { board, loading, error, refresh } = useLeaderboard(
+  const { board, error, refresh } = useLeaderboard(
     metric,
     period,
     open
   );
+  // A board fetched for the other tab is still on screen while the new one
+  // loads: don't render ROI rows under the Points header, or vice versa.
+  const shown = board?.metric === metric ? board : null;
 
   // Only the top LEADERBOARD_SIZE are listed; a signed-in user below that sees
   // their own row pinned under the table instead (LeaderboardTable).
-  const entries = (board?.entries ?? []).slice(0, LEADERBOARD_SIZE);
+  const entries = (shown?.entries ?? []).slice(0, LEADERBOARD_SIZE);
   // The podium highlights the top three; the table still lists the full 1-10,
   // so the ranks read as one continuous column rather than starting at 4.
   const top3 = entries.slice(0, 3);
@@ -95,14 +102,14 @@ export function LeaderboardSheet({ open, onClose, onBack }: Props) {
               Try again
             </button>
           </div>
-        ) : loading && !board ? (
+        ) : !shown ? (
           <Skeleton />
         ) : (
           <>
             <Podium top={top3} metric={metric} onSelect={setSubject} />
             <LeaderboardTable
               entries={entries}
-              me={board?.me ?? null}
+              me={shown?.me ?? null}
               metric={metric}
               onSelect={setSubject}
             />

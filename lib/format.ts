@@ -28,3 +28,11 @@ export function formatPrice(price: number): string {
 export function formatUsd(price: number): string {
   return `$${formatPrice(price)}`;
 }
+
+/** Points: whole numbers with grouping, one decimal below 100, K/M when large. */
+export function formatPoints(points: number): string {
+  const a = Math.abs(points);
+  if (a >= 1e6) return `${(points / 1e6).toFixed(2)}M`;
+  if (a >= 1e5) return `${(points / 1e3).toFixed(1)}K`;
+  return points.toLocaleString(undefined, { maximumFractionDigits: a < 100 ? 1 : 0 });
+}

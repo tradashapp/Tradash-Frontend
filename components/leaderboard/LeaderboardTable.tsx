@@ -2,7 +2,8 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { InfoTip } from "@/components/ui/InfoTip";
-import { formatUsd } from "@/lib/format";
+import { formatPoints, formatUsd } from "@/lib/format";
+import { POINTS_DISCLAIMER } from "@/lib/points";
 import { Avatar } from "./Avatar";
 import { RankNumeral } from "./RankBadge";
 import type { LeaderboardEntry, LeaderboardMetric } from "@/types";
@@ -32,7 +33,9 @@ export function LeaderboardTable({ entries, me, metric, onSelect }: Props) {
   if (entries.length === 0) {
     return (
       <p className="py-10 text-center text-sm text-text-muted">
-        No ranked traders yet. Close a trade to get on the board.
+        {metric === "points"
+          ? "No points yet. Trade to earn them."
+          : "No ranked traders yet. Close a trade to get on the board."}
       </p>
     );
   }
@@ -96,12 +99,13 @@ function HeaderRow({ metric }: { metric: LeaderboardMetric }) {
         <InfoTip label="About this list" size={12}>
           Only the top {LEADERBOARD_SIZE} traders are shown, not everyone on
           Tradash.
+          {metric === "points" && <> {POINTS_DISCLAIMER}</>}
         </InfoTip>
       </span>
       {/* Volume column hidden for now (2026-10-16); restore with the cell in Row. */}
       {/* <span className="w-20 shrink-0 text-right">Volume</span> */}
       <span className="w-20 shrink-0 text-right">
-        {metric === "pnl" ? "PnL" : "ROI"}
+        {metric === "pnl" ? "PnL" : metric === "points" ? "Points" : "ROI"}
       </span>
     </div>
   );
@@ -117,10 +121,13 @@ interface RowProps {
 }
 
 function Row({ entry, metric, isMe, floating, onSelect }: RowProps) {
-  const value = metric === "pnl" ? entry.pnl : entry.roi;
+  const points = metric === "points";
+  const value =
+    metric === "pnl" ? entry.pnl : points ? (entry.points ?? 0) : entry.roi;
   const up = value >= 0;
-  const text =
-    metric === "pnl"
+  const text = points
+    ? formatPoints(value)
+    : metric === "pnl"
       ? `${up ? "+" : "−"}${formatUsd(Math.abs(entry.pnl))}`
       : `${up ? "+" : "−"}${Math.abs(entry.roi * 100).toFixed(1)}%`;
 
@@ -182,7 +189,7 @@ function Row({ entry, metric, isMe, floating, onSelect }: RowProps) {
           top-heavy against the handle it belongs to. */}
       <span
         className={`tabular w-20 shrink-0 text-right text-xs font-semibold ${
-          up ? "text-up" : "text-down"
+          points ? "text-text" : up ? "text-up" : "text-down"
         }`}
       >
         {text}

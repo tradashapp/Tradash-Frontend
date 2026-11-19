@@ -306,6 +306,30 @@ export interface FeeArrangement {
   expiresAt: string | null;
 }
 
+/** The signed-in user's points (GET /users/:privyId/points, migration 023). */
+export interface PointsSummary {
+  points: number;
+  /** 1-based; 0 = no points yet. */
+  rank: number;
+  /** Traders with points. */
+  traders: number;
+  /** Counted fill notional, all time (USD). */
+  volume: number;
+  /** Points so far this week (weeks start Monday 00:00 UTC). */
+  weekPoints: number;
+  weekStart: string;
+  /** Weighted volume of the traders this user referred (USD). */
+  referralVolume: number;
+  referralMultiplier: number;
+  nextTier: { minVolume: number; multiplier: number } | null;
+  tiers: { minVolume: number; multiplier: number }[];
+  /** Market boosts running now or scheduled. */
+  boosts: { symbol: string; multiplier: number; startsAt: string; endsAt: string | null }[];
+  rules: { usdPerPoint: number; reducedWeight: number; maxMultiplier: number; countsFrom: string };
+  recentWeeks: { weekStart: string; points: number; volume: number; multiplier: number }[];
+  refreshedAt: string | null;
+}
+
 /**
  * The user's referral section. Percentages are of the Tradash builder fee
  * (never Bulk's exchange fee) and are set by the backend, not the client.
@@ -970,6 +994,9 @@ export const api = {
     if (!res.ok) throw new Error(body?.message ?? `Couldn't apply the code (${res.status})`);
     return body as FeeArrangement;
   },
+
+  fetchPoints: (privyId: string): Promise<PointsSummary> =>
+    req<PointsSummary>(`/users/${encodeURIComponent(privyId)}/points`),
 
   fetchReferral: (privyId: string): Promise<ReferralSummary> =>
     req<ReferralSummary>(`/users/${encodeURIComponent(privyId)}/referral`),

@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { formatUsd } from "@/lib/format";
+import { formatPoints, formatUsd } from "@/lib/format";
 import { Avatar } from "./Avatar";
 import { RankBadge } from "./RankBadge";
 import type { LeaderboardEntry, LeaderboardMetric } from "@/types";
@@ -131,10 +131,13 @@ function Plinth({
   onSelect: (entry: LeaderboardEntry) => void;
 }) {
   const style = RANKS[rank];
+  const points = metric === "points";
   const value = entry
-    ? metric === "pnl"
-      ? `${entry.pnl >= 0 ? "+" : "−"}${formatUsd(Math.abs(entry.pnl))}`
-      : `${entry.roi >= 0 ? "+" : "−"}${Math.abs(entry.roi * 100).toFixed(1)}%`
+    ? points
+      ? `${formatPoints(entry.points ?? 0)} pts`
+      : metric === "pnl"
+        ? `${entry.pnl >= 0 ? "+" : "−"}${formatUsd(Math.abs(entry.pnl))}`
+        : `${entry.roi >= 0 ? "+" : "−"}${Math.abs(entry.roi * 100).toFixed(1)}%`
     : "—";
   const up = (entry?.[metric] ?? 0) >= 0;
 
@@ -167,7 +170,7 @@ function Plinth({
       </span>
       <span
         className={`tabular text-[11px] font-semibold ${
-          !entry ? "text-text-muted" : up ? "text-up" : "text-down"
+          !entry ? "text-text-muted" : points ? "text-text" : up ? "text-up" : "text-down"
         }`}
       >
         {value}

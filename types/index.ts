@@ -321,8 +321,8 @@ export interface CompletedTrade {
 
 // Leaderboard -----------------------------------------------------------------
 
-/** How the leaderboard is ranked. */
-export type LeaderboardMetric = "pnl" | "roi";
+/** How the leaderboard is ranked. `points` is the points board (all time). */
+export type LeaderboardMetric = "pnl" | "roi" | "points";
 
 /** The window standings are computed over. */
 export type LeaderboardPeriod = "daily" | "weekly" | "monthly" | "all";
@@ -346,6 +346,8 @@ export interface LeaderboardEntry {
   volume: number;
   trades: number;
   wins: number;
+  /** Total points — set on the points board only. */
+  points?: number;
 }
 
 /**
